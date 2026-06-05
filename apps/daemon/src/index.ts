@@ -4,3 +4,7 @@ export {
   type DebruteDaemonHttpServerOptions,
   type DebruteDaemonRuntime
 } from './http/createDebruteDaemonHttpServer.js';
+export {
+  createNodeNativeShell,
+  type DebruteNativeShell
+} from './http/nativeShell.js';

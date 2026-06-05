@@ -21,16 +21,6 @@ describe('desktop runtime client', () => {
     expect((requests[0]?.init?.headers as Record<string, string>)['x-debrute-daemon-token']).toBe('secret');
   });
 
-  it('resolves project paths through an attached runtime over HTTP', async () => {
-    const client = createAttachedDesktopRuntimeClient(runtimeFixture(), async (url, init) => {
-      expect(String(url)).toBe('http://127.0.0.1:17321/api/projects/project-1/desktop/resolve-path');
-      expect(init?.method).toBe('POST');
-      return new Response(JSON.stringify({ absolutePath: '/tmp/debrute-project/brief.md' }), { status: 200 });
-    });
-
-    await expect(client.resolveProjectPath('project-1', 'brief.md', 'file')).resolves.toBe('/tmp/debrute-project/brief.md');
-  });
-
   it('closes only hosted runtime clients', async () => {
     const close = vi.fn(async () => undefined);
     const hosted = createHostedDesktopRuntimeClient({
@@ -49,6 +39,7 @@ function runtimeFixture(): DebruteDaemonRuntime {
   return {
     daemonUrl: 'http://127.0.0.1:17321',
     webBaseUrl: 'http://127.0.0.1:17322',
+    platform: 'darwin',
     token: 'secret'
   };
 }

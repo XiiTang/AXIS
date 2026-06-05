@@ -76,6 +76,7 @@ export interface WorkbenchActions {
   renameProjectPath: (input: { projectRelativePath: string; name: string }) => Promise<WorkbenchProjectFileOperationResult>;
   copyProjectPath: (input: { sourceProjectRelativePath: string; targetDirectoryProjectRelativePath: string }) => Promise<WorkbenchProjectFileOperationResult>;
   moveProjectPath: (input: { sourceProjectRelativePath: string; targetDirectoryProjectRelativePath: string }) => Promise<WorkbenchProjectFileOperationResult>;
+  copyProjectAbsolutePath: (input: { projectRelativePath: string; kind: 'file' | 'directory' }) => Promise<{ absolutePath: string }>;
   trashProjectPath: (input: { projectRelativePath: string; kind: 'file' | 'directory' }) => Promise<{ projectRelativePath: string; snapshot: WorkbenchProjectSessionSnapshot }>;
   deleteProjectPathPermanently: (input: { projectRelativePath: string }) => Promise<WorkbenchProjectFileOperationResult>;
   revealProjectPathInSystemFileManager: (input: { projectRelativePath: string; kind: 'file' | 'directory' }) => Promise<{ ok: true }>;

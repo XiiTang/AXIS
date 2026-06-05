@@ -111,6 +111,13 @@ function runExplorerCommand(
     input.closeContextMenu();
     return true;
   }
+  if (input.command === 'copy-path') {
+    void input.actions.copyProjectAbsolutePath({ projectRelativePath, kind: target.kind })
+      .then((result) => input.copyText(result.absolutePath))
+      .catch((error) => input.notify(notificationMessageForFileCommandError('Copy Path failed', error)));
+    input.closeContextMenu();
+    return true;
+  }
   if (input.command === 'copy-relative-path') {
     void input.copyText(projectRelativePath);
     input.closeContextMenu();

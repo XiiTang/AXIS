@@ -10,7 +10,6 @@ export interface DesktopRuntimeClient {
   runtime(): DebruteDaemonRuntime;
   shellUrl(projectId?: string): string;
   openProject(projectRoot: string): Promise<{ projectId: string; url: string }>;
-  resolveProjectPath(projectId: string, projectRelativePath: string, kind: 'file' | 'directory'): Promise<string>;
   registerElectronProjectWindow(projectId: string, windowId: number): () => void;
   close(): Promise<void>;
 }
@@ -22,6 +21,7 @@ export function createAttachedDesktopRuntimeClient(
   const daemonRuntime: DebruteDaemonRuntime = {
     daemonUrl: runtime.daemonUrl,
     webBaseUrl: runtime.webBaseUrl,
+    platform: runtime.platform ?? process.platform,
     token: runtime.token
   };
   return {
@@ -29,7 +29,6 @@ export function createAttachedDesktopRuntimeClient(
     runtime: () => daemonRuntime,
     shellUrl: (projectId) => projectWebShellUrl(daemonRuntime, projectId),
     openProject: (projectRoot) => openProjectThroughDaemon(daemonRuntime, projectRoot, fetchImpl),
-    resolveProjectPath: (projectId, projectRelativePath, kind) => resolveProjectPathThroughDaemon(daemonRuntime, projectId, projectRelativePath, kind, fetchImpl),
     registerElectronProjectWindow: () => releaseWindow,
     close: async () => undefined
   };
@@ -48,33 +47,7 @@ export function createHostedDesktopRuntimeClient(daemon: DebruteDaemonHttpServer
     runtime: requireRuntime,
     shellUrl: (projectId) => projectWebShellUrl(requireRuntime(), projectId),
     openProject: (projectRoot) => openProjectThroughDaemon(requireRuntime(), projectRoot),
-    resolveProjectPath: (projectId, projectRelativePath, kind) => resolveProjectPathThroughDaemon(requireRuntime(), projectId, projectRelativePath, kind),
     registerElectronProjectWindow: (projectId, windowId) => daemon.registerElectronProjectWindow(projectId, windowId) ?? releaseWindow,
     close: () => daemon.close()
   };
-}
-
-async function resolveProjectPathThroughDaemon(
-  runtime: DebruteDaemonRuntime,
-  projectId: string,
-  projectRelativePath: string,
-  kind: 'file' | 'directory',
-  fetchImpl: DesktopRuntimeFetch = fetch
-): Promise<string> {
-  const response = await fetchImpl(new URL(`/api/projects/${encodeURIComponent(projectId)}/desktop/resolve-path`, runtime.daemonUrl).toString(), {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-debrute-daemon-token': runtime.token
-    },
-    body: JSON.stringify({ projectRelativePath, kind })
-  });
-  if (!response.ok) {
-    throw new Error(`Debrute daemon project path resolution failed: ${response.status}`);
-  }
-  const parsed = await response.json() as { absolutePath?: unknown };
-  if (typeof parsed.absolutePath !== 'string') {
-    throw new Error('Debrute daemon project path response did not include absolutePath.');
-  }
-  return parsed.absolutePath;
 }

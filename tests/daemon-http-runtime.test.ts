@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DebruteAppServer } from '@debrute/app-server';
 import { createDebruteDaemonHttpServer } from '@debrute/daemon';
 import sharp from 'sharp';
@@ -30,7 +30,8 @@ describe('daemon HTTP runtime', () => {
       ok: true,
       runtime: {
         daemonUrl: runtime.daemonUrl,
-        webBaseUrl: runtime.webBaseUrl
+        webBaseUrl: runtime.webBaseUrl,
+        platform: process.platform
       }
     });
     expect(JSON.stringify(status)).not.toContain('test-token');
@@ -38,7 +39,8 @@ describe('daemon HTTP runtime', () => {
     const publicRuntime = await fetch(`${runtime.daemonUrl}/api/runtime`).then((response) => response.json());
     expect(publicRuntime).toMatchObject({
       daemonUrl: runtime.daemonUrl,
-      webBaseUrl: runtime.webBaseUrl
+      webBaseUrl: runtime.webBaseUrl,
+      platform: process.platform
     });
     expect(publicRuntime).not.toHaveProperty('token');
 
@@ -53,7 +55,8 @@ describe('daemon HTTP runtime', () => {
     }).then((response) => response.json());
     expect(verifiedRuntime).toMatchObject({
       daemonUrl: runtime.daemonUrl,
-      webBaseUrl: runtime.webBaseUrl
+      webBaseUrl: runtime.webBaseUrl,
+      platform: process.platform
     });
     expect(verifiedRuntime).not.toHaveProperty('token');
 
@@ -209,9 +212,91 @@ describe('daemon HTTP runtime', () => {
     });
   });
 
-  it('resolves desktop project paths only with the daemon token', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-desktop-path-'));
-    await writeFile(join(projectRoot, 'brief.md'), 'hello', 'utf8');
+  it('protects native project path operations with daemon token and validates project paths', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-native-path-'));
+    await mkdir(join(projectRoot, 'briefs'), { recursive: true });
+    await writeFile(join(projectRoot, 'briefs/outline.md'), '# Outline', 'utf8');
+    const nativeShell = {
+      platform: 'darwin' as NodeJS.Platform,
+      showItemInFolder: vi.fn(async () => undefined),
+      openPath: vi.fn(async () => undefined),
+      trashItem: vi.fn(async () => undefined)
+    };
+
+    const daemon = createDebruteDaemonHttpServer({
+      host: '127.0.0.1',
+      port: 0,
+      token: 'secret',
+      nativeShell
+    });
+    cleanups.push(() => daemon.close(), () => rm(projectRoot, { recursive: true, force: true }));
+    const runtime = await daemon.listen();
+    const opened = await requestJson<{ projectId: string }>(`${runtime.daemonUrl}/api/projects/open`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-debrute-daemon-token': runtime.token
+      },
+      body: JSON.stringify({ projectRoot })
+    });
+
+    const rejectedCopy = await fetch(`${runtime.daemonUrl}/api/projects/${opened.projectId}/files/path/briefs/outline.md/copy-path`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'file' })
+    });
+    expect(rejectedCopy.status).toBe(403);
+
+    const canonicalProjectRoot = await realpath(projectRoot);
+    await expect(requestJson<{ absolutePath: string }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/files/path/briefs/outline.md/copy-path`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-debrute-daemon-token': runtime.token
+        },
+        body: JSON.stringify({ kind: 'file' })
+      }
+    )).resolves.toEqual({
+      absolutePath: join(canonicalProjectRoot, 'briefs/outline.md')
+    });
+
+    await expect(requestJson(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/files/path/briefs/outline.md/reveal`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-debrute-daemon-token': runtime.token
+        },
+        body: JSON.stringify({ kind: 'file' })
+      }
+    )).resolves.toEqual({ ok: true });
+    expect(nativeShell.showItemInFolder).toHaveBeenCalledWith(join(canonicalProjectRoot, 'briefs/outline.md'));
+
+    const trashResult = await requestJson<{
+      projectRelativePath: string;
+      snapshot: { files: Array<{ projectRelativePath: string }> };
+    }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/files/path/briefs/outline.md/trash`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-debrute-daemon-token': runtime.token
+        },
+        body: JSON.stringify({ kind: 'file' })
+      }
+    );
+    expect(trashResult.projectRelativePath).toBe('briefs/outline.md');
+    expect(JSON.stringify(trashResult)).not.toContain(projectRoot);
+    expect(nativeShell.trashItem).toHaveBeenCalledWith(join(canonicalProjectRoot, 'briefs/outline.md'));
+  });
+
+  it('keeps generic project path routes available when filenames match native operation suffixes', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-native-suffix-name-'));
+    await writeFile(join(projectRoot, 'trash'), 'remove me', 'utf8');
 
     const daemon = createDebruteDaemonHttpServer({
       host: '127.0.0.1',
@@ -229,26 +314,16 @@ describe('daemon HTTP runtime', () => {
       body: JSON.stringify({ projectRoot })
     });
 
-    const rejected = await fetch(`${runtime.daemonUrl}/api/projects/${opened.projectId}/desktop/resolve-path`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectRelativePath: 'brief.md', kind: 'file' })
-    });
-    expect(rejected.status).toBe(403);
-
-    const canonicalProjectRoot = await realpath(projectRoot);
-    await expect(requestJson<{ absolutePath: string }>(
-      `${runtime.daemonUrl}/api/projects/${opened.projectId}/desktop/resolve-path`,
+    await expect(requestJson<{ projectRelativePath: string }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/files/path/trash`,
       {
-        method: 'POST',
+        method: 'DELETE',
         headers: {
-          'content-type': 'application/json',
           'x-debrute-daemon-token': runtime.token
-        },
-        body: JSON.stringify({ projectRelativePath: 'brief.md', kind: 'file' })
+        }
       }
-    )).resolves.toEqual({
-      absolutePath: join(canonicalProjectRoot, 'brief.md')
+    )).resolves.toMatchObject({
+      projectRelativePath: 'trash'
     });
   });
 
@@ -466,7 +541,8 @@ describe('daemon HTTP runtime', () => {
 
     await expect(fetch(`${runtime.daemonUrl}/api/runtime`).then((response) => response.json())).resolves.toEqual({
       daemonUrl: runtime.daemonUrl,
-      webBaseUrl: runtime.webBaseUrl
+      webBaseUrl: runtime.webBaseUrl,
+      platform: process.platform
     });
     await expect(fetch(`${runtime.daemonUrl}/api/projects`).then((response) => response.json())).resolves.toEqual({
       projects: []

@@ -23,12 +23,14 @@ describe('app-protocol runtime metadata', () => {
   it('normalizes runtime info without active project state', () => {
     const runtime = normalizeDebruteRuntimeInfo({
       daemonUrl: 'http://127.0.0.1:17456/',
-      webBaseUrl: 'http://127.0.0.1:17573/'
+      webBaseUrl: 'http://127.0.0.1:17573/',
+      platform: 'darwin'
     });
 
     expect(runtime).toEqual({
       daemonUrl: 'http://127.0.0.1:17456',
-      webBaseUrl: 'http://127.0.0.1:17573'
+      webBaseUrl: 'http://127.0.0.1:17573',
+      platform: 'darwin'
     });
   });
 

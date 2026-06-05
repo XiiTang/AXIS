@@ -449,6 +449,7 @@ export function WorkbenchApp(): React.ReactElement {
       setExplorerSelection(result.projectRelativePath);
       return result;
     },
+    copyProjectAbsolutePath: (input) => api.copyProjectAbsolutePath(input),
     trashProjectPath: async (input) => {
       const result = await api.trashProjectPath(input);
       const existingPaths = new Set(result.snapshot.files.map((file) => file.projectRelativePath));

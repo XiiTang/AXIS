@@ -44,6 +44,7 @@ export type WorkbenchProjectTextFile = Omit<ProjectTextFile, 'absolutePath'>;
 export interface DebruteRuntimeInfo {
   daemonUrl: string;
   webBaseUrl: string | null;
+  platform: NodeJS.Platform;
 }
 
 export interface LiveProjectView {
@@ -81,10 +82,12 @@ export function isDebruteMutatingMethod(method: string): boolean {
 export function normalizeDebruteRuntimeInfo(input: {
   daemonUrl: string;
   webBaseUrl?: string | null;
+  platform: NodeJS.Platform;
 }): DebruteRuntimeInfo {
   return {
     daemonUrl: trimTrailingSlash(input.daemonUrl),
-    webBaseUrl: input.webBaseUrl ? trimTrailingSlash(input.webBaseUrl) : null
+    webBaseUrl: input.webBaseUrl ? trimTrailingSlash(input.webBaseUrl) : null,
+    platform: input.platform
   };
 }
 
@@ -528,6 +531,7 @@ export interface WorkbenchApiClient {
   renameProjectPath(input: { projectRelativePath: string; name: string }): Promise<WorkbenchProjectFileOperationResult>;
   copyProjectPath(input: { sourceProjectRelativePath: string; targetDirectoryProjectRelativePath: string }): Promise<WorkbenchProjectFileOperationResult>;
   moveProjectPath(input: { sourceProjectRelativePath: string; targetDirectoryProjectRelativePath: string }): Promise<WorkbenchProjectFileOperationResult>;
+  copyProjectAbsolutePath(input: { projectRelativePath: string; kind: 'file' | 'directory' }): Promise<{ absolutePath: string }>;
   trashProjectPath(input: { projectRelativePath: string; kind: 'file' | 'directory' }): Promise<{ projectRelativePath: string; snapshot: WorkbenchProjectSessionSnapshot }>;
   deleteProjectPathPermanently(input: { projectRelativePath: string }): Promise<WorkbenchProjectFileOperationResult>;
   revealProjectPathInSystemFileManager(input: { projectRelativePath: string; kind: 'file' | 'directory' }): Promise<{ ok: true }>;

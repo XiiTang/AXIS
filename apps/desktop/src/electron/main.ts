@@ -17,7 +17,7 @@ import {
 } from './desktopRuntimeClient.js';
 import { createDebruteCliInstaller } from './debruteCliInstaller.js';
 import { registerDebruteCliShellIpc } from './debruteCliShell.js';
-import { trashProjectPathWithDesktopShell } from './desktopProjectTrash.js';
+import { createElectronNativeShell } from './electronNativeShell.js';
 import { resolveDesktopIntegrationEnvPath } from './integrationEnv.js';
 import { createApplicationMenuController } from './menu/registerApplicationMenu.js';
 
@@ -104,29 +104,6 @@ function registerShellIpc(): void {
     bindProjectWindow(window, input.projectId);
     return { ok: true };
   });
-  ipcMain.handle('debrute-shell:revealProjectPathInSystemFileManager', async (_event, input: {
-    projectId: string;
-    projectRelativePath: string;
-    kind: 'file' | 'directory';
-  }) => {
-    const absolutePath = await requireRuntimeClient().resolveProjectPath(input.projectId, input.projectRelativePath, input.kind);
-    if (input.kind === 'directory') {
-      await shell.openPath(absolutePath);
-    } else {
-      shell.showItemInFolder(absolutePath);
-    }
-    return { ok: true };
-  });
-  ipcMain.handle('debrute-shell:trashProjectPath', async (_event, input: {
-    projectId: string;
-    projectRelativePath: string;
-    kind: 'file' | 'directory';
-  }) => (
-    trashProjectPathWithDesktopShell({
-      runtimeClient: requireRuntimeClient(),
-      shell
-    }, input)
-  ));
   registerDebruteCliShellIpc({
     ipcMain,
     installer: createDebruteCliInstaller({
@@ -214,6 +191,7 @@ async function startHostedDesktopDaemon(): Promise<DebruteDaemonRuntime> {
     host: '127.0.0.1',
     port: process.env.DEBRUTE_DAEMON_PORT ? Number(process.env.DEBRUTE_DAEMON_PORT) : 0,
     token,
+    nativeShell: createElectronNativeShell(shell),
     webBaseUrl: process.env.DEBRUTE_WEB_URL ?? null,
     webDistDir: resolve(__dirname, '../dist')
   });

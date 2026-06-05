@@ -13,6 +13,7 @@ export type WorkbenchContextMenuCommand =
   | 'cut'
   | 'copy'
   | 'paste'
+  | 'copy-path'
   | 'reveal-in-system-file-manager'
   | 'rename'
   | 'delete'
@@ -74,6 +75,7 @@ export function buildWorkbenchContextMenuItems(input: {
     action('copy', 'Copy'),
     action('paste', 'Paste', { disabled: !input.fileClipboard }),
     separator('path-actions'),
+    action('copy-path', 'Copy Path'),
     action('copy-relative-path', 'Copy Relative Path'),
     action('reveal-in-system-file-manager', projectSystemFileManagerLabel(input.desktopPlatform ?? 'linux')),
     separator('modify'),

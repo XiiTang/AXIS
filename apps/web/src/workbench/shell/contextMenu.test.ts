@@ -61,12 +61,15 @@ describe('workbench context menu', () => {
       'copy:enabled',
       'paste:disabled',
       '---',
+      'copy-path:enabled',
       'copy-relative-path:enabled',
       'reveal-in-system-file-manager:enabled',
       '---',
       'rename:enabled',
       'delete:enabled'
     ]);
+    expect(actionLabels(items)).toContain('Copy Path');
+    expect(actionLabels(items)).toContain('Copy Relative Path');
     expect(actionLabels(items)).toContain('Reveal in Finder');
     expect(actionLabels(items)).toContain('Delete');
     expect(actionLabels(items)).not.toContain('Move to Trash');
@@ -98,10 +101,12 @@ describe('workbench context menu', () => {
 
     expect(actionCommands(items)).not.toContain('create-file');
     expect(actionCommands(items)).not.toContain('create-directory');
+    expect(actionCommands(items)).toContain('copy-path');
     expect(actionCommands(items)).toContain('delete');
     expect(actionCommands(items)).not.toContain('delete-permanently');
     expect(actionCommands(items)).not.toContain('move-to-trash');
     expect(actionLabels(items)).toContain('Delete');
+    expect(actionLabels(items)).toContain('Copy Path');
   });
 
   it('keeps Canvas node menus free of file-management commands', () => {

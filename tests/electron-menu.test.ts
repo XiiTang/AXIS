@@ -126,23 +126,24 @@ describe('desktop application menu', () => {
     expect(main).not.toContain('Promise.all(windows.map((window) => window.loadURL(url)))');
   });
 
-  it('resolves desktop reveal requests through daemon project lookup', () => {
+  it('injects Electron shell as the hosted daemon native shell adapter', () => {
     const main = readFileSync(join(process.cwd(), 'apps/desktop/src/electron/main.ts'), 'utf8');
+    const revealChannel = 'debrute-shell' + ':revealProjectPathInSystemFileManager';
+    const trashChannel = 'debrute-shell' + ':trashProjectPath';
 
-    expect(main).toContain('resolveProjectPath');
-    expect(main).toContain('requireRuntimeClient');
-    expect(main).not.toContain('projectRootForProjectId(input.projectId)');
-    expect(main).not.toContain('appServer.getSnapshot()');
+    expect(main).toContain('createElectronNativeShell');
+    expect(main).toContain('nativeShell: createElectronNativeShell(shell)');
+    expect(main).not.toContain(`ipcMain.handle('${revealChannel}'`);
+    expect(main).not.toContain(`ipcMain.handle('${trashChannel}'`);
   });
 
-  it('registers Electron trash requests through the desktop shell IPC bridge', () => {
-    const main = readFileSync(join(process.cwd(), 'apps/desktop/src/electron/main.ts'), 'utf8');
+  it('keeps Explorer file operations out of the preload shell API', () => {
     const preload = readFileSync(join(process.cwd(), 'apps/desktop/src/electron/preload.ts'), 'utf8');
 
-    expect(main).toContain("ipcMain.handle('debrute-shell:trashProjectPath'");
-    expect(main).toContain('trashProjectPathWithDesktopShell');
-    expect(preload).toContain('trashProjectPath');
-    expect(preload).toContain("ipcRenderer.invoke('debrute-shell:trashProjectPath'");
+    expect(preload).not.toContain('revealProjectPathInSystemFileManager');
+    expect(preload).not.toContain('trashProjectPath');
+    expect(preload).toContain('chooseProjectRoot');
+    expect(preload).toContain('bindProjectWindowToProject');
   });
 
   it('participates in the shared Workbench runtime registry', () => {
@@ -164,6 +165,7 @@ function daemonRuntimeFixture(): DebruteDaemonRuntime {
   return {
     daemonUrl: 'http://127.0.0.1:17321',
     webBaseUrl: 'http://127.0.0.1:17322',
+    platform: 'darwin',
     token: 'secret'
   };
 }

@@ -629,6 +629,9 @@ const actions: WorkbenchActions = {
   moveProjectPath: async () => {
     throw new Error('not used');
   },
+  copyProjectAbsolutePath: async () => {
+    throw new Error('not used');
+  },
   trashProjectPath: async () => {
     throw new Error('not used');
   },

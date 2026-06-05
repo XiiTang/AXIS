@@ -235,7 +235,7 @@ describe('Debrute architecture boundaries', () => {
 
     expect(text).toContain('registerElectronProjectWindow');
     expect(text).toContain('requireRuntimeClient().registerElectronProjectWindow');
-    expect(text).toContain('resolveProjectPath');
+    expect(text).toContain('nativeShell: createElectronNativeShell(shell)');
     expect(text).not.toContain('appServer.openProject');
     expect(text).not.toContain('appServer.getSnapshot');
   });

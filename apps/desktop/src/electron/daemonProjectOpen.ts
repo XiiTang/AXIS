@@ -7,6 +7,7 @@ interface OpenProjectResponse {
 export interface DebruteDaemonRuntimeLike {
   daemonUrl: string;
   webBaseUrl: string | null;
+  platform?: NodeJS.Platform;
   token: string;
 }
 

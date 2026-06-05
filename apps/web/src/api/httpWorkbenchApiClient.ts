@@ -1,5 +1,6 @@
 import type {
   CanvasSettingsView,
+  DebruteRuntimeInfo,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
   GeneratedAssetView,
@@ -122,7 +123,9 @@ export function createHttpWorkbenchApiClient(options: HttpWorkbenchApiClientOpti
     getProjectHealth: () => request<ProjectHealthSummary>('GET', projectPath('/health')),
     readProjectTextFile: (projectRelativePath) => request<WorkbenchProjectTextFile>('GET', projectPath(`/files/text/${encodeProjectPath(projectRelativePath)}`)),
     writeProjectTextFile: (projectRelativePath, content) => request<WorkbenchProjectTextFile>('PUT', projectPath(`/files/text/${encodeProjectPath(projectRelativePath)}`), { content }),
-    getDesktopPlatform: async () => browserPlatform(),
+    getDesktopPlatform: async () => (
+      await request<DebruteRuntimeInfo>('GET', '/api/runtime')
+    ).platform,
     createProjectFile: (input) => request<WorkbenchProjectFileOperationResult>('POST', projectPath('/files'), { ...input, kind: 'file' }),
     createProjectDirectory: (input) => request<WorkbenchProjectFileOperationResult>('POST', projectPath('/files'), { ...input, kind: 'directory' }),
     renameProjectPath: (input) => request<WorkbenchProjectFileOperationResult>('PATCH', projectPath(`/files/path/${encodeProjectPath(input.projectRelativePath)}`), {
@@ -137,35 +140,22 @@ export function createHttpWorkbenchApiClient(options: HttpWorkbenchApiClientOpti
       operation: 'move',
       targetDirectoryProjectRelativePath: input.targetDirectoryProjectRelativePath
     }),
-    trashProjectPath: async (input) => {
-      const debruteShell = shell();
-      if (!debruteShell?.trashProjectPath) {
-        throw new Error('Delete requires the Debrute desktop shell.');
-      }
-      if (!currentProjectId) {
-        throw new Error('Debrute project is not open.');
-      }
-      await debruteShell.trashProjectPath({
-        projectId: currentProjectId,
-        projectRelativePath: input.projectRelativePath,
-        kind: input.kind
-      });
-      return {
-        projectRelativePath: input.projectRelativePath,
-        snapshot: await request<WorkbenchProjectSessionSnapshot>('POST', projectPath('/refresh'))
-      };
-    },
+    copyProjectAbsolutePath: (input) => request<{ absolutePath: string }>(
+      'POST',
+      projectPath(`/files/path/${encodeProjectPath(input.projectRelativePath)}/copy-path`),
+      { kind: input.kind }
+    ),
+    trashProjectPath: (input) => request<{ projectRelativePath: string; snapshot: WorkbenchProjectSessionSnapshot }>(
+      'POST',
+      projectPath(`/files/path/${encodeProjectPath(input.projectRelativePath)}/trash`),
+      { kind: input.kind }
+    ),
     deleteProjectPathPermanently: (input) => request<WorkbenchProjectFileOperationResult>('DELETE', projectPath(`/files/path/${encodeProjectPath(input.projectRelativePath)}`)),
-    revealProjectPathInSystemFileManager: async (input) => {
-      const debruteShell = shell();
-      if (!debruteShell?.revealProjectPathInSystemFileManager) {
-        throw new Error('System file manager reveal requires the Debrute desktop shell.');
-      }
-      if (!currentProjectId) {
-        throw new Error('Debrute project is not open.');
-      }
-      return debruteShell.revealProjectPathInSystemFileManager({ ...input, projectId: currentProjectId });
-    },
+    revealProjectPathInSystemFileManager: (input) => request<{ ok: true }>(
+      'POST',
+      projectPath(`/files/path/${encodeProjectPath(input.projectRelativePath)}/reveal`),
+      { kind: input.kind }
+    ),
     lookupGeneratedAssetMetadata: (input) => request<GeneratedAssetMetadataLookup>('POST', projectPath('/generated-assets/lookup'), input),
     listGeneratedAssets: () => request<GeneratedAssetsView>('GET', projectPath('/generated-assets')),
     readGeneratedAsset: (assetId) => request<GeneratedAssetView>('GET', projectPath(`/generated-assets/${encodeURIComponent(assetId)}`)),
@@ -237,16 +227,6 @@ function browserToken(): string | undefined {
     return fromUrl;
   }
   return undefined;
-}
-
-function browserPlatform(): NodeJS.Platform {
-  if (typeof navigator === 'undefined') {
-    throw new Error('Debrute browser platform requires navigator.');
-  }
-  const platform = navigator.platform.toLowerCase();
-  if (platform.includes('mac')) return 'darwin';
-  if (platform.includes('win')) return 'win32';
-  return 'linux';
 }
 
 function browserEventClientId(): string {

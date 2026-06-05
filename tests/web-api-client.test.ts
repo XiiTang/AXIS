@@ -5,6 +5,21 @@ import { createHttpWorkbenchApiClient } from '../apps/web/src/api/httpWorkbenchA
 const projectId = '123e4567-e89b-42d3-a456-426614174000';
 
 describe('HTTP workbench API client', () => {
+  it('reads the daemon runtime platform instead of guessing from the browser', async () => {
+    const requests: Array<{ method: string; path: string }> = [];
+    const client = createHttpWorkbenchApiClient({
+      daemonUrl: 'http://127.0.0.1:17456/',
+      fetch: async (url, init) => {
+        const parsed = new URL(String(url));
+        requests.push({ method: init?.method ?? 'GET', path: parsed.pathname });
+        return jsonResponse(routeResponse(String(url), init));
+      }
+    });
+
+    await expect(client.getDesktopPlatform()).resolves.toBe('darwin');
+    expect(requests).toContainEqual({ method: 'GET', path: '/api/runtime' });
+  });
+
   it('uses daemon HTTP routes for workbench operations', async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     const client = createHttpWorkbenchApiClient({
@@ -78,53 +93,58 @@ describe('HTTP workbench API client', () => {
     }
   });
 
-  it('passes the current project id to desktop shell reveal requests', async () => {
-    const revealInputs: unknown[] = [];
+  it('uses the daemon route to copy absolute project paths', async () => {
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
     const client = createHttpWorkbenchApiClient({
       daemonUrl: 'http://127.0.0.1:17456/',
-      fetch: async (url, init) => jsonResponse(routeResponse(String(url), init)),
-      shell: {
-        chooseProjectRoot: async () => undefined,
-        revealProjectPathInSystemFileManager: async (input) => {
-          revealInputs.push(input);
-          return { ok: true };
-        }
-      }
-    });
-
-    await client.openProject({ projectRoot: '/tmp/project' });
-    await client.revealProjectPathInSystemFileManager({
-      projectRelativePath: 'briefs/outline.md',
-      kind: 'file'
-    });
-
-    expect(revealInputs).toEqual([{
-      projectId,
-      projectRelativePath: 'briefs/outline.md',
-      kind: 'file'
-    }]);
-  });
-
-  it('uses the desktop shell for trash and refreshes the project snapshot', async () => {
-    const trashInputs: unknown[] = [];
-    const requests: Array<{ method: string; path: string }> = [];
-    const client = createHttpWorkbenchApiClient({
-      daemonUrl: 'http://127.0.0.1:17456/',
+      token: 'secret',
       fetch: async (url, init) => {
         const parsed = new URL(String(url));
-        requests.push({ method: init?.method ?? 'GET', path: parsed.pathname });
+        requests.push({
+          method: init?.method ?? 'GET',
+          path: parsed.pathname,
+          body: init?.body ? JSON.parse(String(init.body)) : undefined
+        });
         return jsonResponse(routeResponse(String(url), init));
-      },
-      shell: {
-        chooseProjectRoot: async () => undefined,
-        trashProjectPath: async (input) => {
-          trashInputs.push(input);
-          return { ok: true };
-        }
       }
     });
 
     await client.openProject({ projectRoot: '/tmp/project' });
+    await expect(client.copyProjectAbsolutePath({
+      projectRelativePath: 'briefs/outline.md',
+      kind: 'file'
+    })).resolves.toEqual({
+      absolutePath: '/tmp/project/briefs/outline.md'
+    });
+
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: `/api/projects/${projectId}/files/path/briefs/outline.md/copy-path`,
+      body: { kind: 'file' }
+    });
+  });
+
+  it('uses daemon native routes for reveal and trash', async () => {
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
+    const client = createHttpWorkbenchApiClient({
+      daemonUrl: 'http://127.0.0.1:17456/',
+      token: 'secret',
+      fetch: async (url, init) => {
+        const parsed = new URL(String(url));
+        requests.push({
+          method: init?.method ?? 'GET',
+          path: parsed.pathname,
+          body: init?.body ? JSON.parse(String(init.body)) : undefined
+        });
+        return jsonResponse(routeResponse(String(url), init));
+      }
+    });
+
+    await client.openProject({ projectRoot: '/tmp/project' });
+    await expect(client.revealProjectPathInSystemFileManager({
+      projectRelativePath: 'briefs/outline.md',
+      kind: 'file'
+    })).resolves.toEqual({ ok: true });
     await expect(client.trashProjectPath({
       projectRelativePath: 'assets/cover.png',
       kind: 'file'
@@ -133,28 +153,16 @@ describe('HTTP workbench API client', () => {
       snapshot: { metadata: { name: 'Test Project' } }
     });
 
-    expect(trashInputs).toEqual([{
-      projectId,
-      projectRelativePath: 'assets/cover.png',
-      kind: 'file'
-    }]);
-    expect(requests).toContainEqual({ method: 'POST', path: `/api/projects/${projectId}/refresh` });
-  });
-
-  it('requires the desktop shell for trash requests', async () => {
-    const client = createHttpWorkbenchApiClient({
-      daemonUrl: 'http://127.0.0.1:17456/',
-      fetch: async (url, init) => jsonResponse(routeResponse(String(url), init)),
-      shell: {
-        chooseProjectRoot: async () => undefined
-      }
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: `/api/projects/${projectId}/files/path/briefs/outline.md/reveal`,
+      body: { kind: 'file' }
     });
-
-    await client.openProject({ projectRoot: '/tmp/project' });
-    await expect(client.trashProjectPath({
-      projectRelativePath: 'assets/cover.png',
-      kind: 'file'
-    })).rejects.toThrow('Delete requires the Debrute desktop shell.');
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: `/api/projects/${projectId}/files/path/assets/cover.png/trash`,
+      body: { kind: 'file' }
+    });
   });
 
   it('binds the desktop shell window whenever the current project changes', async () => {
@@ -181,6 +189,13 @@ describe('HTTP workbench API client', () => {
 
 function routeResponse(url: string, init?: RequestInit): unknown {
   const path = new URL(url).pathname;
+  if (path === '/api/runtime') {
+    return {
+      daemonUrl: 'http://127.0.0.1:17456',
+      webBaseUrl: 'http://127.0.0.1:17456',
+      platform: 'darwin'
+    };
+  }
   if (path === '/api/projects/open') {
     return { projectId, snapshot: workbenchSnapshot() };
   }
@@ -190,6 +205,15 @@ function routeResponse(url: string, init?: RequestInit): unknown {
   }
   if (path === `/api/projects/${projectId}/refresh`) {
     return workbenchSnapshot();
+  }
+  if (path === `/api/projects/${projectId}/files/path/briefs/outline.md/copy-path`) {
+    return { absolutePath: '/tmp/project/briefs/outline.md' };
+  }
+  if (path === `/api/projects/${projectId}/files/path/briefs/outline.md/reveal`) {
+    return { ok: true };
+  }
+  if (path === `/api/projects/${projectId}/files/path/assets/cover.png/trash`) {
+    return { projectRelativePath: 'assets/cover.png', snapshot: workbenchSnapshot() };
   }
   if (path.endsWith('/files/text/briefs/outline.md') && (init?.method ?? 'GET') === 'GET') {
     return { projectRelativePath: 'briefs/outline.md', content: '# Outline', language: 'markdown', revision: 'rev' };

@@ -23,6 +23,12 @@ import {
 import { projectFileRevision, resolveExistingProjectPath } from '@debrute/project-core';
 import { ProjectSessionRegistry, type ProjectSessionRecord } from './ProjectSessionRegistry.js';
 import { writeRevisionedFileResponse } from './fileResponse.js';
+import { createNodeNativeShell, type DebruteNativeShell } from './nativeShell.js';
+import {
+  copyProjectAbsolutePath,
+  revealProjectPathInSystemFileManager,
+  trashProjectPathWithNativeShell
+} from './projectNativeFileOperations.js';
 
 export interface DebruteDaemonRuntime extends DebruteRuntimeInfo {
   token: string;
@@ -34,6 +40,7 @@ export interface DebruteDaemonHttpServerOptions {
   host?: string;
   port?: number;
   token?: string;
+  nativeShell?: DebruteNativeShell;
   webBaseUrl?: string | null;
   webDistDir?: string;
   projectIdleTtlMs?: number;
@@ -76,6 +83,7 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
   const token = options.token ?? randomUUID();
+  const nativeShell = options.nativeShell ?? createNodeNativeShell();
   const sharedConfigStore = options.appServerOptions?.globalConfigStore ?? new GlobalConfigStore();
   const appServerOptions: DebruteAppServerOptions = {
     ...options.appServerOptions,
@@ -118,7 +126,8 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
     runtime = {
       ...normalizeDebruteRuntimeInfo({
         daemonUrl,
-        webBaseUrl: options.webBaseUrl ?? daemonUrl
+        webBaseUrl: options.webBaseUrl ?? daemonUrl,
+        platform: nativeShell.platform
       }),
       token
     };
@@ -276,10 +285,6 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
       writeJson(context.response, 200, snapshotForHttp(snapshot, currentRuntime().daemonUrl, session.projectId));
       return;
     }
-    if (method === 'POST' && tail === '/desktop/resolve-path') {
-      await handleDesktopResolvePathRoute(context, session);
-      return;
-    }
     if (tail.startsWith('/files/text/')) {
       await handleTextFileRoute(context, routeTail(tail, '/files/text/'));
       return;
@@ -290,6 +295,13 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
     }
     if (tail === '/files') {
       await handleCreateFileRoute(context, session);
+      return;
+    }
+    const nativeProjectPathRoute = method === 'POST'
+      ? parseNativeProjectPathRoute(tail)
+      : undefined;
+    if (nativeProjectPathRoute) {
+      await handleNativeProjectPathRoute(context, nativeProjectPathRoute, session, nativeShell);
       return;
     }
     if (tail.startsWith('/files/path/')) {
@@ -417,29 +429,6 @@ async function handleRawFileRoute(context: ProjectRequestContext, projectRelativ
   });
 }
 
-async function handleDesktopResolvePathRoute(context: ProjectRequestContext, session: ProjectSessionRecord): Promise<void> {
-  const body = await readJsonBody<{ projectRelativePath?: unknown; kind?: unknown }>(context.request);
-  const projectRelativePath = typeof body.projectRelativePath === 'string' && body.projectRelativePath.trim()
-    ? body.projectRelativePath
-    : undefined;
-  const kind = body.kind === 'file' || body.kind === 'directory' ? body.kind : undefined;
-  if (!projectRelativePath || !kind) {
-    writeError(context.response, 400, 'invalid_input', 'projectRelativePath and kind are required.');
-    return;
-  }
-  const absolutePath = await resolveExistingProjectPath(session.projectRoot, projectRelativePath);
-  const resolvedStats = await stat(absolutePath);
-  if (kind === 'file' && !resolvedStats.isFile()) {
-    writeError(context.response, 400, 'invalid_input', 'Resolved project path is not a file.');
-    return;
-  }
-  if (kind === 'directory' && !resolvedStats.isDirectory()) {
-    writeError(context.response, 400, 'invalid_input', 'Resolved project path is not a directory.');
-    return;
-  }
-  writeJson(context.response, 200, { absolutePath });
-}
-
 async function handleCreateFileRoute(context: ProjectRequestContext, session: ProjectSessionRecord): Promise<void> {
   if (context.request.method !== 'POST') {
     writeError(context.response, 405, 'method_not_allowed', 'Unsupported file collection method.');
@@ -454,6 +443,67 @@ async function handleCreateFileRoute(context: ProjectRequestContext, session: Pr
     ? await daemonAppServer(context).createProjectDirectory(input)
     : await daemonAppServer(context).createProjectFile(input);
   writeJson(context.response, 200, withHttpSnapshot(result, context.runtime.daemonUrl, session));
+}
+
+interface NativeProjectPathRoute {
+  operation: 'copy-path' | 'reveal' | 'trash';
+  projectRelativePath: string;
+}
+
+function parseNativeProjectPathRoute(tail: string): NativeProjectPathRoute | undefined {
+  const prefix = '/files/path/';
+  if (!tail.startsWith(prefix)) {
+    return undefined;
+  }
+  for (const operation of ['copy-path', 'reveal', 'trash'] as const) {
+    const suffix = `/${operation}`;
+    if (tail.endsWith(suffix)) {
+      return {
+        operation,
+        projectRelativePath: routeTail(tail.slice(0, -suffix.length), prefix)
+      };
+    }
+  }
+  return undefined;
+}
+
+async function handleNativeProjectPathRoute(
+  context: ProjectRequestContext,
+  route: NativeProjectPathRoute,
+  session: ProjectSessionRecord,
+  nativeShell: DebruteNativeShell
+): Promise<void> {
+  if (context.request.method !== 'POST') {
+    writeError(context.response, 405, 'method_not_allowed', 'Unsupported native project path method.');
+    return;
+  }
+  const body = await readJsonBody<{ kind?: unknown }>(context.request);
+  if (body.kind !== 'file' && body.kind !== 'directory') {
+    writeError(context.response, 400, 'invalid_input', 'kind is required.');
+    return;
+  }
+  const kind: 'file' | 'directory' = body.kind;
+  const input = {
+    projectRoot: session.projectRoot,
+    projectRelativePath: route.projectRelativePath,
+    kind
+  };
+  if (route.operation === 'copy-path') {
+    writeJson(context.response, 200, await copyProjectAbsolutePath(input));
+    return;
+  }
+  if (route.operation === 'reveal') {
+    writeJson(context.response, 200, await revealProjectPathInSystemFileManager({
+      ...input,
+      nativeShell
+    }));
+    return;
+  }
+  writeJson(context.response, 200, withHttpSnapshot(await trashProjectPathWithNativeShell({
+    ...input,
+    nativeShell,
+    refreshProject: () => daemonAppServer(context).refreshProject()
+  }), context.runtime.daemonUrl, session));
 }
 
 async function handleProjectPathRoute(context: ProjectRequestContext, path: string, session: ProjectSessionRecord): Promise<void> {

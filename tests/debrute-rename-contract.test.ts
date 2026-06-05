@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
@@ -86,6 +86,9 @@ describe('Debrute rename contract', () => {
 
     const failures: string[] = [];
     for (const path of trackedFiles().filter(textFile)) {
+      if (!existsSync(join(root, path))) {
+        continue;
+      }
       const content = readFileSync(join(root, path), 'utf8');
       for (const term of forbidden) {
         if (content.includes(term)) failures.push(`${path}: contains ${term}`);

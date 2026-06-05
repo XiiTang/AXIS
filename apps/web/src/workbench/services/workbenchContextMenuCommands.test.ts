@@ -37,11 +37,37 @@ describe('workbench context menu commands', () => {
       kind: 'file'
     });
   });
+
+  it('copies daemon-returned absolute paths for Copy Path', async () => {
+    const copiedText: string[] = [];
+    const copyProjectAbsolutePath = vi.fn(async () => ({
+      absolutePath: '/tmp/debrute-project/briefs/concept.md'
+    }));
+
+    runWorkbenchContextMenuCommand(commandInput({
+      command: 'copy-path',
+      actions: {
+        copyProjectAbsolutePath
+      },
+      copyText: (text) => {
+        copiedText.push(text);
+      }
+    }));
+
+    await Promise.resolve();
+
+    expect(copyProjectAbsolutePath).toHaveBeenCalledWith({
+      projectRelativePath: 'briefs/concept.md',
+      kind: 'file'
+    });
+    expect(copiedText).toEqual(['/tmp/debrute-project/briefs/concept.md']);
+  });
 });
 
 function commandInput(overrides: {
-  command: 'delete' | 'delete-permanently';
+  command: 'copy-path' | 'delete' | 'delete-permanently';
   actions: Partial<Parameters<typeof runWorkbenchContextMenuCommand>[0]['actions']>;
+  copyText?: Parameters<typeof runWorkbenchContextMenuCommand>[0]['copyText'];
   confirmPermanentDelete?: Parameters<typeof runWorkbenchContextMenuCommand>[0]['confirmPermanentDelete'];
 }): Parameters<typeof runWorkbenchContextMenuCommand>[0] {
   return {
@@ -54,13 +80,14 @@ function commandInput(overrides: {
     activeCanvasRuntime: undefined,
     fileClipboard: undefined,
     actions: {
+      copyProjectAbsolutePath: async () => ({ absolutePath: '/tmp/debrute-project/unused' }),
       trashProjectPath: async () => ({ projectRelativePath: 'unused', snapshot: snapshotFixture() }),
       deleteProjectPathPermanently: async () => ({ projectRelativePath: 'unused', kind: 'file', snapshot: snapshotFixture() }),
       ...overrides.actions
     } as Parameters<typeof runWorkbenchContextMenuCommand>[0]['actions'],
     setInlineProjectTreeEdit: () => undefined,
     setFileClipboard: () => undefined,
-    copyText: () => undefined,
+    copyText: overrides.copyText ?? (() => undefined),
     notify: () => undefined,
     closeContextMenu: () => undefined,
     openInspectorPanel: () => undefined,
