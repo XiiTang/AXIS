@@ -65,25 +65,64 @@ describe('Axis Skills sync service', () => {
     }
   });
 
-  it('normal sync installs the current bundled AXIS Skills payload', async () => {
+  it('normal sync updates installed official Skills, adds new official Skills, and skips user-deleted official Skills', async () => {
     const fixture = await createFixture();
     try {
       await writeSkill(fixture.bundle, 'axis-core', { body: 'new core' });
       await writeSkill(fixture.bundle, 'axis-new', { body: 'new skill' });
       await writeSkill(fixture.bundle, 'axis-optional', { body: 'optional skill' });
       await writeSkill(fixture.shared, 'axis-core', { body: 'old core' });
+      await mkdir(join(fixture.home, '.axis'), { recursive: true });
+      await writeFile(fixture.statePath, `${JSON.stringify({
+        schemaVersion: 1,
+        axisVersion: '1.0.0',
+        bundledSkills: ['axis-core', 'axis-optional'],
+        updatedSkills: ['axis-core', 'axis-optional'],
+        addedBundledSkills: [],
+        skippedDeletedSkills: [],
+        diagnostics: [],
+        updatedAt: '2026-05-01T00:00:00.000Z'
+      }, null, 2)}\n`, 'utf8');
       const service = createService(fixture);
 
       const sync = await service.sync({ force: false });
 
-      expect(sync.updatedSkills.map((skill) => skill.name)).toEqual(['axis-core', 'axis-new', 'axis-optional']);
+      expect(sync.updatedSkills.map((skill) => skill.name)).toEqual(['axis-core', 'axis-new']);
+      expect(sync.addedBundledSkills.map((skill) => skill.name)).toEqual(['axis-new']);
+      expect(sync.skippedDeletedSkills).toEqual(['axis-optional']);
       await expect(readFile(join(fixture.shared, 'axis-core', 'SKILL.md'), 'utf8')).resolves.toContain('new core');
       await expect(readFile(join(fixture.shared, 'axis-new', 'SKILL.md'), 'utf8')).resolves.toContain('new skill');
-      await expect(readFile(join(fixture.shared, 'axis-optional', 'SKILL.md'), 'utf8')).resolves.toContain('optional skill');
-      const state = JSON.parse(await readFile(fixture.statePath, 'utf8')) as { axisVersion: string; bundledSkills: string[]; updatedSkills: string[] };
+      await expect(pathExists(join(fixture.shared, 'axis-optional'))).resolves.toBe(false);
+      const state = JSON.parse(await readFile(fixture.statePath, 'utf8')) as {
+        axisVersion: string;
+        bundledSkills: string[];
+        updatedSkills: string[];
+        addedBundledSkills: string[];
+        skippedDeletedSkills: string[];
+      };
       expect(state.axisVersion).toBe('1.2.3');
       expect(state.bundledSkills).toEqual(['axis-core', 'axis-new', 'axis-optional']);
-      expect(state.updatedSkills).toEqual(['axis-core', 'axis-new', 'axis-optional']);
+      expect(state.updatedSkills).toEqual(['axis-core', 'axis-new']);
+      expect(state.addedBundledSkills).toEqual(['axis-new']);
+      expect(state.skippedDeletedSkills).toEqual(['axis-optional']);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+
+  it('normal sync installs all bundled Skills when state is absent', async () => {
+    const fixture = await createFixture();
+    try {
+      await writeSkill(fixture.bundle, 'axis-core');
+      await writeSkill(fixture.bundle, 'axis-image-director');
+      const service = createService(fixture);
+
+      const sync = await service.sync({ force: false });
+
+      expect(sync.updatedSkills.map((skill) => skill.name)).toEqual(['axis-core', 'axis-image-director']);
+      expect(sync.addedBundledSkills.map((skill) => skill.name)).toEqual(['axis-core', 'axis-image-director']);
+      expect(sync.skippedDeletedSkills).toEqual([]);
+      expect(sync.missingBundledSkills).toEqual([]);
     } finally {
       await cleanupFixture(fixture);
     }
@@ -96,20 +135,35 @@ describe('Axis Skills sync service', () => {
       await writeSkill(fixture.bundle, 'axis-optional', { body: 'force optional' });
       await writeSkill(fixture.shared, 'axis-core', { body: 'stale core' });
       await writeSkill(fixture.shared, 'custom-skill', { managed: false, body: 'custom stays' });
+      await mkdir(join(fixture.home, '.axis'), { recursive: true });
+      await writeFile(fixture.statePath, `${JSON.stringify({
+        schemaVersion: 1,
+        axisVersion: '1.0.0',
+        bundledSkills: ['axis-core', 'axis-optional'],
+        updatedSkills: ['axis-core'],
+        addedBundledSkills: [],
+        skippedDeletedSkills: ['axis-optional'],
+        diagnostics: [],
+        updatedAt: '2026-05-01T00:00:00.000Z'
+      }, null, 2)}\n`, 'utf8');
       const service = createService(fixture);
 
       const sync = await service.sync({ force: true });
 
       expect(sync.updatedSkills.map((skill) => skill.name)).toEqual(['axis-core', 'axis-optional']);
+      expect(sync.addedBundledSkills.map((skill) => skill.name)).toEqual([]);
+      expect(sync.skippedDeletedSkills).toEqual([]);
       await expect(readFile(join(fixture.shared, 'axis-core', 'SKILL.md'), 'utf8')).resolves.toContain('force core');
       await expect(readFile(join(fixture.shared, 'axis-optional', 'SKILL.md'), 'utf8')).resolves.toContain('force optional');
       await expect(readFile(join(fixture.shared, 'custom-skill', 'SKILL.md'), 'utf8')).resolves.toContain('custom stays');
+      const state = JSON.parse(await readFile(fixture.statePath, 'utf8')) as { skippedDeletedSkills: string[] };
+      expect(state.skippedDeletedSkills).toEqual([]);
     } finally {
       await cleanupFixture(fixture);
     }
   });
 
-  it('reports invalid state during status and replaces it after successful sync', async () => {
+  it('reports invalid state during status and refuses normal sync until state is removed or force sync is used', async () => {
     const fixture = await createFixture();
     try {
       await writeSkill(fixture.bundle, 'axis-core');
@@ -120,11 +174,33 @@ describe('Axis Skills sync service', () => {
       const before = await service.status();
       expect(before.diagnostics.map((diagnostic) => diagnostic.code)).toContain('skills_state_unreadable');
 
-      await service.sync({ force: false });
+      await expect(service.sync({ force: false })).rejects.toMatchObject({ code: 'skills_state_unreadable' });
+      await expect(readFile(fixture.statePath, 'utf8')).resolves.toBe('{not-json');
 
-      const state = JSON.parse(await readFile(fixture.statePath, 'utf8')) as { schemaVersion: number; bundledSkills: string[] };
+      const forced = await service.sync({ force: true });
+      expect(forced.updatedSkills.map((skill) => skill.name)).toEqual(['axis-core']);
+      const state = JSON.parse(await readFile(fixture.statePath, 'utf8')) as {
+        schemaVersion: number;
+        bundledSkills: string[];
+        skippedDeletedSkills: string[];
+      };
       expect(state.schemaVersion).toBe(1);
       expect(state.bundledSkills).toEqual(['axis-core']);
+      expect(state.skippedDeletedSkills).toEqual([]);
+    } finally {
+      await cleanupFixture(fixture);
+    }
+  });
+
+  it('fails sync when bundled AXIS Skills are invalid', async () => {
+    const fixture = await createFixture();
+    try {
+      await writeSkill(fixture.bundle, 'axis-bad', { frontmatterName: 'axis-other' });
+      const service = createService(fixture);
+
+      await expect(service.sync({ force: false })).rejects.toMatchObject({ code: 'skills_bundle_invalid' });
+      await expect(pathExists(fixture.shared)).resolves.toBe(false);
+      await expect(pathExists(fixture.statePath)).resolves.toBe(false);
     } finally {
       await cleanupFixture(fixture);
     }

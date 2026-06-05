@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Cpu, Image as ImageIcon, KeyRound, RefreshCw, Save, Search, Trash2, Wrench } from 'lucide-react';
+import { Bot, Cpu, Image as ImageIcon, KeyRound, RefreshCw, Save, Search, Terminal, Trash2, Wrench } from 'lucide-react';
 import type {
   CanvasSettingsView,
   ImageModelSettingRecord,
@@ -8,6 +8,8 @@ import type {
   VideoModelSettingRecord
 } from '@axis/app-protocol';
 import type { WorkbenchActions, WorkbenchState } from '../../types';
+import { getAxisShellApi } from '../../api/shellApi';
+import { AxisCliSettingsPage } from './axis-cli/AxisCliSettingsPage';
 import { IntegrationsSettingsPage } from './integrations/IntegrationsSettingsPage';
 
 interface LlmProviderDraft {
@@ -36,7 +38,8 @@ const SETTINGS_NAV_ITEMS = [
   { id: 'llm', label: 'LLM', description: 'Model routing and provider credentials', icon: Bot },
   { id: 'models', label: 'Models', description: 'Generation endpoints and API keys', icon: Cpu },
   { id: 'canvas', label: 'Canvas', description: 'Canvas rendering resources', icon: ImageIcon },
-  { id: 'integrations', label: 'Integrations', description: 'Optional local capabilities', icon: Wrench }
+  { id: 'integrations', label: 'Integrations', description: 'Optional local capabilities', icon: Wrench },
+  { id: 'axis-cli', label: 'Axis CLI', description: 'Command install and Skills sync', icon: Terminal }
 ] as const;
 
 type SettingsPageId = typeof SETTINGS_NAV_ITEMS[number]['id'];
@@ -76,6 +79,8 @@ export function SettingsPanel({ state, actions }: { state: WorkbenchState; actio
           <CanvasSettingsPage settings={state.canvasSettings} onSave={actions.saveCanvasSettings} />
         ) : activePage === 'integrations' ? (
           <IntegrationsSettingsPage state={state} actions={actions} />
+        ) : activePage === 'axis-cli' ? (
+          <AxisCliSettingsPage shell={getAxisShellApi()} />
         ) : null}
       </div>
     </div>

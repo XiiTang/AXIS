@@ -1,6 +1,6 @@
 # AXIS
 
-AXIS is a browser-first local creative production workbench for projects, Canvas review, and generation capabilities. The primary runtime is a normal Web workbench backed by a loopback daemon. Electron is an optional native shell that starts the daemon and loads the same Web URL. AXIS does not implement an internal Agent; external Agents use AXIS through `axis-cli` and AXIS Skills installed under the standard shared Skills directory.
+AXIS is a browser-first local creative production workbench for projects, Canvas review, and generation capabilities. The primary runtime is a normal Web workbench backed by a loopback daemon. Electron is an optional native shell that starts the daemon and loads the same Web URL. AXIS does not implement an internal Agent; external Agents use AXIS through Axis CLI and AXIS Skills installed under the standard shared Skills directory.
 
 ## What Is Here
 
@@ -45,7 +45,57 @@ pnpm exec tsx apps/axis-cli/src/index.ts project validate path/to/project
 
 `pnpm package:cli` creates the current-platform standalone CLI release asset under `release/axis-cli/` with bundled Skills and Web workbench assets. `pnpm package:cli:all` creates all supported CLI assets for GitHub Releases.
 
-`pnpm pack` creates an unpacked desktop app under `apps/desktop/release/`. `pnpm dist` creates distributable macOS and Windows installer artifacts when run on the matching platform. Packaged builds and standalone CLI assets are published from the public `XiiTang/AXIS` GitHub repository.
+`pnpm pack` creates an unpacked desktop app under `apps/desktop/release/`. `pnpm dist` creates distributable Desktop artifacts when run on the matching platform. Packaged builds and standalone CLI assets are published from the public `XiiTang/AXIS` GitHub repository.
+
+## Releases
+
+AXIS publishes Desktop installers and Axis CLI archives on GitHub Releases.
+
+Current Desktop builds are unsigned. macOS may require right-click Open or Privacy & Security approval. Windows may show SmartScreen. Linux AppImage builds may require `chmod +x`.
+
+Each `vX.Y.Z` release includes these public asset names:
+
+```text
+axis-desktop-X.Y.Z-macos-arm64.dmg
+axis-desktop-X.Y.Z-macos-x64.dmg
+axis-desktop-X.Y.Z-windows-x64.exe
+axis-desktop-X.Y.Z-linux-x64.AppImage
+axis-cli-X.Y.Z-macos-arm64.tar.gz
+axis-cli-X.Y.Z-macos-x64.tar.gz
+axis-cli-X.Y.Z-linux-arm64.tar.gz
+axis-cli-X.Y.Z-linux-x64.tar.gz
+axis-cli-X.Y.Z-windows-arm64.zip
+axis-cli-X.Y.Z-windows-x64.zip
+axis_SHA256SUMS
+```
+
+Verify manual downloads against `axis_SHA256SUMS` from the same release tag before installing. Filter the manifest to the asset you downloaded:
+
+```sh
+grep "  axis-cli-X.Y.Z-macos-arm64.tar.gz$" axis_SHA256SUMS | shasum -a 256 -c -
+```
+
+On Linux, use:
+
+```sh
+sha256sum -c --ignore-missing axis_SHA256SUMS
+```
+
+Axis CLI is managed from AXIS Desktop Settings under **Axis CLI**. The Desktop app downloads the matching CLI archive from the same GitHub Release, verifies `axis_SHA256SUMS`, installs the command as `axis`, and runs:
+
+```sh
+axis skills sync
+```
+
+Manual Skill commands:
+
+```sh
+axis skills status
+axis skills sync
+axis skills sync --force
+```
+
+`axis skills sync --force` restores all official AXIS Skills. Normal sync updates installed official Skills and adds newly introduced official Skills without restoring official Skills the user removed.
 
 ## Product Model
 
@@ -59,7 +109,7 @@ Capabilities are discrete operations that the daemon-backed Web workbench or `ax
 
 Integrations are optional local capabilities that the daemon detects and the Web Settings surface renders as command previews. The first supported integrations are FFmpeg, ImageMagick, MediaInfo, ExifTool, and the `remove-ai-watermarks` CLI. Integrations are not required for AXIS startup and are not exposed through `axis-cli`. Third-party tools are optional local dependencies; AXIS does not bundle or redistribute them, and users are responsible for complying with each tool's license.
 
-Skills are standard packages installed under `~/.agents/skills`. AXIS CLI release payloads include the official `skills/axis-*` bundle. Skills synchronization is explicit through `axis skills sync`; the Web workbench and Electron shell do not package, inspect, synchronize, or render Skills.
+Skills are standard packages installed under `~/.agents/skills`. Axis CLI release payloads include the official `skills/axis-*` bundle. Skills synchronization is explicit through `axis skills sync`; AXIS Desktop can invoke that managed CLI sync from Settings, and the Web workbench shows manual instructions only.
 
 ## CLI
 
@@ -70,7 +120,7 @@ axis --version
 pnpm exec tsx apps/axis-cli/src/index.ts runtime status
 pnpm exec tsx apps/axis-cli/src/index.ts runtime doctor
 pnpm exec tsx apps/axis-cli/src/index.ts skills status
-pnpm exec tsx apps/axis-cli/src/index.ts skills sync --force
+pnpm exec tsx apps/axis-cli/src/index.ts skills sync
 pnpm exec tsx apps/axis-cli/src/index.ts project init path/to/project
 pnpm exec tsx apps/axis-cli/src/index.ts project validate path/to/project
 pnpm exec tsx apps/axis-cli/src/index.ts workbench url path/to/project

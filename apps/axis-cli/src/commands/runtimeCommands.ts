@@ -143,11 +143,20 @@ function skillsStatusResult(command: string, snapshot: SkillsStatusSnapshot): Ax
           path: skill.skillPath
         }
       })),
+      ...snapshot.missingBundledSkills.map((name): AgentNamedRecord => ({
+        name: 'missing_bundled_skill',
+        fields: { name }
+      })),
+      ...snapshot.skippedDeletedSkills.map((name): AgentNamedRecord => ({
+        name: 'skipped_deleted_skill',
+        fields: { name, reason: 'user_deleted' }
+      })),
       ...snapshot.diagnostics.map((diagnostic): AgentNamedRecord => ({
         name: 'diagnostic',
         fields: {
           source: diagnostic.source,
           code: diagnostic.code,
+          severity: diagnostic.severity,
           path: diagnostic.path,
           message: diagnostic.message
         }
@@ -160,7 +169,10 @@ function skillsStatusResult(command: string, snapshot: SkillsStatusSnapshot): Ax
       state_path: snapshot.statePath,
       axis_version: snapshot.currentAxisVersion,
       bundled_root: snapshot.bundledSkillsRoot,
-      missing_bundled_skills: snapshot.missingBundledSkillCount
+      bundled_skills: snapshot.bundledSkills.length,
+      installed_axis_skills: snapshot.skills.length,
+      missing_bundled_skills: snapshot.missingBundledSkills.length,
+      skipped_deleted_skills: snapshot.skippedDeletedSkills.length
     }
   };
 }
@@ -178,11 +190,24 @@ function skillsSyncResult(command: string, snapshot: SkillsSyncSnapshot): AxisAg
           path: skill.skillPath
         }
       })),
+      ...snapshot.addedBundledSkills.map((skill): AgentNamedRecord => ({
+        name: 'added_skill',
+        fields: {
+          name: skill.name,
+          version: skill.axisVersion,
+          path: skill.skillPath
+        }
+      })),
+      ...snapshot.skippedDeletedSkills.map((name): AgentNamedRecord => ({
+        name: 'skipped_deleted_skill',
+        fields: { name, reason: 'user_deleted' }
+      })),
       ...snapshot.diagnostics.map((diagnostic): AgentNamedRecord => ({
         name: 'diagnostic',
         fields: {
           source: diagnostic.source,
           code: diagnostic.code,
+          severity: diagnostic.severity,
           path: diagnostic.path,
           message: diagnostic.message
         }
@@ -190,6 +215,8 @@ function skillsSyncResult(command: string, snapshot: SkillsSyncSnapshot): AxisAg
     ],
     fields: {
       updated: snapshot.updatedSkills.length,
+      added: snapshot.addedBundledSkills.length,
+      skipped_deleted: snapshot.skippedDeletedSkills.length,
       diagnostics: snapshot.diagnostics.length,
       state_path: snapshot.statePath,
       force: snapshot.force
@@ -213,15 +240,25 @@ function requiredSkillsService(service: AxisSkillsSyncService | undefined, comma
 
 function skillsDoctorDiagnostics(snapshot: SkillsStatusSnapshot): CliRuntimeDiagnostic[] {
   const diagnostics: CliRuntimeDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
-    severity: 'warning',
+    severity: diagnostic.severity === 'error' ? 'error' : 'warning',
     code: diagnostic.code,
     message: skillsDoctorMessage(diagnostic.code, diagnostic.message)
   }));
+  if (
+    snapshot.state?.axisVersion
+    && snapshot.state.axisVersion !== snapshot.currentAxisVersion
+  ) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'skills_out_of_sync',
+      message: `AXIS Skills ${snapshot.state.axisVersion} out of sync with Axis CLI ${snapshot.currentAxisVersion}. Run: axis skills sync`
+    });
+  }
   if (snapshot.skills.length === 0) {
     diagnostics.push({
       severity: 'warning',
       code: 'skills_not_installed',
-      message: `No AXIS-managed Skills are installed. Run: axis skills sync --force.`
+      message: 'No AXIS-managed Skills are installed. Run: axis skills sync.'
     });
   }
   return diagnostics;

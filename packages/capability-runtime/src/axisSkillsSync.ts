@@ -77,9 +77,9 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
     ];
     const bundledNames = [...(bundled.snapshot?.skills.map((skill) => skill.name) ?? [])].sort((left, right) => left.localeCompare(right));
     const installedNames = new Set(installed.skills.map((skill) => skill.name));
-    const missingBundledSkillCount = bundled.snapshot
-      ? bundledNames.filter((name) => !installedNames.has(name)).length
-      : undefined;
+    const missingBundledSkillNames = bundled.snapshot
+      ? bundledNames.filter((name) => !installedNames.has(name))
+      : [];
     return {
       ...installed,
       diagnostics,
@@ -90,17 +90,27 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
       ...(this.input.bundledSkillsRoot ? { bundledSkillsRoot: resolve(this.input.bundledSkillsRoot) } : {}),
       bundledRootAvailable: bundled.snapshot !== undefined,
       bundledSkills: bundledNames,
-      ...(missingBundledSkillCount === undefined ? {} : { missingBundledSkillCount })
+      missingBundledSkills: missingBundledSkillNames,
+      missingBundledSkillCount: missingBundledSkillNames.length,
+      skippedDeletedSkills: stateResult.state?.skippedDeletedSkills ?? []
     };
   }
 
   async sync(input: SkillsSyncInput): Promise<SkillsSyncSnapshot> {
     const bundled = await loadBundled(this.requireBundledRoot());
+    assertBundledSkillsValid(bundled);
     const installedBefore = await loadInstalled(this.sharedRoot());
-    const planned = planSync(bundled.skills);
+    const stateResult = await readState(this.statePath());
+    assertStateReadable(stateResult, input.force);
+    const planned = planSync({
+      bundledSkills: bundled.skills,
+      installedSkills: installedBefore.skills,
+      force: input.force,
+      ...(stateResult.state ? { previousState: stateResult.state } : {})
+    });
     const updatedSkills: SkillRecord[] = [];
 
-    for (const skill of planned) {
+    for (const skill of planned.toUpdate) {
       await replaceSkillDirectory({
         sourceDir: skill.skillDir,
         destinationDir: join(this.sharedRoot(), skill.name),
@@ -111,15 +121,19 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
 
     const syncDiagnostics = [
       ...bundled.diagnostics,
-      ...installedBefore.diagnostics
+      ...installedBefore.diagnostics,
+      ...stateResult.diagnostics
     ];
     await writeStateOrThrow(this.statePath(), {
       schemaVersion: 1,
       axisVersion: this.input.axisVersion,
-      bundledSkills: bundled.skills.map((skill) => skill.name).sort((left, right) => left.localeCompare(right)),
-      updatedSkills: updatedSkills.map((skill) => skill.name).sort((left, right) => left.localeCompare(right)),
+      bundledSkills: sortSkillNames(bundled.skills),
+      updatedSkills: sortSkillNames(updatedSkills),
+      addedBundledSkills: sortSkillNames(planned.addedBundledSkills),
+      skippedDeletedSkills: planned.skippedDeletedSkills,
       diagnostics: syncDiagnostics.map((diagnostic) => ({
         code: diagnostic.code,
+        severity: diagnostic.severity,
         message: diagnostic.message,
         ...(diagnostic.path ? { path: diagnostic.path } : {})
       })),
@@ -131,7 +145,9 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
     return {
       ...status,
       force: input.force,
-      updatedSkills: updatedSkills.map((skill) => installedByName.get(skill.name) ?? skill)
+      updatedSkills: updatedSkills.map((skill) => installedByName.get(skill.name) ?? skill),
+      addedBundledSkills: planned.addedBundledSkills.map((skill) => installedByName.get(skill.name) ?? skill),
+      skippedDeletedSkills: planned.skippedDeletedSkills
     };
   }
 
@@ -169,6 +185,7 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
           source: 'axis-sync',
           root: dirname(this.statePath()),
           code: 'skills_bundle_unavailable',
+          severity: 'warning',
           message: 'Bundled AXIS Skills root is not configured.'
         }]
       };
@@ -183,6 +200,7 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
             source: 'axis-repository',
             root: resolve(this.input.bundledSkillsRoot),
             code: error.code,
+            severity: 'warning',
             message: error.message
           }]
         };
@@ -190,6 +208,32 @@ class DefaultAxisSkillsSyncService implements AxisSkillsSyncService {
       throw error;
     }
   }
+}
+
+function assertBundledSkillsValid(snapshot: AxisSkillsSnapshot): void {
+  if (snapshot.diagnostics.length === 0) {
+    return;
+  }
+  throw new AxisSkillsSyncError(
+    'skills_bundle_invalid',
+    'Bundled AXIS Skills are invalid.',
+    { diagnostics: snapshot.diagnostics.length }
+  );
+}
+
+function assertStateReadable(stateResult: { state?: AxisSkillsState; diagnostics: AxisSkillsDiagnostic[] }, force: boolean): void {
+  if (force) {
+    return;
+  }
+  const stateDiagnostic = stateResult.diagnostics.find((diagnostic) => diagnostic.code === 'skills_state_unreadable');
+  if (!stateDiagnostic) {
+    return;
+  }
+  throw new AxisSkillsSyncError(
+    'skills_state_unreadable',
+    stateDiagnostic.message,
+    stateDiagnostic.path ? { path: stateDiagnostic.path } : {}
+  );
 }
 
 async function loadInstalled(sharedRoot: string): Promise<AxisSkillsSnapshot> {
@@ -202,9 +246,13 @@ async function loadInstalled(sharedRoot: string): Promise<AxisSkillsSnapshot> {
           root: diagnostic.root,
           ...(diagnostic.path ? { path: diagnostic.path } : {}),
           code: 'skills_shared_root_unreadable',
+          severity: 'warning',
           message: diagnostic.message
         }
-      : diagnostic)
+      : {
+          ...diagnostic,
+          severity: 'warning'
+        })
   };
 }
 
@@ -235,18 +283,74 @@ function normalizeBundledDiagnostics(diagnostics: SkillDiagnostic[], bundledRoot
     return [];
   }
   return [
-    ...diagnostics,
+    ...diagnostics.map((diagnostic): AxisSkillsDiagnostic => ({
+      ...diagnostic,
+      severity: 'warning'
+    })),
     {
       source: 'axis-repository',
       root: bundledRoot,
       code: 'skills_bundle_invalid',
+      severity: 'warning',
       message: 'One or more bundled AXIS Skills are invalid.'
     }
   ];
 }
 
-function planSync(bundledSkills: SkillRecord[]): SkillRecord[] {
-  return [...bundledSkills].sort((left, right) => left.name.localeCompare(right.name));
+interface SyncPlan {
+  toUpdate: SkillRecord[];
+  addedBundledSkills: SkillRecord[];
+  skippedDeletedSkills: string[];
+}
+
+function planSync(input: {
+  bundledSkills: SkillRecord[];
+  installedSkills: SkillRecord[];
+  previousState?: AxisSkillsState;
+  force: boolean;
+}): SyncPlan {
+  const bundledByName = new Map(sortSkills(input.bundledSkills).map((skill) => [skill.name, skill]));
+  if (input.force || !input.previousState) {
+    const allBundled = [...bundledByName.values()];
+    return {
+      toUpdate: allBundled,
+      addedBundledSkills: input.force ? [] : allBundled,
+      skippedDeletedSkills: []
+    };
+  }
+
+  const installedNames = new Set(input.installedSkills.map((skill) => skill.name));
+  const previousBundledNames = new Set(input.previousState.bundledSkills);
+  const toUpdateNames = new Set<string>();
+  const addedNames = new Set<string>();
+  const skippedDeletedSkills: string[] = [];
+
+  for (const name of bundledByName.keys()) {
+    if (installedNames.has(name)) {
+      toUpdateNames.add(name);
+      continue;
+    }
+    if (!previousBundledNames.has(name)) {
+      toUpdateNames.add(name);
+      addedNames.add(name);
+      continue;
+    }
+    skippedDeletedSkills.push(name);
+  }
+
+  return {
+    toUpdate: [...toUpdateNames].sort().map((name) => bundledByName.get(name)!),
+    addedBundledSkills: [...addedNames].sort().map((name) => bundledByName.get(name)!),
+    skippedDeletedSkills: skippedDeletedSkills.sort()
+  };
+}
+
+function sortSkills(skills: SkillRecord[]): SkillRecord[] {
+  return [...skills].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function sortSkillNames(skills: SkillRecord[]): string[] {
+  return skills.map((skill) => skill.name).sort((left, right) => left.localeCompare(right));
 }
 
 async function replaceSkillDirectory(input: { sourceDir: string; destinationDir: string; tempDir: string }): Promise<void> {
@@ -275,6 +379,7 @@ async function readState(statePath: string): Promise<{ state?: AxisSkillsState; 
           root: dirname(statePath),
           path: statePath,
           code: 'skills_state_unreadable',
+          severity: 'warning',
           message: 'AXIS Skills state is invalid.'
         }]
       };
@@ -290,6 +395,7 @@ async function readState(statePath: string): Promise<{ state?: AxisSkillsState; 
         root: dirname(statePath),
         path: statePath,
         code: 'skills_state_unreadable',
+        severity: 'warning',
         message: `AXIS Skills state cannot be read: ${errorMessage(error)}`
       }]
     };
@@ -316,9 +422,12 @@ function isAxisSkillsState(value: unknown): value is AxisSkillsState {
   }
   return stringArray(value.bundledSkills)
     && stringArray(value.updatedSkills)
+    && stringArray(value.addedBundledSkills)
+    && stringArray(value.skippedDeletedSkills)
     && Array.isArray(value.diagnostics)
     && value.diagnostics.every((diagnostic) => isRecord(diagnostic)
       && typeof diagnostic.code === 'string'
+      && (diagnostic.severity === 'info' || diagnostic.severity === 'warning' || diagnostic.severity === 'error')
       && typeof diagnostic.message === 'string'
       && (diagnostic.path === undefined || typeof diagnostic.path === 'string'));
 }

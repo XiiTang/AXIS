@@ -1,18 +1,23 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import AdmZip from 'adm-zip';
 import { build } from 'esbuild';
+import {
+  checksumManifestName,
+  cliReleaseAssetName
+} from './release-asset-contract.mjs';
+export { checksumManifestName } from './release-asset-contract.mjs';
 
 const execFileAsync = promisify(execFile);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
 const pkgBin = join(workspaceRoot, 'node_modules/@yao-pkg/pkg/lib-es5/bin.js');
-
-export const checksumManifestName = 'axis-cli_SHA256SUMS';
 
 export const axisCliReleaseTargets = [
   target('darwin-arm64', 'node22-macos-arm64', 'axis', 'tar.gz'),
@@ -23,8 +28,10 @@ export const axisCliReleaseTargets = [
   target('windows-x64', 'node22-win-x64', 'axis.exe', 'zip')
 ];
 
+export const axisCliPkgFlags = ['--public', '--public-packages', '*', '--no-bytecode'];
+
 export function axisCliArchiveName(version, releaseTarget) {
-  return `axis-cli-${version}-${releaseTarget.id}.${releaseTarget.archiveExtension}`;
+  return cliReleaseAssetName(version, releaseTarget);
 }
 
 export function axisCliPayloadEntries(root, releaseTarget = releaseTargetForHost()) {
@@ -74,8 +81,7 @@ export async function packageAxisCliRelease({ all = false, outDir = join(workspa
       releaseTarget.pkgTarget,
       '--output',
       executablePath,
-      '--public-packages',
-      '*'
+      ...axisCliPkgFlags
     ], { cwd: workspaceRoot });
     const payloadDir = join(buildRoot, releaseTarget.id, 'payload');
     await mkdir(payloadDir, { recursive: true });
@@ -123,12 +129,26 @@ function releaseTargetForHost() {
 
 function nodeModulePayloadEntry(root, packageName) {
   return {
-    from: join(root, 'node_modules', ...packageName.split('/')),
+    from: resolveNodeModulePackageRoot(root, packageName),
     to: `node_modules/${packageName}`,
     recursive: true,
     dereference: true,
     ...(packageName === 'sharp' ? { excludeNestedNodeModules: true } : {})
   };
+}
+
+export function resolveNodeModulePackageRoot(root, packageName) {
+  const packageSegments = packageName.split('/');
+  const directPath = join(root, 'node_modules', ...packageSegments);
+  if (existsSync(directPath)) return directPath;
+
+  const pnpmHoistPath = join(root, 'node_modules', '.pnpm', 'node_modules', ...packageSegments);
+  if (existsSync(pnpmHoistPath)) return pnpmHoistPath;
+
+  if (resolve(root) === workspaceRoot) {
+    return dirname(require.resolve(`${packageName}/package.json`, { paths: [root] }));
+  }
+  return directPath;
 }
 
 function sharpPayloadPackages(releaseTarget) {
@@ -137,8 +157,8 @@ function sharpPayloadPackages(releaseTarget) {
     'darwin-x64': ['@img/sharp-darwin-x64', '@img/sharp-libvips-darwin-x64'],
     'linux-arm64': ['@img/sharp-linux-arm64', '@img/sharp-libvips-linux-arm64'],
     'linux-x64': ['@img/sharp-linux-x64', '@img/sharp-libvips-linux-x64'],
-    'windows-arm64': ['@img/sharp-win32-arm64', '@img/sharp-libvips-win32-arm64'],
-    'windows-x64': ['@img/sharp-win32-x64', '@img/sharp-libvips-win32-x64']
+    'windows-arm64': ['@img/sharp-win32-arm64'],
+    'windows-x64': ['@img/sharp-win32-x64']
   }[releaseTarget.id];
   if (!nativePackages) {
     throw new Error(`No sharp native package mapping for ${releaseTarget.id}.`);

@@ -28,14 +28,6 @@
       "dist-electron/**/*",
       "package.json"
     ],
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "XiiTang",
-        "repo": "AXIS",
-        "releaseType": "release"
-      }
-    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
@@ -47,6 +39,12 @@
       "target": [
         "nsis"
       ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility"
     }
   },
   "dependencies": {

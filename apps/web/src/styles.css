@@ -1583,6 +1583,41 @@ small {
   color: oklch(0.78 0.12 25);
 }
 
+.axis-cli-settings-page {
+  gap: 14px;
+}
+
+.axis-cli-status-card {
+  gap: 14px;
+}
+
+.axis-cli-status-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.axis-cli-status-grid small {
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+
+.axis-cli-status-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.axis-cli-status-card pre {
+  margin: 0;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgb(0 0 0 / 24%);
+}
+
 .integrations-settings-page {
   gap: 14px;
 }

@@ -325,10 +325,11 @@ export interface SkillRecord {
 }
 
 export interface AxisSkillsDiagnostic {
-  source: SkillSourceKind | 'axis-sync';
-  root: string;
+  source?: SkillSourceKind | 'axis-sync';
+  root?: string;
   path?: string;
   code: string;
+  severity: 'info' | 'warning' | 'error';
   message: string;
 }
 
@@ -337,7 +338,9 @@ export interface AxisSkillsState {
   axisVersion: string;
   bundledSkills: string[];
   updatedSkills: string[];
-  diagnostics: Array<{ code: string; message: string; path?: string }>;
+  addedBundledSkills: string[];
+  skippedDeletedSkills: string[];
+  diagnostics: AxisSkillsDiagnostic[];
   updatedAt: string;
 }
 
@@ -352,7 +355,9 @@ export interface SkillsStatusSnapshot {
   bundledSkillsRoot?: string;
   bundledRootAvailable: boolean;
   bundledSkills: string[];
-  missingBundledSkillCount?: number;
+  missingBundledSkills: string[];
+  missingBundledSkillCount: number;
+  skippedDeletedSkills: string[];
 }
 
 export interface SkillsSyncInput {
@@ -362,6 +367,70 @@ export interface SkillsSyncInput {
 export interface SkillsSyncSnapshot extends SkillsStatusSnapshot {
   force: boolean;
   updatedSkills: SkillRecord[];
+  addedBundledSkills: SkillRecord[];
+  skippedDeletedSkills: string[];
+}
+
+export type AxisCliSkillsStatus =
+  | { kind: 'not_checked' }
+  | { kind: 'in_sync'; axisVersion: string }
+  | { kind: 'out_of_sync'; cliVersion: string; stateAxisVersion: string | null }
+  | { kind: 'partially_removed'; skippedDeletedSkills: string[] }
+  | { kind: 'error'; code: string; message: string };
+
+export type AxisCliStatus =
+  | { kind: 'not_installed'; desktopVersion: string; manualCommand: string }
+  | {
+      kind: 'installed';
+      desktopVersion: string;
+      cliVersion: string;
+      managedPath: string;
+      resolvedPath: string | null;
+      onPath: boolean;
+      skills: AxisCliSkillsStatus;
+    }
+  | {
+      kind: 'update_available';
+      desktopVersion: string;
+      cliVersion: string;
+      managedPath: string;
+      skills: AxisCliSkillsStatus;
+    }
+  | {
+      kind: 'external_newer';
+      desktopVersion: string;
+      cliVersion: string;
+      managedPath: string;
+      skills: AxisCliSkillsStatus;
+    }
+  | {
+      kind: 'installed_but_not_on_path';
+      desktopVersion: string;
+      cliVersion: string;
+      managedPath: string;
+      repairCommand: string;
+      skills: AxisCliSkillsStatus;
+    }
+  | { kind: 'error'; desktopVersion: string; code: string; message: string; manualCommand: string };
+
+export interface AxisCliInstallResult {
+  ok: boolean;
+  status: AxisCliStatus;
+}
+
+export interface AxisCliSkillsSyncResult {
+  ok: boolean;
+  status: AxisCliSkillsStatus;
+}
+
+export interface AxisCliPathRepairResult {
+  ok: boolean;
+  status: AxisCliStatus;
+}
+
+export interface AxisCliManualCommand {
+  platform: 'macos' | 'linux' | 'windows';
+  command: string;
 }
 
 export interface GeneratedAssetRecord {

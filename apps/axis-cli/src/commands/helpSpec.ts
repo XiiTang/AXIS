@@ -29,8 +29,8 @@ const WORKBENCH_RUNTIME_ERRORS = [
 export const commandSpecs: AxisCommandSpec[] = [
   spec('runtime.status', ['runtime', 'status'], 'runtime', 'read', 'none', 'none', 'no args', 'runtime status record'),
   spec('runtime.doctor', ['runtime', 'doctor'], 'runtime', 'read', 'none', 'none', 'no args', 'diagnostic records', ['runtime_config_error']),
-  spec('skills.status', ['skills', 'status'], 'runtime', 'read', 'none', 'none', 'no args', 'installed AXIS Skill records'),
-  spec('skills.sync', ['skills', 'sync'], 'runtime', 'write', 'none', 'skills', '[--force]', 'updated AXIS Skill records', [
+  spec('skills.status', ['skills', 'status'], 'runtime', 'read', 'none', 'none', 'no args', 'installed, missing, and skipped AXIS Skill records'),
+  spec('skills.sync', ['skills', 'sync'], 'runtime', 'write', 'none', 'skills', '[--force]', 'updated, added, and skipped AXIS Skill records', [
     'skills_bundle_unavailable',
     'skills_bundle_invalid',
     'skills_permission_denied',

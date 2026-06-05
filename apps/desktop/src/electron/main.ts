@@ -15,6 +15,8 @@ import {
   createHostedDesktopRuntimeClient,
   type DesktopRuntimeClient
 } from './desktopRuntimeClient.js';
+import { createAxisCliInstaller } from './axisCliInstaller.js';
+import { registerAxisCliShellIpc } from './axisCliShell.js';
 import { resolveDesktopIntegrationEnvPath } from './integrationEnv.js';
 import { createApplicationMenuController } from './menu/registerApplicationMenu.js';
 
@@ -113,6 +115,13 @@ function registerShellIpc(): void {
       shell.showItemInFolder(absolutePath);
     }
     return { ok: true };
+  });
+  registerAxisCliShellIpc({
+    ipcMain,
+    installer: createAxisCliInstaller({
+      desktopVersion: app.getVersion(),
+      userHome: app.getPath('home')
+    })
   });
 }
 
