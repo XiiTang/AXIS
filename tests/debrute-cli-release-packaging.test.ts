@@ -1,19 +1,20 @@
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   debruteCliPayloadEntries,
   debruteCliArchiveName,
   debruteCliPkgFlags,
   debruteCliReleaseTargets,
-  checksumManifestName,
-  resolveNodeModulePackageRoot
+  checksumManifestName
 } from '../scripts/package-debrute-cli.mjs';
 import {
   desktopReleaseAssetName,
   expectedReleaseAssets
 } from '../scripts/release-asset-contract.mjs';
+import { resolveNodeModulePackageRoot } from '../scripts/sharp-runtime-payload.mjs';
 
 describe('Debrute CLI release packaging', () => {
   it('uses the public release asset naming contract', () => {
@@ -71,24 +72,47 @@ describe('Debrute CLI release packaging', () => {
   });
 
   it('includes skills and web dist payload entries', () => {
-    expect(debruteCliPayloadEntries('/repo', debruteCliReleaseTargets[0])).toEqual([
-      { from: '/repo/skills', to: 'skills', recursive: true },
-      { from: '/repo/apps/web/dist', to: 'web', recursive: true },
-      { from: '/repo/node_modules/sharp', to: 'node_modules/sharp', recursive: true, dereference: true, excludeNestedNodeModules: true },
-      { from: '/repo/node_modules/@img/colour', to: 'node_modules/@img/colour', recursive: true, dereference: true },
-      { from: '/repo/node_modules/detect-libc', to: 'node_modules/detect-libc', recursive: true, dereference: true },
-      { from: '/repo/node_modules/semver', to: 'node_modules/semver', recursive: true, dereference: true },
-      { from: '/repo/node_modules/@img/sharp-darwin-arm64', to: 'node_modules/@img/sharp-darwin-arm64', recursive: true, dereference: true },
-      { from: '/repo/node_modules/@img/sharp-libvips-darwin-arm64', to: 'node_modules/@img/sharp-libvips-darwin-arm64', recursive: true, dereference: true }
+    const root = createRootWithNodePackages([
+      'sharp',
+      '@img/colour',
+      'detect-libc',
+      'semver',
+      '@img/sharp-darwin-arm64',
+      '@img/sharp-libvips-darwin-arm64'
     ]);
+    try {
+      expect(debruteCliPayloadEntries(root, debruteCliReleaseTargets[0])).toEqual([
+        { from: join(root, 'skills'), to: 'skills', recursive: true, dereference: false },
+        { from: join(root, 'apps/web/dist'), to: 'web', recursive: true, dereference: false },
+        { from: join(root, 'node_modules/sharp'), to: 'node_modules/sharp', recursive: true, dereference: true, excludeNestedNodeModules: true },
+        { from: join(root, 'node_modules/@img/colour'), to: 'node_modules/@img/colour', recursive: true, dereference: true },
+        { from: join(root, 'node_modules/detect-libc'), to: 'node_modules/detect-libc', recursive: true, dereference: true },
+        { from: join(root, 'node_modules/semver'), to: 'node_modules/semver', recursive: true, dereference: true },
+        { from: join(root, 'node_modules/@img/sharp-darwin-arm64'), to: 'node_modules/@img/sharp-darwin-arm64', recursive: true, dereference: true },
+        { from: join(root, 'node_modules/@img/sharp-libvips-darwin-arm64'), to: 'node_modules/@img/sharp-libvips-darwin-arm64', recursive: true, dereference: true }
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('uses the actual sharp Windows native package layout', () => {
     const windowsX64Target = debruteCliReleaseTargets.find((target) => target.id === 'windows-x64');
     expect(windowsX64Target).toBeDefined();
-    const entries = debruteCliPayloadEntries('/repo', windowsX64Target!);
-    expect(entries.map((entry) => entry.to)).toContain('node_modules/@img/sharp-win32-x64');
-    expect(entries.map((entry) => entry.to)).not.toContain('node_modules/@img/sharp-libvips-win32-x64');
+    const root = createRootWithNodePackages([
+      'sharp',
+      '@img/colour',
+      'detect-libc',
+      'semver',
+      '@img/sharp-win32-x64'
+    ]);
+    try {
+      const entries = debruteCliPayloadEntries(root, windowsX64Target!);
+      expect(entries.map((entry) => entry.to)).toContain('node_modules/@img/sharp-win32-x64');
+      expect(entries.map((entry) => entry.to)).not.toContain('node_modules/@img/sharp-libvips-win32-x64');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('keeps Desktop packages free of CLI binaries and Skills bundles', () => {
@@ -98,4 +122,44 @@ describe('Debrute CLI release packaging', () => {
     expect(extraResources).not.toContain('skills');
     expect(packageJson.build.publish).toBeUndefined();
   });
+
+  it('copies sharp runtime dependencies into Desktop app resources', async () => {
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'apps/desktop/package.json'), 'utf8'));
+    expect(packageJson.build.afterPack).toBe('scripts/package-sharp-runtime.mjs');
+
+    const hookPath = join(process.cwd(), 'apps/desktop', packageJson.build.afterPack);
+    expect(existsSync(hookPath)).toBe(true);
+
+    const hook = await import(pathToFileURL(hookPath).href) as {
+      default: (context: {
+        appOutDir: string;
+        electronPlatformName: string;
+        arch: number;
+        packager: { appInfo: { productFilename: string } };
+      }) => Promise<void>;
+    };
+    const root = join(tmpdir(), `debrute-desktop-sharp-${process.pid}-${Date.now()}`);
+    try {
+      await hook.default({
+        appOutDir: join(root, 'out'),
+        electronPlatformName: 'darwin',
+        arch: 3,
+        packager: { appInfo: { productFilename: 'Debrute' } }
+      });
+
+      expect(existsSync(join(root, 'out', 'Debrute.app', 'Contents', 'Resources', 'node_modules', 'sharp'))).toBe(true);
+      expect(existsSync(join(root, 'out', 'Debrute.app', 'Contents', 'Resources', 'node_modules', '@img', 'sharp-darwin-arm64'))).toBe(true);
+      expect(existsSync(join(root, 'out', 'Debrute.app', 'Contents', 'Resources', 'node_modules', '@img', 'sharp-libvips-darwin-arm64'))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
+
+function createRootWithNodePackages(packageNames: string[]) {
+  const root = join(tmpdir(), `debrute-packaging-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  for (const packageName of packageNames) {
+    mkdirSync(join(root, 'node_modules', ...packageName.split('/')), { recursive: true });
+  }
+  return root;
+}

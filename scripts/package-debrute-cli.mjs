@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import AdmZip from 'adm-zip';
@@ -12,11 +11,11 @@ import {
   checksumManifestName,
   cliReleaseAssetName
 } from './release-asset-contract.mjs';
+import { sharpRuntimePayloadEntries } from './sharp-runtime-payload.mjs';
 export { checksumManifestName } from './release-asset-contract.mjs';
 
 const execFileAsync = promisify(execFile);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(import.meta.url);
 const pkgBin = join(workspaceRoot, 'node_modules/@yao-pkg/pkg/lib-es5/bin.js');
 
 export const debruteCliReleaseTargets = [
@@ -36,9 +35,9 @@ export function debruteCliArchiveName(version, releaseTarget) {
 
 export function debruteCliPayloadEntries(root, releaseTarget = releaseTargetForHost()) {
   return [
-    { from: join(root, 'skills'), to: 'skills', recursive: true },
-    { from: join(root, 'apps/web/dist'), to: 'web', recursive: true },
-    ...sharpPayloadPackages(releaseTarget).map((packageName) => nodeModulePayloadEntry(root, packageName))
+    { from: join(root, 'skills'), to: 'skills', recursive: true, dereference: false },
+    { from: join(root, 'apps/web/dist'), to: 'web', recursive: true, dereference: false },
+    ...sharpRuntimePayloadEntries(root, releaseTarget)
   ];
 }
 
@@ -92,7 +91,7 @@ export async function packageDebruteCliRelease({ all = false, outDir = join(work
       await mkdir(dirname(destination), { recursive: true });
       await cp(entry.from, destination, {
         recursive: entry.recursive,
-        dereference: entry.dereference ?? false,
+        dereference: entry.dereference,
         filter: entry.excludeNestedNodeModules
           ? (source) => source === entry.from || !source.startsWith(join(entry.from, 'node_modules'))
           : undefined
@@ -126,45 +125,6 @@ function releaseTargetForHost() {
     throw new Error(`No Debrute CLI release target for ${process.platform}-${process.arch}.`);
   }
   return targetItem;
-}
-
-function nodeModulePayloadEntry(root, packageName) {
-  return {
-    from: resolveNodeModulePackageRoot(root, packageName),
-    to: `node_modules/${packageName}`,
-    recursive: true,
-    dereference: true,
-    ...(packageName === 'sharp' ? { excludeNestedNodeModules: true } : {})
-  };
-}
-
-export function resolveNodeModulePackageRoot(root, packageName) {
-  const packageSegments = packageName.split('/');
-  const directPath = join(root, 'node_modules', ...packageSegments);
-  if (existsSync(directPath)) return directPath;
-
-  const pnpmHoistPath = join(root, 'node_modules', '.pnpm', 'node_modules', ...packageSegments);
-  if (existsSync(pnpmHoistPath)) return pnpmHoistPath;
-
-  if (resolve(root) === workspaceRoot) {
-    return dirname(require.resolve(`${packageName}/package.json`, { paths: [root] }));
-  }
-  return directPath;
-}
-
-function sharpPayloadPackages(releaseTarget) {
-  const nativePackages = {
-    'darwin-arm64': ['@img/sharp-darwin-arm64', '@img/sharp-libvips-darwin-arm64'],
-    'darwin-x64': ['@img/sharp-darwin-x64', '@img/sharp-libvips-darwin-x64'],
-    'linux-arm64': ['@img/sharp-linux-arm64', '@img/sharp-libvips-linux-arm64'],
-    'linux-x64': ['@img/sharp-linux-x64', '@img/sharp-libvips-linux-x64'],
-    'windows-arm64': ['@img/sharp-win32-arm64'],
-    'windows-x64': ['@img/sharp-win32-x64']
-  }[releaseTarget.id];
-  if (!nativePackages) {
-    throw new Error(`No sharp native package mapping for ${releaseTarget.id}.`);
-  }
-  return ['sharp', '@img/colour', 'detect-libc', 'semver', ...nativePackages];
 }
 
 function hostTargetId() {

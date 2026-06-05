@@ -20,6 +20,7 @@
     "productName": "Debrute",
     "electronVersion": "39.2.7",
     "asar": true,
+    "afterPack": "scripts/package-sharp-runtime.mjs",
     "directories": {
       "output": "release"
     },
