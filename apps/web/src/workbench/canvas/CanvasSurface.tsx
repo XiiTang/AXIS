@@ -22,6 +22,7 @@ import { CanvasImageAssetProvider } from './CanvasImageResourceContext';
 import { CanvasNodeShell } from './CanvasNodeShell';
 import type { CanvasOverlayRuntime } from './CanvasOverlayRuntime';
 import { createCanvasPerfBrowserAdapter } from './CanvasPerfBrowserAdapter';
+import { createCanvasPerfDebugBridge, type DebruteCanvasPerfCanvasSnapshot } from './CanvasPerfDebugBridge';
 import {
   CANVAS_PERF_INTERACTION_SESSION_TYPES,
   createCanvasPerfMonitor,
@@ -205,13 +206,39 @@ function CanvasSurfaceRuntime({
     activeNodePaths: activeNodePathsRef.current
   }), [renderCoordinator, runtime]);
   const [renderSnapshot, setRenderSnapshot] = useState(initialRenderSnapshot);
+  const canvasPerfDebugContextRef = useRef<CanvasPerfDebugSnapshotContext | undefined>(undefined);
 
   selectionRef.current = selection;
   surfaceSizeRef.current = surfaceSize;
+  canvasPerfDebugContextRef.current = {
+    canvasId: canvas.id,
+    runtime,
+    renderSnapshot: renderSnapshotRef.current ?? renderSnapshot,
+    imageAssetRuntime
+  };
 
   useEffect(() => {
     reactCommitCountRef.current += 1;
   });
+
+  const perfDebugBridge = useMemo(() => createCanvasPerfDebugBridge({
+    enabled: perfMonitorEnabled,
+    perfMonitor,
+    getCanvasSnapshot: () => {
+      const context = canvasPerfDebugContextRef.current;
+      if (!context) {
+        throw new Error('Canvas perf debug snapshot context is unavailable.');
+      }
+      return canvasPerfDebugSnapshot(context);
+    }
+  }), [perfMonitor, perfMonitorEnabled]);
+
+  useEffect(() => {
+    perfDebugBridge.register();
+    return () => {
+      perfDebugBridge.unregister();
+    };
+  }, [perfDebugBridge]);
 
   const commitRenderSnapshot = useCallback((input: {
     camera: CanvasRuntimeSnapshot['camera'];
@@ -833,6 +860,13 @@ export interface CanvasPerfRuntimeSession {
   counterTotals: CanvasPerfCounterTotals;
 }
 
+interface CanvasPerfDebugSnapshotContext {
+  canvasId: string;
+  runtime: Pick<CanvasEditorRuntime, 'getSnapshot'>;
+  renderSnapshot: CanvasRenderCoordinatorSnapshot;
+  imageAssetRuntime: Pick<CanvasImageAssetRuntime, 'stats'>;
+}
+
 const STAGE_WRITE_COUNTERS = [
   'stage-camera-write',
   'stage-node-layout-write',
@@ -1044,6 +1078,24 @@ function canvasPerfFinalState(input: {
     decodedImageCount: imageStats.decodedImageCount,
     zoomLevel: input.snapshot.camera.z,
     cameraState: input.snapshot.cameraState
+  };
+}
+
+function canvasPerfDebugSnapshot(input: CanvasPerfDebugSnapshotContext): DebruteCanvasPerfCanvasSnapshot {
+  const snapshot = input.runtime.getSnapshot();
+  const imageStats = input.imageAssetRuntime.stats();
+  const mountedNodeCount = input.renderSnapshot.nodesByPath.size;
+  const culledNodeCount = input.renderSnapshot.culledNodePaths.size;
+  return {
+    canvasId: input.canvasId,
+    camera: { ...snapshot.camera },
+    cameraState: snapshot.cameraState,
+    mountedNodeCount,
+    visibleNodeCount: Math.max(0, mountedNodeCount - culledNodeCount),
+    culledNodeCount,
+    activeImageLoadCount: imageStats.activeLoadCount,
+    pendingImageCount: imageStats.pendingImageCount,
+    decodedImageCount: imageStats.decodedImageCount
   };
 }
 
