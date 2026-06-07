@@ -72,6 +72,7 @@ export function createCanvasImageAssetRuntime(input: {
 
   let viewport: CanvasImageAssetViewport | undefined;
   let viewportSignature: string | undefined;
+  let movingViewportSignature: string | undefined;
   let plan = new Map<string, CanvasImageLoadingPlanItem>();
   let disposed = false;
   let decodedImageCount = 0;
@@ -140,9 +141,13 @@ export function createCanvasImageAssetRuntime(input: {
     }
     retryKeys.set(projectRelativePath, (retryKeys.get(projectRelativePath) ?? 0) + 1);
     viewportSignature = undefined;
-    rebuildPlan();
+    movingViewportSignature = undefined;
+    syncPlanFromCurrentViewport({
+      source: 'retry',
+      affectedPaths: [projectRelativePath],
+      force: true
+    });
     publishIfChanged(projectRelativePath);
-    pump();
   };
 
   const retryForPath = (projectRelativePath: string): (() => void) => {
@@ -221,9 +226,88 @@ export function createCanvasImageAssetRuntime(input: {
     for (const path of pruneStaleImageWork()) {
       affectedPaths.add(path);
     }
+    if (currentViewport?.cameraState === 'moving') {
+      const pruned = pruneMovingDeferredImageWork(currentViewport);
+      for (const path of pruned.affectedPaths) {
+        affectedPaths.add(path);
+      }
+    }
     for (const path of affectedPaths) {
       publishIfChanged(path);
     }
+    refreshViewportSignaturesFromCurrentState();
+  }
+
+  function syncPlanFromCurrentViewport(input: {
+    source: 'viewport' | 'nodes' | 'retry';
+    affectedPaths?: Iterable<string>;
+    force?: boolean;
+  }): void {
+    const affectedPaths = new Set(input.affectedPaths ?? []);
+    const currentViewport = viewport;
+    if (!currentViewport) {
+      if (plan.size > 0) {
+        plan = new Map();
+      }
+      viewportSignature = undefined;
+      movingViewportSignature = undefined;
+      for (const path of affectedPaths) {
+        publishIfChanged(path);
+      }
+      return;
+    }
+
+    const nextSignatures = canvasImageAssetViewportSignatures(currentViewport, nodes, {
+      loadedImagePaths: loadedImagePathsFromRecords(records)
+    });
+    const currentSignature = currentViewport.cameraState === 'moving'
+      ? movingViewportSignature
+      : viewportSignature;
+    const nextSignature = currentViewport.cameraState === 'moving'
+      ? nextSignatures.moving
+      : nextSignatures.current;
+    const forcePlanSync = input.force === true;
+    if (!forcePlanSync && currentSignature === nextSignature) {
+      viewportSignature = nextSignatures.current;
+      movingViewportSignature = nextSignatures.moving;
+      if (input.source === 'viewport') {
+        recordCanvasSessionCounter('image-viewport-noop');
+      }
+      recordCanvasSessionCounter('image-plan-reuse');
+      const pruned = pruneMovingDeferredImageWork(currentViewport);
+      for (const path of pruned.affectedPaths) {
+        affectedPaths.add(path);
+      }
+      for (const path of affectedPaths) {
+        publishIfChanged(path);
+      }
+      if (pruned.openedLoadSlot) {
+        pump();
+      }
+      return;
+    }
+
+    viewportSignature = nextSignatures.current;
+    movingViewportSignature = nextSignatures.moving;
+    if (input.source === 'viewport') {
+      recordCanvasSessionCounter('image-viewport-sync');
+    }
+    rebuildPlan();
+    pump();
+  }
+
+  function refreshViewportSignaturesFromCurrentState(): void {
+    const currentViewport = viewport;
+    if (!currentViewport) {
+      viewportSignature = undefined;
+      movingViewportSignature = undefined;
+      return;
+    }
+    const nextSignatures = canvasImageAssetViewportSignatures(currentViewport, nodes, {
+      loadedImagePaths: loadedImagePathsFromRecords(records)
+    });
+    viewportSignature = nextSignatures.current;
+    movingViewportSignature = nextSignatures.moving;
   }
 
   function clearUnmountedNodeAssetState(projectRelativePath: string): void {
@@ -299,6 +383,71 @@ export function createCanvasImageAssetRuntime(input: {
     }
 
     return affectedPaths;
+  }
+
+  function pruneMovingDeferredImageWork(currentViewport: CanvasImageAssetViewport): {
+    affectedPaths: Set<string>;
+    openedLoadSlot: boolean;
+  } {
+    const affectedPaths = new Set<string>();
+    let openedLoadSlot = false;
+    if (currentViewport.cameraState !== 'moving') {
+      return { affectedPaths, openedLoadSlot };
+    }
+
+    for (const [loadKey, active] of [...activeLoads]) {
+      const record = records.get(active.item.projectRelativePath);
+      if (isMovingImageWorkAllowed(active.item, currentViewport, record)) {
+        continue;
+      }
+      activeLoads.delete(loadKey);
+      endImageLoadSession(active.item, 'image-load-stale-result');
+      affectedPaths.add(active.item.projectRelativePath);
+      openedLoadSlot = true;
+    }
+
+    for (const [path, record] of [...records]) {
+      const current = plan.get(path);
+      const allowMovingWork = isMovingImageWorkAllowed(current, currentViewport, record);
+      const nextRecord: CanvasImageAssetRecord = {
+        ...(record.visible ? { visible: record.visible } : {})
+      };
+      if (record.next && allowMovingWork) {
+        nextRecord.next = record.next;
+      } else if (record.next) {
+        affectedPaths.add(path);
+      }
+      if (record.error && allowMovingWork) {
+        nextRecord.error = record.error;
+      } else if (record.error) {
+        failedLoadKeys.delete(record.error.loadKey);
+        affectedPaths.add(path);
+      }
+
+      if (nextRecord.visible || nextRecord.next || nextRecord.error) {
+        records.set(path, nextRecord);
+      } else {
+        records.delete(path);
+      }
+    }
+
+    return { affectedPaths, openedLoadSlot };
+  }
+
+  function isMovingImageWorkAllowed(
+    item: CanvasImageLoadingPlanItem | undefined,
+    currentViewport: CanvasImageAssetViewport,
+    record: CanvasImageAssetRecord | undefined
+  ): boolean {
+    if (!item?.eligible || item.priority !== 0 || record?.visible) {
+      return false;
+    }
+    if (currentViewport.culledNodePaths.has(item.projectRelativePath)) {
+      return false;
+    }
+    const node = nodes.get(item.projectRelativePath);
+    return isAvailableVisibleImageNode(node)
+      && rectsIntersect(currentViewport.visibleRect, nodeRect(node));
   }
 
   function startLoad(item: CanvasImageLoadingPlanItem): void {
@@ -437,35 +586,27 @@ export function createCanvasImageAssetRuntime(input: {
 
   return {
     setNodes: (nextNodes) => {
+      const affectedPaths = new Set<string>();
       nodes.clear();
       for (const [path, node] of nextNodes) {
         nodes.set(path, node);
+        affectedPaths.add(path);
       }
       for (const path of [...records.keys()]) {
         if (!nodes.has(path)) {
           clearUnmountedNodeAssetState(path);
+          affectedPaths.add(path);
           publish(path);
         }
       }
-      viewportSignature = undefined;
-      rebuildPlan();
-      pump();
+      syncPlanFromCurrentViewport({
+        source: 'nodes',
+        affectedPaths
+      });
     },
     setViewport: (nextViewport) => {
-      const nextSignature = canvasImageAssetViewportSignature(nextViewport, nodes, {
-        loadedImagePaths: loadedImagePathsFromRecords(records)
-      });
-      if (viewportSignature === nextSignature) {
-        viewport = nextViewport;
-        recordCanvasSessionCounter('image-viewport-noop');
-        recordCanvasSessionCounter('image-plan-reuse');
-        return;
-      }
-      viewportSignature = nextSignature;
       viewport = nextViewport;
-      recordCanvasSessionCounter('image-viewport-sync');
-      rebuildPlan();
-      pump();
+      syncPlanFromCurrentViewport({ source: 'viewport' });
     },
     getNodeState: (projectRelativePath) => {
       let state = nodeStates.get(projectRelativePath);
@@ -516,6 +657,7 @@ export function createCanvasImageAssetRuntime(input: {
       plan.clear();
       viewport = undefined;
       viewportSignature = undefined;
+      movingViewportSignature = undefined;
       decodedImageCount = 0;
     }
   };
@@ -568,15 +710,35 @@ export function canvasImageAssetViewportSignature(
   nodes: ReadonlyMap<string, ProjectedCanvasNode>,
   input: { loadedImagePaths?: ReadonlySet<string> } = {}
 ): string {
+  if (viewport.cameraState === 'moving') {
+    return [
+      viewport.cameraState,
+      String(viewport.imagePreviewsEnabled),
+      movingViewportBlankImageCandidateSignature(viewport, nodes, input.loadedImagePaths ?? new Set())
+    ].join('\u001e');
+  }
+
   return [
     viewport.cameraState,
-    viewport.cameraState === 'moving'
-      ? movingViewportBlankImageCandidateSignature(viewport, nodes, input.loadedImagePaths ?? new Set())
-      : `${rectSignature(viewport.visibleRect)}:${mountedImagePathSignature(viewport.mountedNodePaths, nodes)}`,
+    `${rectSignature(viewport.visibleRect)}:${mountedImageSourceSignature(viewport.mountedNodePaths, nodes)}`,
     String(viewport.imageResourceZoom),
     String(viewport.devicePixelRatio),
     String(viewport.imagePreviewsEnabled)
   ].join('\u001e');
+}
+
+function canvasImageAssetViewportSignatures(
+  viewport: CanvasImageAssetViewport,
+  nodes: ReadonlyMap<string, ProjectedCanvasNode>,
+  input: { loadedImagePaths: ReadonlySet<string> }
+): { current: string; moving: string } {
+  return {
+    current: canvasImageAssetViewportSignature(viewport, nodes, input),
+    moving: canvasImageAssetViewportSignature({
+      ...viewport,
+      cameraState: 'moving'
+    }, nodes, input)
+  };
 }
 
 function rectSignature(rect: CanvasRect): string {
@@ -591,17 +753,22 @@ function movingViewportBlankImageCandidateSignature(
   return [...viewport.mountedNodePaths]
     .filter((path) => !loadedImagePaths.has(path))
     .filter((path) => !viewport.culledNodePaths.has(path))
-    .filter((path) => {
+    .map((path) => {
       const node = nodes.get(path);
-      return isAvailableVisibleImageNode(node) && rectsIntersect(viewport.visibleRect, nodeRect(node));
+      if (!isAvailableVisibleImageNode(node) || !rectsIntersect(viewport.visibleRect, nodeRect(node))) {
+        return undefined;
+      }
+      return imageNodeSourceSignature(node);
     })
+    .filter((entry): entry is string => entry !== undefined)
     .sort()
     .join('\u001f');
 }
 
-function mountedImagePathSignature(paths: ReadonlySet<string>, nodes: ReadonlyMap<string, ProjectedCanvasNode>): string {
+function mountedImageSourceSignature(paths: ReadonlySet<string>, nodes: ReadonlyMap<string, ProjectedCanvasNode>): string {
   return [...paths]
-    .filter((path) => isImageNode(nodes.get(path)))
+    .map((path) => imageNodeSourceSignature(nodes.get(path)))
+    .filter((entry): entry is string => entry !== undefined)
     .join('\u001f');
 }
 
@@ -609,7 +776,34 @@ function isImageNode(node: ProjectedCanvasNode | undefined): node is ProjectedCa
   return node?.nodeKind === 'file' && node.mediaKind === 'image';
 }
 
-function isAvailableVisibleImageNode(node: ProjectedCanvasNode | undefined): node is ProjectedCanvasNode {
+function imageNodeSourceSignature(node: ProjectedCanvasNode | undefined): string | undefined {
+  if (!isImageNode(node)) {
+    return undefined;
+  }
+  if (node.availability.state !== 'available') {
+    return [
+      node.projectRelativePath,
+      String(node.visible !== false),
+      node.availability.state,
+      node.availability.message,
+      rectSignature(nodeRect(node))
+    ].join('\u001d');
+  }
+  return [
+    node.projectRelativePath,
+    String(node.visible !== false),
+    node.availability.state,
+    node.availability.fileUrl,
+    node.availability.revision,
+    String(node.availability.canvasImagePreviewable === true),
+    String(node.availability.canvasImagePreviewSourceWidth ?? ''),
+    rectSignature(nodeRect(node))
+  ].join('\u001d');
+}
+
+function isAvailableVisibleImageNode(
+  node: ProjectedCanvasNode | undefined
+): node is ProjectedCanvasNode & { availability: Extract<ProjectedCanvasNode['availability'], { state: 'available' }> } {
   return node?.nodeKind === 'file'
     && node.mediaKind === 'image'
     && node.visible !== false

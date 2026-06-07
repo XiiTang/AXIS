@@ -560,11 +560,22 @@ describe('CanvasSurface', () => {
     })).toBe(true);
     expect(shouldUseEfficientImageResourceZoom({
       imagePreviewsEnabled: true,
+      nodeCount: 144,
+      imageNodeCount: 144
+    })).toBe(true);
+    expect(shouldUseEfficientImageResourceZoom({
+      imagePreviewsEnabled: true,
+      nodeCount: 144,
+      imageNodeCount: 20
+    })).toBe(false);
+    expect(shouldUseEfficientImageResourceZoom({
+      imagePreviewsEnabled: true,
       nodeCount: 500
     })).toBe(false);
     expect(shouldUseEfficientImageResourceZoom({
       imagePreviewsEnabled: false,
-      nodeCount: 1000
+      nodeCount: 1000,
+      imageNodeCount: 1000
     })).toBe(false);
   });
 
@@ -785,6 +796,33 @@ describe('CanvasSurface', () => {
       'render-idle-flush',
       'image-idle-flush'
     ]);
+  });
+
+  it('records moving queue counters separately from actual image runtime work counters', () => {
+    const monitor = createCanvasPerfMonitor({ enabled: true });
+    const frames: FrameRequestCallback[] = [];
+    const imageScheduler = createCanvasImageAssetViewportSyncScheduler({
+      perfMonitor: monitor,
+      sync: () => undefined,
+      requestFrame: (callback) => {
+        frames.push(callback);
+        return frames.length;
+      },
+      cancelFrame: () => undefined
+    });
+
+    imageScheduler.request('moving');
+    imageScheduler.request('moving');
+
+    expect(monitor.getCounterTotals()).toEqual({
+      'image-moving-queued': 1
+    });
+
+    frames[0]?.(0);
+
+    expect(monitor.getCounterTotals()).toEqual({
+      'image-moving-queued': 1
+    });
   });
 
   it('starts, frames, and ends a camera session from camera state changes', () => {

@@ -132,6 +132,49 @@ describe('CanvasPerfDebugBridge', () => {
     });
   });
 
+  it('exports clean hot-path counters without requiring image runtime work counters', () => {
+    const fakeMonitor = monitor();
+    const bridge = createCanvasPerfDebugBridge({
+      enabled: true,
+      globalObject: {},
+      perfMonitor: fakeMonitor,
+      getCanvasSnapshot: snapshot,
+      now: times(100, 140)
+    });
+
+    bridge.api.startCapture({ label: 'clean-pan' });
+    fakeMonitor.trace = {
+      enabled: true,
+      events: [{
+        kind: 'counter',
+        timestamp: 110,
+        source: 'CanvasStageRuntime',
+        name: 'stage-camera-write',
+        value: 12
+      }, {
+        kind: 'counter',
+        timestamp: 111,
+        source: 'CanvasImageAssetViewportScheduler',
+        name: 'image-moving-queued',
+        value: 1
+      }],
+      sessions: []
+    };
+    fakeMonitor.counters = {
+      'stage-camera-write': 12,
+      'image-moving-queued': 1
+    };
+    const capture = bridge.api.stopCapture();
+
+    expect(capture.counterTotals).toEqual({
+      'stage-camera-write': 12,
+      'image-moving-queued': 1
+    });
+    expect(capture.counterTotals).not.toHaveProperty('image-plan-rebuild');
+    expect(capture.counterTotals).not.toHaveProperty('image-pump');
+    expect(capture.counterTotals).not.toHaveProperty('image-node-publish');
+  });
+
   it('returns the latest export when stopCapture is called while inactive', () => {
     const bridge = createCanvasPerfDebugBridge({
       enabled: true,

@@ -71,6 +71,7 @@ interface CanvasSurfaceProps {
 }
 
 const CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_NODE_THRESHOLD = 500;
+const CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_IMAGE_NODE_THRESHOLD = 100;
 
 export function CanvasSurface({
   canvas,
@@ -196,6 +197,9 @@ function CanvasSurfaceRuntime({
   const [hoveredNodePath, setHoveredNodePath] = useState<string>();
 
   const projectedNodes = projection.nodes;
+  const projectedImageNodeCount = useMemo(() => (
+    projectedNodes.filter((node) => node.nodeKind === 'file' && node.mediaKind === 'image').length
+  ), [projectedNodes]);
   const devicePixelRatio = devicePixelRatioValue();
   const perfMonitorEnabled = canvasPerfMonitorEnabled();
   const stageRuntime = useMemo(() => createCanvasStageRuntime({ perfMonitor }), [perfMonitor]);
@@ -310,7 +314,8 @@ function CanvasSurfaceRuntime({
       imagePreviewsEnabled: canvasSettings.imagePreviewsEnabled,
       useEfficientImageResourceZoom: shouldUseEfficientImageResourceZoom({
         imagePreviewsEnabled: canvasSettings.imagePreviewsEnabled,
-        nodeCount: projectedNodes.length
+        nodeCount: projectedNodes.length,
+        imageNodeCount: projectedImageNodeCount
       }),
       currentImageResourceZoom: snapshot.imageResourceZoom,
       liveCameraZoom: snapshot.camera.z,
@@ -319,7 +324,7 @@ function CanvasSurfaceRuntime({
       setTimeout: (callback, delay) => window.setTimeout(callback, delay),
       clearTimeout: (handle) => window.clearTimeout(handle)
     });
-  }, [canvasSettings.imagePreviewsEnabled, projectedNodes.length, runtime]);
+  }, [canvasSettings.imagePreviewsEnabled, projectedImageNodeCount, projectedNodes.length, runtime]);
 
   useEffect(() => {
     renderCoordinator.setProjection(projection);
@@ -1255,9 +1260,13 @@ export function syncCanvasImageResourceZoomForCameraState(input: {
 export function shouldUseEfficientImageResourceZoom(input: {
   imagePreviewsEnabled: boolean;
   nodeCount: number;
+  imageNodeCount?: number | undefined;
 }): boolean {
   return input.imagePreviewsEnabled
-    && input.nodeCount > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_NODE_THRESHOLD;
+    && (
+      input.nodeCount > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_NODE_THRESHOLD
+      || (input.imageNodeCount ?? 0) > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_IMAGE_NODE_THRESHOLD
+    );
 }
 
 export function createCanvasImageAssetViewportSyncScheduler(input: {
