@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CanvasSettingsPage, SettingsPanel } from '../apps/web/src/workbench/settings/SettingsPanel';
+import { SettingsPanel } from '../apps/web/src/workbench/settings/SettingsPanel';
 import {
   DebruteCliSettingsPage,
   debruteCliSkillsStatusFromActionResult,
@@ -34,8 +34,7 @@ describe('web Settings pages', () => {
             apiKeySet: false
           }]
         },
-        videoModelSettings: { models: [] },
-        canvasSettings: { imagePreviewsEnabled: true }
+        videoModelSettings: { models: [] }
       } as unknown as WorkbenchState,
       actions: {} as unknown as WorkbenchActions
     }));
@@ -46,8 +45,8 @@ describe('web Settings pages', () => {
     expect(html).toContain('Generation endpoints and API keys');
     expect(html).toContain('LLM');
     expect(html).toContain('Models');
-    expect(html).toContain('Canvas');
-    expect(html).toContain('Canvas rendering resources');
+    expect(html).not.toContain('<strong>Canvas</strong>');
+    expect(html).not.toContain('Canvas rendering resources');
     expect(html).toContain('Integrations');
     expect(html).toContain('Optional local capabilities');
     expect(html).toContain('Debrute CLI');
@@ -64,15 +63,20 @@ describe('web Settings pages', () => {
     expect(html).toContain('no key');
   });
 
-  it('renders the Canvas image previews toggle', () => {
-    const html = renderToStaticMarkup(React.createElement(CanvasSettingsPage, {
-      settings: { imagePreviewsEnabled: false },
-      onSave: async () => undefined
+  it('does not render Canvas settings or image preview controls', () => {
+    const html = renderToStaticMarkup(React.createElement(SettingsPanel, {
+      state: {
+        llmSettings: { providers: [], availableModelKeys: [], defaultModelKey: null },
+        imageModelSettings: { models: [] },
+        videoModelSettings: { models: [] },
+        integrationsSettings: undefined
+      } as unknown as WorkbenchState,
+      actions: {} as unknown as WorkbenchActions
     }));
 
-    expect(html).toContain('Canvas image previews');
-    expect(html).toContain('type="checkbox"');
-    expect(html).not.toContain('checked=""');
+    expect(html).not.toContain('Canvas image previews');
+    expect(html).not.toContain('Canvas rendering resources');
+    expect(html).not.toContain('<strong>Canvas</strong>');
   });
 
   it('renders browser-only manual Debrute CLI instructions when Desktop shell is unavailable', () => {

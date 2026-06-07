@@ -16,7 +16,6 @@ export {
 
 export {
   GlobalConfigStore,
-  type CanvasSettingsConfig,
   type GlobalConfigPaths
 } from './config/GlobalConfigStore.js';
 
@@ -37,7 +36,6 @@ export type {
 
 export type {
   AppServerEvent,
-  CanvasSettingsView,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
   GeneratedAssetMetadataLookup,

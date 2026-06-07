@@ -660,20 +660,11 @@ async function handleSettingsRoute(context: GlobalRuntimeRequestContext): Promis
   const path = context.url.pathname;
   if (method === 'GET' && path === '/api/settings') {
     writeJson(context.response, 200, {
-      canvas: await server.canvasSettingsGet(),
       llm: await server.llmGetSettings(),
       imageModels: await server.imageModelGetSettings(),
       videoModels: await server.videoModelGetSettings(),
       integrations: await server.integrationsListStatus()
     });
-    return;
-  }
-  if (method === 'GET' && path === '/api/settings/canvas') {
-    writeJson(context.response, 200, await server.canvasSettingsGet());
-    return;
-  }
-  if (method === 'PUT' && path === '/api/settings/canvas') {
-    writeJson(context.response, 200, await server.canvasSettingsSave(await readJsonBody(context.request)));
     return;
   }
   if (method === 'GET' && path === '/api/settings/llm') {
@@ -769,8 +760,7 @@ function isGlobalEvent(event: AppServerEvent): boolean {
   return event.type === 'llm.settings.changed'
     || event.type === 'imageModel.settings.changed'
     || event.type === 'videoModel.settings.changed'
-    || event.type === 'integrations.settings.changed'
-    || event.type === 'canvas.settings.changed';
+    || event.type === 'integrations.settings.changed';
 }
 
 function updateSessionSnapshotFromEvent(session: ProjectSessionRecord, event: AppServerEvent): void {

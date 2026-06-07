@@ -75,10 +75,6 @@ export function CanvasEditor({
     return <EmptyCanvas hasProject={Boolean(state.snapshot)} actions={actions} />;
   }
 
-  if (!state.canvasSettings) {
-    return <section className="canvas-shell" data-testid="canvas-settings-loading" />;
-  }
-
   if (!runtime) {
     return <section className="canvas-shell" data-testid="canvas-runtime-loading" />;
   }
@@ -92,7 +88,6 @@ export function CanvasEditor({
         actions={actions}
         textFileBuffers={state.textFileBuffers}
         canvasFeedback={state.canvasFeedback}
-        canvasSettings={state.canvasSettings}
         overlayRuntime={overlayRuntime}
         minimapOpen={minimapOpen}
         feedbackPlacementContext={feedbackPlacementContext}

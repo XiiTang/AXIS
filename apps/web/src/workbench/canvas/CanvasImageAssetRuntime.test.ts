@@ -864,7 +864,6 @@ describe('CanvasImageAssetRuntime', () => {
         cameraState: 'moving',
         mountedNodePaths: new Set(['flow/a.png'])
       }),
-      imagePreviewsEnabled: true,
       imageResourceZoom: 1
     };
 
@@ -989,7 +988,6 @@ function viewport(input: {
     culledNodePaths: input.culledNodePaths ?? new Set(),
     imageResourceZoom: 1,
     devicePixelRatio: 1,
-    imagePreviewsEnabled: true,
     cameraState: input.cameraState
   };
 }

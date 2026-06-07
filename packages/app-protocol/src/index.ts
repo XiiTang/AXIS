@@ -122,10 +122,6 @@ export interface WorkbenchProjectOpenResult {
   snapshot: WorkbenchProjectSessionSnapshot;
 }
 
-export type CanvasSettingsView = {
-  imagePreviewsEnabled: boolean;
-};
-
 export type LlmProviderType = 'openai_compat' | 'anthropic';
 
 export interface LlmProviderConfig {
@@ -501,8 +497,7 @@ export type AppServerEvent =
   | { type: 'llm.settings.changed'; settings: LlmProviderSettingsView }
   | { type: 'imageModel.settings.changed'; settings: ImageModelSettingsView }
   | { type: 'videoModel.settings.changed'; settings: VideoModelSettingsView }
-  | { type: 'integrations.settings.changed'; settings: IntegrationSettingsView }
-  | { type: 'canvas.settings.changed'; settings: CanvasSettingsView };
+  | { type: 'integrations.settings.changed'; settings: IntegrationSettingsView };
 
 export type WorkbenchFileWatchEvent = Omit<NormalizedFileWatchEvent, 'absolutePath'>;
 
@@ -514,8 +509,7 @@ export type WorkbenchEvent =
   | { type: 'llm.settings.changed'; settings: LlmProviderSettingsView }
   | { type: 'imageModel.settings.changed'; settings: ImageModelSettingsView }
   | { type: 'videoModel.settings.changed'; settings: VideoModelSettingsView }
-  | { type: 'integrations.settings.changed'; settings: IntegrationSettingsView }
-  | { type: 'canvas.settings.changed'; settings: CanvasSettingsView };
+  | { type: 'integrations.settings.changed'; settings: IntegrationSettingsView };
 
 export interface WorkbenchApiClient {
   readonly mode: 'web' | 'desktop';
@@ -561,7 +555,5 @@ export interface WorkbenchApiClient {
   videoModelSaveSetting(modelId: string, input: SaveVideoModelSettingInput): Promise<VideoModelSettingsView>;
   integrationsListStatus(): Promise<IntegrationSettingsView>;
   integrationsRescan(): Promise<IntegrationSettingsView>;
-  canvasSettingsGet(): Promise<CanvasSettingsView>;
-  canvasSettingsSave(input: CanvasSettingsView): Promise<CanvasSettingsView>;
   onEvent(listener: (event: WorkbenchEvent) => void): () => void;
 }

@@ -17,6 +17,12 @@ export interface DebruteCanvasPerfCanvasSnapshot {
   activeImageLoadCount: number;
   pendingImageCount: number;
   decodedImageCount: number;
+  imageLayers: {
+    visible: number;
+    next: number;
+    previewSources: number;
+    rawSources: number;
+  };
 }
 
 export interface DebruteCanvasPerfCapture {
@@ -214,7 +220,8 @@ function cloneCanvasSnapshot(snapshot: DebruteCanvasPerfCanvasSnapshot): Debrute
     culledNodeCount: snapshot.culledNodeCount,
     activeImageLoadCount: snapshot.activeImageLoadCount,
     pendingImageCount: snapshot.pendingImageCount,
-    decodedImageCount: snapshot.decodedImageCount
+    decodedImageCount: snapshot.decodedImageCount,
+    imageLayers: { ...snapshot.imageLayers }
   };
 }
 

@@ -12,47 +12,35 @@ describe('canvas image preview URLs', () => {
     expect(canvasImagePreviewBucket(240)).toBe(256);
     expect(canvasImageSourceUrl({
       node,
-      imagePreviewsEnabled: true,
       cameraZoom: 0.1,
       devicePixelRatio: 1
     })).toBe(previewUrl('flow/cover.png', 256));
 
     expect(canvasImageSourceUrl({
       node,
-      imagePreviewsEnabled: true,
       cameraZoom: 1,
       devicePixelRatio: 1
     })).toBe(previewUrl('flow/cover.png', 2048));
   });
 
-  it('keeps original URLs when previews are disabled or the image is not previewable', () => {
-    expect(canvasImageSourceUrl({
-      node: nodeFixture('flow/cover.png', 1000, 'image/png'),
-      imagePreviewsEnabled: false,
-      cameraZoom: 0.1,
-      devicePixelRatio: 1
-    })).toBe(rawUrl('flow/cover.png'));
-
+  it('does not return raw Canvas image URLs for unsupported image nodes', () => {
     expect(canvasImageSourceUrl({
       node: nodeFixture('flow/animated.gif', 1000, 'image/gif'),
-      imagePreviewsEnabled: true,
       cameraZoom: 0.1,
       devicePixelRatio: 1
-    })).toBe(rawUrl('flow/animated.gif'));
+    })).toBeUndefined();
 
     expect(canvasImageSourceUrl({
       node: { ...nodeFixture('flow/movie.mp4', 1000, 'video/mp4'), mediaKind: 'video' },
-      imagePreviewsEnabled: true,
       cameraZoom: 0.1,
       devicePixelRatio: 1
-    })).toBe(rawUrl('flow/movie.mp4'));
+    })).toBeUndefined();
 
     expect(canvasImageSourceUrl({
       node: nodeFixture('flow/animated.webp', 1000, 'image/webp', false),
-      imagePreviewsEnabled: true,
       cameraZoom: 0.1,
       devicePixelRatio: 1
-    })).toBe(rawUrl('flow/animated.webp'));
+    })).toBeUndefined();
   });
 
   it('caps preview bucket selection at the source image width', () => {
@@ -60,21 +48,18 @@ describe('canvas image preview URLs', () => {
 
     expect(canvasImageSourceUrl({
       node,
-      imagePreviewsEnabled: true,
       cameraZoom: 0.1,
       devicePixelRatio: 1
     })).toBe(previewUrl('flow/small.png', 256));
 
     expect(canvasImageSourceUrl({
       node,
-      imagePreviewsEnabled: true,
       cameraZoom: 0.5,
       devicePixelRatio: 1
     })).toBe(previewUrl('flow/small.png', 512));
 
     expect(canvasImageSourceUrl({
       node,
-      imagePreviewsEnabled: true,
       cameraZoom: 2,
       devicePixelRatio: 1
     })).toBe(previewUrl('flow/small.png', 512));
@@ -88,7 +73,6 @@ describe('canvas image preview URLs', () => {
   it('keeps preview URLs limited to path, revision, and width', () => {
     expect(canvasImageSourceUrl({
       node: nodeFixture('flow/cover art.png', 1000, 'image/png'),
-      imagePreviewsEnabled: true,
       cameraZoom: 0.2,
       devicePixelRatio: 1
     })).toBe('http://127.0.0.1:17321/api/projects/123e4567-e89b-42d3-a456-426614174000/canvas-image-preview?path=flow%2Fcover+art.png&v=rev&w=256');

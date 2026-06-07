@@ -267,8 +267,7 @@ describe('CanvasSurface', () => {
     };
 
     const html = renderToStaticMarkup(surface(canvas, projection, {
-      camera: { x: 0, y: 0, z: 0.1 },
-      canvasSettings: { imagePreviewsEnabled: true }
+      camera: { x: 0, y: 0, z: 0.1 }
     }));
 
     expect(html).toContain('data-canvas-node-path="flow/image-0.png"');
@@ -289,7 +288,6 @@ describe('CanvasSurface', () => {
       culledNodePaths: new Set(),
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: true,
       cameraState: 'idle'
     });
 
@@ -319,7 +317,27 @@ describe('CanvasSurface', () => {
     expect(html).toContain('data-canvas-image-layer="next"');
   });
 
-  it('waits for Canvas settings before rendering image nodes', () => {
+  it('renders preview-only image layers without raw image sources', () => {
+    const html = renderCanvasSurfaceWithImageState({
+      kind: 'image',
+      visible: {
+        src: '/api/projects/p/canvas-image-preview?path=flow%2Fcover.png&v=rev&w=256',
+        loadKey: 'preview'
+      },
+      next: {
+        src: '/api/projects/p/canvas-image-preview?path=flow%2Fcover.png&v=rev&w=512',
+        loadKey: 'preview-next'
+      },
+      retry: () => undefined
+    });
+
+    expect(html).toContain('data-canvas-image-layer="visible"');
+    expect(html).toContain('data-canvas-image-layer="next"');
+    expect(html).toContain('/canvas-image-preview?path=flow%2Fcover.png');
+    expect(html).not.toContain('/files/raw/');
+  });
+
+  it('does not wait for Canvas settings before rendering the Canvas shell', () => {
     const canvas = createCanvasDocument({ id: 'settings-loading-canvas', title: 'Settings Loading Canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
@@ -330,14 +348,15 @@ describe('CanvasSurface', () => {
     const html = renderToStaticMarkup(
       <CanvasEditor
         canvasId={canvas.id}
-        state={workbenchStateFixture(canvas, projection, undefined)}
+        state={workbenchStateFixture(canvas, projection)}
         actions={actions}
         overlayRuntime={createCanvasOverlayRuntime()}
         feedbackPlacementContext={feedbackPlacementContextFixture()}
       />
     );
 
-    expect(html).toContain('data-testid="canvas-settings-loading"');
+    expect(html).not.toContain('data-testid="canvas-settings-loading"');
+    expect(html).toContain('data-testid="canvas-runtime-loading"');
     expect(html).not.toContain('debrute-canvas-preview://');
     expect(html).not.toContain('debrute-project-file://');
   });
@@ -388,8 +407,7 @@ describe('CanvasSurface', () => {
         [live.projectRelativePath, live]
       ]),
       imageResourceZoom: 1,
-      devicePixelRatio: 1,
-      imagePreviewsEnabled: true
+      devicePixelRatio: 1
     });
 
     expect(viewports).toHaveLength(1);
@@ -397,7 +415,6 @@ describe('CanvasSurface', () => {
       visibleRect: { x: 350, y: 0, width: 400, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: true,
       cameraState: 'moving'
     });
     expect((viewports[0] as { mountedNodePaths: ReadonlySet<string> }).mountedNodePaths).toEqual(new Set([
@@ -460,7 +477,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'moving',
-      imagePreviewsEnabled: true,
       useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
@@ -483,7 +499,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'moving',
-      imagePreviewsEnabled: true,
       useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
@@ -506,7 +521,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'moving',
-      imagePreviewsEnabled: true,
       useEfficientImageResourceZoom: false,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
@@ -530,7 +544,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'idle',
-      imagePreviewsEnabled: true,
       useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
@@ -553,29 +566,20 @@ describe('CanvasSurface', () => {
     expect(updates).toEqual([2]);
   });
 
-  it('uses efficient image resource zoom only when previews are enabled and the canvas is large', () => {
+  it('uses efficient image resource zoom only when the canvas is large or image-heavy', () => {
     expect(shouldUseEfficientImageResourceZoom({
-      imagePreviewsEnabled: true,
       nodeCount: 501
     })).toBe(true);
     expect(shouldUseEfficientImageResourceZoom({
-      imagePreviewsEnabled: true,
       nodeCount: 144,
       imageNodeCount: 144
     })).toBe(true);
     expect(shouldUseEfficientImageResourceZoom({
-      imagePreviewsEnabled: true,
       nodeCount: 144,
       imageNodeCount: 20
     })).toBe(false);
     expect(shouldUseEfficientImageResourceZoom({
-      imagePreviewsEnabled: true,
       nodeCount: 500
-    })).toBe(false);
-    expect(shouldUseEfficientImageResourceZoom({
-      imagePreviewsEnabled: false,
-      nodeCount: 1000,
-      imageNodeCount: 1000
     })).toBe(false);
   });
 
@@ -586,7 +590,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'idle',
-      imagePreviewsEnabled: true,
       useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1.5,
       liveCameraZoom: 1.5,
@@ -1084,7 +1087,6 @@ function surface(
     camera?: CanvasCamera;
     textFileBuffers?: Parameters<typeof CanvasSurface>[0]['textFileBuffers'];
     canvasFeedback?: CanvasFeedbackDocument;
-    canvasSettings?: Parameters<typeof CanvasSurface>[0]['canvasSettings'];
   } = {}
 ): React.ReactElement {
   const runtime = createCanvasEditorRuntime({
@@ -1099,7 +1101,6 @@ function surface(
       actions={actions}
       textFileBuffers={input.textFileBuffers ?? {}}
       canvasFeedback={input.canvasFeedback}
-      canvasSettings={input.canvasSettings ?? { imagePreviewsEnabled: true }}
       imageAssetRuntime={createCanvasImageAssetRuntime()}
       overlayRuntime={createCanvasOverlayRuntime()}
       feedbackPlacementContext={feedbackPlacementContextFixture()}
@@ -1218,12 +1219,11 @@ function feedbackDocument(entries: CanvasFeedbackDocument['entries']): CanvasFee
 
 function workbenchStateFixture(
   canvas: ReturnType<typeof createCanvasDocument>,
-  projection: CanvasProjection,
-  canvasSettings: WorkbenchState['canvasSettings']
+  projection: CanvasProjection
 ): WorkbenchState {
-	  return {
-	    snapshot: {
-	      metadata: {
+  return {
+    snapshot: {
+      metadata: {
         schemaVersion: 1,
         project: {
           id: 'project',
@@ -1249,13 +1249,12 @@ function workbenchStateFixture(
     imageModelSettings: undefined,
     videoModelSettings: undefined,
     integrationsSettings: undefined,
-    canvasSettings,
-	    canvasFeedback: undefined,
-	    textFileBuffers: {},
-	    textEditorWindows: {},
-	    notifications: []
-	  };
-	}
+    canvasFeedback: undefined,
+    textFileBuffers: {},
+    textEditorWindows: {},
+    notifications: []
+  };
+}
 
 const actions: WorkbenchActions = {
   selectExplorerPath: () => undefined,
@@ -1313,10 +1312,9 @@ const actions: WorkbenchActions = {
   toggleTextFileWordWrap: () => undefined,
   updateCanvasNodeLayouts: async () => undefined,
   updateCanvasNodeLayers: async () => undefined,
-	  updateCanvasFeedbackEntry: async () => undefined,
-	  saveCanvasSettings: async () => undefined,
-	  openProject: async () => undefined
-	};
+  updateCanvasFeedbackEntry: async () => undefined,
+  openProject: async () => undefined
+};
 
 const emptyIntegrationsSettings: IntegrationSettingsView = {
   integrations: [],

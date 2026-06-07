@@ -1,7 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type {
   AppServerEvent,
-  CanvasSettingsView,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
   ImageModelSettingsView,
@@ -12,7 +11,7 @@ import type {
   SaveVideoModelSettingInput,
   VideoModelSettingsView
 } from '@debrute/app-protocol';
-import { GlobalConfigStore, type CanvasSettingsConfig } from '../config/GlobalConfigStore.js';
+import { GlobalConfigStore } from '../config/GlobalConfigStore.js';
 import { IntegrationsService } from '../integrations/IntegrationsService.js';
 import { ImageModelService } from '../models/ImageModelService.js';
 import { LlmService } from '../models/LlmService.js';
@@ -48,17 +47,6 @@ export class DebruteGlobalRuntimeServer {
   onEvent(listener: (event: AppServerEvent) => void): () => void {
     this.events.on('event', listener);
     return () => this.events.off('event', listener);
-  }
-
-  async canvasSettingsGet(): Promise<CanvasSettingsView> {
-    return this.configStore.readCanvasSettings();
-  }
-
-  async canvasSettingsSave(input: CanvasSettingsConfig): Promise<CanvasSettingsView> {
-    await this.configStore.saveCanvasSettings(input);
-    const settings = await this.configStore.readCanvasSettings();
-    this.emit({ type: 'canvas.settings.changed', settings });
-    return settings;
   }
 
   async llmGetSettings(): Promise<LlmProviderSettingsView> {

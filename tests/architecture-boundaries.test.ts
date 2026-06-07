@@ -205,8 +205,6 @@ describe('Debrute architecture boundaries', () => {
 
     expect(text).not.toContain('getGlobalRuntime');
     for (const method of [
-      'canvasSettingsGet',
-      'canvasSettingsSave',
       'llmGetSettings',
       'llmSaveProviderSetting',
       'llmDeleteProviderSetting',

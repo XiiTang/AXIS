@@ -171,7 +171,7 @@ describe('canvas image preview service', () => {
     expect(queuedStarted).toBe(false);
   });
 
-  it('rejects source images that are too small to benefit from Canvas previews', async () => {
+  it('serves small source images through the Canvas preview pipeline', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-canvas-preview-service-small-source-'));
     try {
       await mkdir(join(projectRoot, 'images'), { recursive: true });
@@ -186,12 +186,16 @@ describe('canvas image preview service', () => {
       const service = createCanvasImagePreviewService();
       const revision = await canvasImageSourceRevision(projectRoot, 'images/small.png');
 
-      await expect(service.resolve({
+      const preview = await service.resolve({
         projectRoot,
         projectRelativePath: 'images/small.png',
         revision,
         width: 256
-      })).rejects.toThrow('Canvas image is not previewable: images/small.png');
+      });
+      const metadata = await sharp(preview.absolutePath).metadata();
+
+      expect(preview.absolutePath).toContain('/.debrute/cache/canvas-image-previews/');
+      expect(metadata.width).toBe(256);
     } finally {
       await rm(projectRoot, { recursive: true, force: true });
     }

@@ -1,5 +1,4 @@
 import type {
-  CanvasSettingsView,
   DebruteRuntimeInfo,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
@@ -188,8 +187,6 @@ export function createHttpWorkbenchApiClient(options: HttpWorkbenchApiClientOpti
     ),
     integrationsListStatus: () => request<IntegrationSettingsView>('GET', '/api/integrations'),
     integrationsRescan: () => request<IntegrationSettingsView>('POST', '/api/integrations/rescan', {}),
-    canvasSettingsGet: () => request<CanvasSettingsView>('GET', '/api/settings/canvas'),
-    canvasSettingsSave: (input: CanvasSettingsView) => request<CanvasSettingsView>('PUT', '/api/settings/canvas', input),
     onEvent: (listener: (event: WorkbenchEvent) => void) => {
       eventListeners.add(listener);
       reconnectEventSource();

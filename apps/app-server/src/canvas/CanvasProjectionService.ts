@@ -115,7 +115,7 @@ async function inspectCanvasNodeAvailability(projectRoot: string, node: CanvasNo
     const revision = projectFileRevision(fileStat.size, fileStat.mtimeMs);
     const mimeType = mimeTypeFromProjectPath(node.projectRelativePath);
     const canvasImagePreview = node.mediaKind === 'image'
-      ? await canvasImagePreviewSourceInfo(projectRoot, node.projectRelativePath, fileStat.size)
+      ? await canvasImagePreviewSourceInfo(projectRoot, node.projectRelativePath)
       : undefined;
     return {
       state: 'available',

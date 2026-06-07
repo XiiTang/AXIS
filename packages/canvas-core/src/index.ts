@@ -1,6 +1,5 @@
 export const CANVAS_DOCUMENT_SCHEMA_VERSION = 1;
 export const CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS = [256, 512, 1024, 2048] as const;
-export const CANVAS_IMAGE_PREVIEW_MIN_SOURCE_BYTES = 1.5 * 1024 * 1024;
 
 export type CanvasImagePreviewWidth = typeof CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS[number];
 export type CanvasNodeKind = 'directory' | 'file';

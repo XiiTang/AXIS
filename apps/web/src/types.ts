@@ -1,5 +1,4 @@
 import type {
-  CanvasSettingsView,
   ImageModelSettingsView,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
@@ -28,7 +27,6 @@ export interface WorkbenchState {
   imageModelSettings: ImageModelSettingsView | undefined;
   videoModelSettings: VideoModelSettingsView | undefined;
   integrationsSettings: IntegrationSettingsView | undefined;
-  canvasSettings: CanvasSettingsView | undefined;
   canvasFeedback: CanvasFeedbackDocument | undefined;
   textFileBuffers: Record<string, TextFileBuffer>;
   textEditorWindows: Record<string, FloatingTextEditorWindowState>;
@@ -66,7 +64,6 @@ export interface WorkbenchActions {
   saveImageModelSetting: (modelId: string, input: SaveImageModelSettingInput) => Promise<void>;
   saveVideoModelSetting: (modelId: string, input: SaveVideoModelSettingInput) => Promise<void>;
   rescanIntegrations: () => Promise<IntegrationSettingsView>;
-  saveCanvasSettings: (input: CanvasSettingsView) => Promise<void>;
   lookupGeneratedAssetMetadata: (input: { projectRelativePath: string }) => Promise<GeneratedAssetMetadataLookup>;
   readGeneratedAsset: (assetId: string) => Promise<GeneratedAssetView>;
   readProjectTextFile: (projectRelativePath: string) => Promise<WorkbenchProjectTextFile>;

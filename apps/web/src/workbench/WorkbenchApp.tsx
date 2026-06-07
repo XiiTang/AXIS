@@ -86,7 +86,6 @@ export function WorkbenchApp(): React.ReactElement {
   const [imageModelSettings, setImageModelSettings] = useState<WorkbenchState['imageModelSettings']>();
   const [videoModelSettings, setVideoModelSettings] = useState<WorkbenchState['videoModelSettings']>();
   const [integrationsSettings, setIntegrationsSettings] = useState<WorkbenchState['integrationsSettings']>();
-  const [canvasSettings, setCanvasSettings] = useState<WorkbenchState['canvasSettings']>();
   const [canvasFeedback, setCanvasFeedback] = useState<WorkbenchState['canvasFeedback']>();
   const [textFileBuffers, setTextFileBuffers] = useState<Record<string, TextFileBuffer>>({});
   const [textEditorWindows, setTextEditorWindows] = useState<Record<string, FloatingTextEditorWindowState>>({});
@@ -144,11 +143,6 @@ export function WorkbenchApp(): React.ReactElement {
     void api.integrationsListStatus().then((settings) => {
       if (!disposed) {
         setIntegrationsSettings(settings);
-      }
-    });
-    void api.canvasSettingsGet().then((settings) => {
-      if (!disposed) {
-        setCanvasSettings(settings);
       }
     });
     void api.getDesktopPlatform().then((platform) => {
@@ -241,9 +235,6 @@ export function WorkbenchApp(): React.ReactElement {
       }
       if (event.type === 'integrations.settings.changed') {
         setIntegrationsSettings(event.settings);
-      }
-      if (event.type === 'canvas.settings.changed') {
-        setCanvasSettings(event.settings);
       }
     });
   }, [refreshTextFileBuffer]);
@@ -349,7 +340,6 @@ export function WorkbenchApp(): React.ReactElement {
     imageModelSettings,
     videoModelSettings,
     integrationsSettings,
-    canvasSettings,
     canvasFeedback,
     textFileBuffers,
     textEditorWindows,
@@ -415,9 +405,6 @@ export function WorkbenchApp(): React.ReactElement {
       const settings = await api.integrationsRescan();
       setIntegrationsSettings(settings);
       return settings;
-    },
-    saveCanvasSettings: async (input) => {
-      setCanvasSettings(await api.canvasSettingsSave(input));
     },
     lookupGeneratedAssetMetadata,
     readGeneratedAsset,

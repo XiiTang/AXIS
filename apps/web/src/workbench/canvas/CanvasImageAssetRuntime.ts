@@ -23,7 +23,6 @@ export interface CanvasImageAssetViewport {
   culledNodePaths: ReadonlySet<string>;
   imageResourceZoom: number;
   devicePixelRatio: number;
-  imagePreviewsEnabled: boolean;
   cameraState: CanvasCameraState;
 }
 
@@ -218,7 +217,6 @@ export function createCanvasImageAssetRuntime(input: {
         visibleRect: currentViewport.visibleRect,
         imageResourceZoom: currentViewport.imageResourceZoom,
         devicePixelRatio: currentViewport.devicePixelRatio,
-        imagePreviewsEnabled: currentViewport.imagePreviewsEnabled,
         existingImages: loadedImagesFromRecords(records),
         retryKeys
       })
@@ -713,7 +711,6 @@ export function canvasImageAssetViewportSignature(
   if (viewport.cameraState === 'moving') {
     return [
       viewport.cameraState,
-      String(viewport.imagePreviewsEnabled),
       movingViewportBlankImageCandidateSignature(viewport, nodes, input.loadedImagePaths ?? new Set())
     ].join('\u001e');
   }
@@ -722,8 +719,7 @@ export function canvasImageAssetViewportSignature(
     viewport.cameraState,
     `${rectSignature(viewport.visibleRect)}:${mountedImageSourceSignature(viewport.mountedNodePaths, nodes)}`,
     String(viewport.imageResourceZoom),
-    String(viewport.devicePixelRatio),
-    String(viewport.imagePreviewsEnabled)
+    String(viewport.devicePixelRatio)
   ].join('\u001e');
 }
 

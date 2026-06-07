@@ -45,7 +45,6 @@ export interface CanvasImageLoadingPlanInput {
   visibleRect: CanvasRect;
   imageResourceZoom: number;
   devicePixelRatio: number;
-  imagePreviewsEnabled: boolean;
   existingImages: ReadonlyMap<string, CanvasLoadedImage>;
   retryKeys: ReadonlyMap<string, number>;
 }
@@ -88,8 +87,7 @@ export function createCanvasImageLoadingPlan(input: CanvasImageLoadingPlanInput)
     const src = canvasImageSourceUrl({
       node,
       cameraZoom: input.imageResourceZoom,
-      devicePixelRatio: input.devicePixelRatio,
-      imagePreviewsEnabled: input.imagePreviewsEnabled
+      devicePixelRatio: input.devicePixelRatio
     });
     if (!src) {
       result.set(node.projectRelativePath, ineligibleItem(node, 'not-previewable'));
@@ -104,7 +102,7 @@ export function createCanvasImageLoadingPlan(input: CanvasImageLoadingPlanInput)
     const inNearOverscan = !inVisible && rectsIntersect(nearOverscanRect, bounds);
     const priority = priorityForNode({
       inVisible,
-      inNearOverscan: input.imagePreviewsEnabled && inNearOverscan,
+      inNearOverscan,
       hasLoadedImage: loaded !== undefined,
       upgradeNeeded: loaded !== undefined && loaded.loadKey !== loadKey
     });

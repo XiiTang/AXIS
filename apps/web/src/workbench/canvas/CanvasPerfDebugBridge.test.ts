@@ -367,7 +367,13 @@ function snapshot(): DebruteCanvasPerfCanvasSnapshot {
     culledNodeCount: 3,
     activeImageLoadCount: 1,
     pendingImageCount: 2,
-    decodedImageCount: 4
+    decodedImageCount: 4,
+    imageLayers: {
+      visible: 4,
+      next: 2,
+      previewSources: 6,
+      rawSources: 0
+    }
   };
 }
 

@@ -748,49 +748,33 @@ describe('daemon HTTP runtime', () => {
     await expect(readNextSseMessage(alphaEvents)).rejects.toThrow('Timed out waiting for SSE event.');
   });
 
-  it('streams global settings events to clients attached to different project sessions', async () => {
-    const alphaRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-global-alpha-'));
-    const betaRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-global-beta-'));
-    await writeFile(join(alphaRoot, 'brief.md'), '# Alpha', 'utf8');
-    await writeFile(join(betaRoot, 'brief.md'), '# Beta', 'utf8');
-
+  it('does not expose Canvas settings HTTP routes', async () => {
     const daemon = createDebruteDaemonHttpServer({
       host: '127.0.0.1',
       port: 0,
       token: 'test-token',
       webBaseUrl: null
     });
-    cleanups.push(() => daemon.close(), () => rm(alphaRoot, { recursive: true, force: true }), () => rm(betaRoot, { recursive: true, force: true }));
+    cleanups.push(() => daemon.close());
     const runtime = await daemon.listen();
-    const alpha = await requestJson<{ projectId: string }>(`${runtime.daemonUrl}/api/projects/open`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-debrute-daemon-token': 'test-token' },
-      body: JSON.stringify({ projectRoot: alphaRoot })
-    });
-    const beta = await requestJson<{ projectId: string }>(`${runtime.daemonUrl}/api/projects/open`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-debrute-daemon-token': 'test-token' },
-      body: JSON.stringify({ projectRoot: betaRoot })
-    });
 
-    const alphaEvents = await fetch(`${runtime.daemonUrl}/api/projects/${alpha.projectId}/events?clientId=alpha-client`);
-    const betaEvents = await fetch(`${runtime.daemonUrl}/api/projects/${beta.projectId}/events?clientId=beta-client`);
-    await requestJson(`${runtime.daemonUrl}/api/settings/canvas`, {
+    const getResponse = await fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
+      headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
+    });
+    const putResponse = await fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
       method: 'PUT',
       headers: {
+        'connection': 'close',
         'content-type': 'application/json',
         'x-debrute-daemon-token': 'test-token'
       },
-      body: JSON.stringify({ imagePreviewsEnabled: false })
+      body: JSON.stringify({})
     });
+    await getResponse.text();
+    await putResponse.text();
 
-    await expect(Promise.all([
-      readNextSseMessage<{ type: string; settings: { imagePreviewsEnabled: boolean } }>(alphaEvents),
-      readNextSseMessage<{ type: string; settings: { imagePreviewsEnabled: boolean } }>(betaEvents)
-    ])).resolves.toEqual([
-      { type: 'canvas.settings.changed', settings: { imagePreviewsEnabled: false } },
-      { type: 'canvas.settings.changed', settings: { imagePreviewsEnabled: false } }
-    ]);
+    expect(getResponse.status).toBe(404);
+    expect(putResponse.status).toBe(404);
   });
 
   it('releases a project session after the last event stream closes and idle TTL elapses', async () => {

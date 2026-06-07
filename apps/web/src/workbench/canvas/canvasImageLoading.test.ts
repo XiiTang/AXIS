@@ -14,7 +14,6 @@ describe('canvas image loading plan', () => {
       visibleRect: { x: 0, y: 0, width: 400, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: true,
       existingImages: new Map(),
       retryKeys: new Map()
     });
@@ -43,7 +42,6 @@ describe('canvas image loading plan', () => {
       visibleRect: { x: 0, y: 0, width: 400, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: true,
       existingImages: new Map([['flow/visible.png', loaded]]),
       retryKeys: new Map()
     });
@@ -54,25 +52,25 @@ describe('canvas image loading plan', () => {
     });
   });
 
-  it('keeps original image URLs when previews are disabled but still schedules through the plan', () => {
+  it('uses preview image URLs for supported visible image nodes', () => {
     const plan = createCanvasImageLoadingPlan({
       nodes: [imageNode('flow/original.png', 0, 0)],
       visibleRect: { x: 0, y: 0, width: 400, height: 300 },
       imageResourceZoom: 0.1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: false,
       existingImages: new Map(),
       retryKeys: new Map([['flow/original.png', 2]])
     });
 
+    const src = previewUrl('flow/original.png', 256);
     expect(plan.get('flow/original.png')).toMatchObject({
       priority: 0,
-      src: rawUrl('flow/original.png'),
-      loadKey: `${rawUrl('flow/original.png')}:2`
+      src,
+      loadKey: `${src}:2`
     });
   });
 
-  it('does not prefetch overscan raw images when previews are disabled', () => {
+  it('always schedules near-viewport preview images while idle', () => {
     const plan = createCanvasImageLoadingPlan({
       nodes: [
         imageNode('flow/visible.png', 0, 0),
@@ -81,7 +79,6 @@ describe('canvas image loading plan', () => {
       visibleRect: { x: 0, y: 0, width: 400, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: false,
       existingImages: new Map(),
       retryKeys: new Map()
     });
@@ -91,8 +88,8 @@ describe('canvas image loading plan', () => {
       reason: 'viewport-empty'
     });
     expect(plan.get('flow/overscan.png')).toMatchObject({
-      priority: 4,
-      reason: 'deferred'
+      priority: 2,
+      reason: 'overscan-empty'
     });
   });
 
@@ -111,7 +108,6 @@ describe('canvas image loading plan', () => {
       visibleRect: { x: 0, y: 0, width: 400, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: true,
       existingImages: new Map(),
       retryKeys: new Map()
     });
@@ -132,7 +128,6 @@ describe('canvas image loading plan', () => {
       visibleRect: { x: 0, y: 0, width: 500, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      imagePreviewsEnabled: true,
       existingImages: new Map([
         ['flow/visible-upgrade.png', loadedImage(visibleUpgradeUrl)],
         ['flow/overscan-upgrade.png', loadedImage(overscanUpgradeUrl)]
@@ -185,6 +180,14 @@ function imageNode(path: string, x: number, y: number, width = 200, height = 120
 
 function rawUrl(path: string): string {
   return `http://127.0.0.1:17321/api/projects/p/files/raw/${path}?v=rev`;
+}
+
+function previewUrl(path: string, width: number): string {
+  const url = new URL('http://127.0.0.1:17321/api/projects/p/canvas-image-preview');
+  url.searchParams.set('path', path);
+  url.searchParams.set('v', 'rev');
+  url.searchParams.set('w', String(width));
+  return url.toString();
 }
 
 function loadedImage(src: string): CanvasLoadedImage {

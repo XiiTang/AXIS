@@ -11,11 +11,6 @@ export interface GlobalConfigPaths {
   imageModelsFile: string;
   videoModelsFile: string;
   secretsFile: string;
-  canvasSettingsFile: string;
-}
-
-export interface CanvasSettingsConfig {
-  imagePreviewsEnabled: boolean;
 }
 
 export class GlobalConfigStore {
@@ -29,8 +24,7 @@ export class GlobalConfigStore {
       llmProvidersFile: join(root, 'llm_providers.json'),
       imageModelsFile: join(root, 'image_models.json'),
       videoModelsFile: join(root, 'video_models.json'),
-      secretsFile: join(root, 'secrets.json'),
-      canvasSettingsFile: join(root, 'canvas_settings.json')
+      secretsFile: join(root, 'secrets.json')
     };
   }
 
@@ -73,15 +67,6 @@ export class GlobalConfigStore {
     });
   }
 
-  async readCanvasSettings(): Promise<CanvasSettingsConfig> {
-    return normalizeCanvasSettingsConfig(await readJsonOrDefault<Partial<CanvasSettingsConfig>>(this.paths().canvasSettingsFile, {
-      imagePreviewsEnabled: true
-    }));
-  }
-
-  async saveCanvasSettings(config: CanvasSettingsConfig): Promise<void> {
-    await writeJsonAtomic(this.paths().canvasSettingsFile, normalizeCanvasSettingsConfig(config));
-  }
 }
 
 function normalizeLlmProvidersConfig(config: unknown): LlmProvidersConfig {
@@ -157,33 +142,12 @@ function normalizeVideoModelsConfig(config: VideoModelsConfig): VideoModelsConfi
   };
 }
 
-function normalizeCanvasSettingsConfig(config: unknown): CanvasSettingsConfig {
-  if (!isRecord(config)) {
-    throw new Error('Canvas settings must be an object.');
-  }
-  if (!hasExactKeys(config, ['imagePreviewsEnabled'])) {
-    throw new Error('Canvas settings must contain only imagePreviewsEnabled.');
-  }
-  if (typeof config.imagePreviewsEnabled !== 'boolean') {
-    throw new Error('Canvas imagePreviewsEnabled must be a boolean.');
-  }
-  return {
-    imagePreviewsEnabled: config.imagePreviewsEnabled
-  };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function optionalStringOrNull(value: unknown): boolean {
   return value === null || typeof value === 'string';
-}
-
-function hasExactKeys(value: Record<string, unknown>, expectedKeys: string[]): boolean {
-  const expected = new Set(expectedKeys);
-  const actualKeys = Object.keys(value);
-  return actualKeys.length === expected.size && actualKeys.every((key) => expected.has(key));
 }
 
 async function readJson<T>(path: string): Promise<T> {

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasSettingsView } from '@debrute/app-protocol';
 import type { CanvasDocument, CanvasFeedbackDocument, CanvasProjection, ProjectedCanvasNode } from '@debrute/canvas-core';
 import type { TextFileBuffer, WorkbenchActions } from '../../types';
 import type { WorkbenchContextMenuPosition, WorkbenchContextMenuTarget } from '../shell/contextMenu';
@@ -58,7 +57,6 @@ interface CanvasSurfaceProps {
   actions: WorkbenchActions;
   textFileBuffers: Record<string, TextFileBuffer>;
   canvasFeedback: CanvasFeedbackDocument | undefined;
-  canvasSettings: CanvasSettingsView;
   imageAssetRuntime?: CanvasImageAssetRuntime | undefined;
   overlayRuntime: CanvasOverlayRuntime;
   minimapOpen?: boolean | undefined;
@@ -80,7 +78,6 @@ export function CanvasSurface({
   actions,
   textFileBuffers,
   canvasFeedback,
-  canvasSettings,
   imageAssetRuntime,
   overlayRuntime,
   minimapOpen,
@@ -147,7 +144,6 @@ export function CanvasSurface({
       actions={actions}
       textFileBuffers={textFileBuffers}
       canvasFeedback={canvasFeedback}
-      canvasSettings={canvasSettings}
       imageAssetRuntime={activeImageAssetRuntime}
       perfMonitor={perfMonitor}
       overlayRuntime={overlayRuntime}
@@ -166,7 +162,6 @@ function CanvasSurfaceRuntime({
   actions,
   textFileBuffers,
   canvasFeedback,
-  canvasSettings,
   imageAssetRuntime,
   perfMonitor,
   overlayRuntime,
@@ -221,7 +216,8 @@ function CanvasSurfaceRuntime({
     canvasId: canvas.id,
     runtime,
     renderSnapshot: renderSnapshotRef.current ?? renderSnapshot,
-    imageAssetRuntime
+    imageAssetRuntime,
+    surfaceElement: surfaceRef.current
   };
 
   useEffect(() => {
@@ -293,11 +289,9 @@ function CanvasSurfaceRuntime({
       nodesByPath: renderSnapshotRef.current?.nodesByPath ?? renderSnapshot.nodesByPath,
       imageResourceZoom,
       devicePixelRatio,
-      imagePreviewsEnabled: canvasSettings.imagePreviewsEnabled,
       cameraState
     });
   }, [
-    canvasSettings.imagePreviewsEnabled,
     devicePixelRatio,
     imageAssetRuntime,
     imageResourceZoom,
@@ -311,9 +305,7 @@ function CanvasSurfaceRuntime({
   const syncImageResourceZoomForSnapshot = useCallback((snapshot: CanvasRuntimeSnapshot) => {
     syncCanvasImageResourceZoomForCameraState({
       cameraState: snapshot.cameraState,
-      imagePreviewsEnabled: canvasSettings.imagePreviewsEnabled,
       useEfficientImageResourceZoom: shouldUseEfficientImageResourceZoom({
-        imagePreviewsEnabled: canvasSettings.imagePreviewsEnabled,
         nodeCount: projectedNodes.length,
         imageNodeCount: projectedImageNodeCount
       }),
@@ -324,7 +316,7 @@ function CanvasSurfaceRuntime({
       setTimeout: (callback, delay) => window.setTimeout(callback, delay),
       clearTimeout: (handle) => window.clearTimeout(handle)
     });
-  }, [canvasSettings.imagePreviewsEnabled, projectedImageNodeCount, projectedNodes.length, runtime]);
+  }, [projectedImageNodeCount, projectedNodes.length, runtime]);
 
   useEffect(() => {
     renderCoordinator.setProjection(projection);
@@ -914,6 +906,7 @@ interface CanvasPerfDebugSnapshotContext {
   runtime: Pick<CanvasEditorRuntime, 'getSnapshot'>;
   renderSnapshot: CanvasRenderCoordinatorSnapshot;
   imageAssetRuntime: Pick<CanvasImageAssetRuntime, 'stats'>;
+  surfaceElement: HTMLElement | null;
 }
 
 const STAGE_WRITE_COUNTERS = [
@@ -1143,8 +1136,33 @@ function canvasPerfDebugSnapshot(input: CanvasPerfDebugSnapshotContext): Debrute
     culledNodeCount,
     activeImageLoadCount: imageStats.activeLoadCount,
     pendingImageCount: imageStats.pendingImageCount,
-    decodedImageCount: imageStats.decodedImageCount
+    decodedImageCount: imageStats.decodedImageCount,
+    imageLayers: canvasImageLayerDebugCounts(input.surfaceElement)
   };
+}
+
+function canvasImageLayerDebugCounts(surfaceElement: HTMLElement | null): DebruteCanvasPerfCanvasSnapshot['imageLayers'] {
+  const counts = {
+    visible: 0,
+    next: 0,
+    previewSources: 0,
+    rawSources: 0
+  };
+  for (const image of surfaceElement?.querySelectorAll<HTMLImageElement>('[data-canvas-image-layer]') ?? []) {
+    const layer = image.getAttribute('data-canvas-image-layer');
+    if (layer === 'visible') {
+      counts.visible += 1;
+    } else if (layer === 'next') {
+      counts.next += 1;
+    }
+    const src = image.getAttribute('src') ?? '';
+    if (src.includes('/canvas-image-preview')) {
+      counts.previewSources += 1;
+    } else if (src.includes('/files/raw/')) {
+      counts.rawSources += 1;
+    }
+  }
+  return counts;
 }
 
 function canvasPerfTimestamp(): number {
@@ -1167,7 +1185,6 @@ export function syncCanvasImageAssetViewport(input: {
   nodesByPath: ReadonlyMap<string, ProjectedCanvasNode>;
   imageResourceZoom: number;
   devicePixelRatio: number;
-  imagePreviewsEnabled: boolean;
   cameraState?: CanvasRuntimeSnapshot['cameraState'];
 }): void {
   const visibleRect = input.editorRuntime.coordinates.visibleCanvasRect();
@@ -1183,7 +1200,6 @@ export function syncCanvasImageAssetViewport(input: {
     culledNodePaths,
     imageResourceZoom: input.imageResourceZoom,
     devicePixelRatio: input.devicePixelRatio,
-    imagePreviewsEnabled: input.imagePreviewsEnabled,
     cameraState: input.cameraState ?? input.editorRuntime.getSnapshot().cameraState
   });
 }
@@ -1214,7 +1230,6 @@ export function syncCanvasMovingCameraFrame(input: {
 
 export function syncCanvasImageResourceZoomForCameraState(input: {
   cameraState: CanvasRuntimeSnapshot['cameraState'];
-  imagePreviewsEnabled: boolean;
   useEfficientImageResourceZoom: boolean;
   currentImageResourceZoom: number;
   liveCameraZoom: number;
@@ -1232,7 +1247,7 @@ export function syncCanvasImageResourceZoomForCameraState(input: {
     input.timerRef.current = undefined;
   };
 
-  if (!input.imagePreviewsEnabled || !input.useEfficientImageResourceZoom) {
+  if (!input.useEfficientImageResourceZoom) {
     clearPendingTimer();
     if (input.currentImageResourceZoom !== input.liveCameraZoom) {
       input.setImageResourceZoom(input.liveCameraZoom);
@@ -1258,15 +1273,11 @@ export function syncCanvasImageResourceZoomForCameraState(input: {
 }
 
 export function shouldUseEfficientImageResourceZoom(input: {
-  imagePreviewsEnabled: boolean;
   nodeCount: number;
   imageNodeCount?: number | undefined;
 }): boolean {
-  return input.imagePreviewsEnabled
-    && (
-      input.nodeCount > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_NODE_THRESHOLD
-      || (input.imageNodeCount ?? 0) > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_IMAGE_NODE_THRESHOLD
-    );
+  return input.nodeCount > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_NODE_THRESHOLD
+    || (input.imageNodeCount ?? 0) > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_IMAGE_NODE_THRESHOLD;
 }
 
 export function createCanvasImageAssetViewportSyncScheduler(input: {

@@ -153,69 +153,21 @@ describe('app-server', () => {
     }
   });
 
-  it('reads, saves, and emits Canvas settings', async () => {
-    const debruteHome = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-settings-home-'));
+  it('does not expose a persisted Canvas settings config path', async () => {
+    const debruteHome = await mkdtemp(join(tmpdir(), 'debrute-app-server-no-canvas-settings-home-'));
+    const globalConfigStore = new GlobalConfigStore({ debruteHome });
     const globalRuntime = new DebruteGlobalRuntimeServer({
-      globalConfigStore: new GlobalConfigStore({ debruteHome })
+      globalConfigStore
     });
-    const events: unknown[] = [];
-    const unsubscribe = globalRuntime.onEvent((event) => events.push(event));
     try {
-      await expect(globalRuntime.canvasSettingsGet()).resolves.toEqual({
-        imagePreviewsEnabled: true
-      });
-
-      const saved = await globalRuntime.canvasSettingsSave({ imagePreviewsEnabled: false });
-
-      expect(saved).toEqual({ imagePreviewsEnabled: false });
-      await expect(readJson(join(debruteHome, 'config/canvas_settings.json'))).resolves.toEqual({
-        imagePreviewsEnabled: false
-      });
-      expect(events).toEqual([{
-        type: 'canvas.settings.changed',
-        settings: { imagePreviewsEnabled: false }
-      }]);
+      expect(Object.keys(globalConfigStore.paths()).sort()).toEqual([
+        'imageModelsFile',
+        'llmProvidersFile',
+        'root',
+        'secretsFile',
+        'videoModelsFile'
+      ]);
     } finally {
-      unsubscribe();
-      globalRuntime.close();
-      await rm(debruteHome, { recursive: true, force: true });
-    }
-  });
-
-  it('rejects invalid Canvas settings input instead of normalizing it', async () => {
-    const debruteHome = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-settings-invalid-home-'));
-    const globalRuntime = new DebruteGlobalRuntimeServer({
-      globalConfigStore: new GlobalConfigStore({ debruteHome })
-    });
-    const events: unknown[] = [];
-    const unsubscribe = globalRuntime.onEvent((event) => events.push(event));
-    try {
-      await expect(globalRuntime.canvasSettingsSave({ imagePreviewsEnabled: 'yes' } as never)).rejects.toThrow('Canvas imagePreviewsEnabled must be a boolean.');
-      await expect(readJson(join(debruteHome, 'config/canvas_settings.json'))).rejects.toThrow();
-      expect(events).toEqual([]);
-    } finally {
-      unsubscribe();
-      globalRuntime.close();
-      await rm(debruteHome, { recursive: true, force: true });
-    }
-  });
-
-  it('rejects extra Canvas settings keys', async () => {
-    const debruteHome = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-settings-extra-home-'));
-    const globalRuntime = new DebruteGlobalRuntimeServer({
-      globalConfigStore: new GlobalConfigStore({ debruteHome })
-    });
-    const events: unknown[] = [];
-    const unsubscribe = globalRuntime.onEvent((event) => events.push(event));
-    try {
-      await expect(globalRuntime.canvasSettingsSave({
-        imagePreviewsEnabled: true,
-        unknownPreviewMode: false
-      } as never)).rejects.toThrow('Canvas settings must contain only imagePreviewsEnabled.');
-      await expect(readJson(join(debruteHome, 'config/canvas_settings.json'))).rejects.toThrow();
-      expect(events).toEqual([]);
-    } finally {
-      unsubscribe();
       globalRuntime.close();
       await rm(debruteHome, { recursive: true, force: true });
     }
@@ -829,7 +781,7 @@ describe('app-server', () => {
     try {
       await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
       await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/generated/a.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      await writeFile(join(projectRoot, 'image-production/generated/a.png'), await largePreviewablePngBuffer());
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true, watchFiles: false });
       await writeFlowmapDraft(projectRoot, 'image-production', [
         'schemaVersion: 1',
@@ -1028,7 +980,7 @@ describe('app-server', () => {
     }
   });
 
-  it('marks only large still raster images as Canvas-previewable in node availability', async () => {
+  it('marks still raster images as Canvas-previewable in node availability', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-image-previewability-'));
     const server = new DebruteAppServer({
       canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
@@ -1072,7 +1024,7 @@ describe('app-server', () => {
         availability: { state: 'available', mimeType: 'image/png', canvasImagePreviewable: true, canvasImagePreviewSourceWidth: 900 }
       });
       expect(nodes.find((node) => node.projectRelativePath === 'image-production/generated/small-still.png')).toMatchObject({
-        availability: { state: 'available', mimeType: 'image/png', canvasImagePreviewable: false }
+        availability: { state: 'available', mimeType: 'image/png', canvasImagePreviewable: true, canvasImagePreviewSourceWidth: 320 }
       });
       expect(nodes.find((node) => node.projectRelativePath === 'image-production/generated/animated.gif')).toMatchObject({
         availability: { state: 'available', mimeType: 'image/gif', canvasImagePreviewable: false }

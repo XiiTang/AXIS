@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, Cpu, Image as ImageIcon, KeyRound, RefreshCw, Save, Search, Terminal, Trash2, Wrench } from 'lucide-react';
+import { Bot, Cpu, KeyRound, RefreshCw, Save, Search, Terminal, Trash2, Wrench } from 'lucide-react';
 import type {
-  CanvasSettingsView,
   ImageModelSettingRecord,
   LlmProviderSettingRecord,
   SaveLlmProviderSettingInput,
@@ -37,7 +36,6 @@ type DiscoveryState =
 const SETTINGS_NAV_ITEMS = [
   { id: 'llm', label: 'LLM', description: 'Model routing and provider credentials', icon: Bot },
   { id: 'models', label: 'Models', description: 'Generation endpoints and API keys', icon: Cpu },
-  { id: 'canvas', label: 'Canvas', description: 'Canvas rendering resources', icon: ImageIcon },
   { id: 'integrations', label: 'Integrations', description: 'Optional local capabilities', icon: Wrench },
   { id: 'debrute-cli', label: 'Debrute CLI', description: 'Command install and Skills sync', icon: Terminal }
 ] as const;
@@ -75,8 +73,6 @@ export function SettingsPanel({ state, actions }: { state: WorkbenchState; actio
             <ImageModelSettings state={state} actions={actions} />
             <VideoModelSettings state={state} actions={actions} />
           </>
-        ) : activePage === 'canvas' ? (
-          <CanvasSettingsPage settings={state.canvasSettings} onSave={actions.saveCanvasSettings} />
         ) : activePage === 'integrations' ? (
           <IntegrationsSettingsPage state={state} actions={actions} />
         ) : activePage === 'debrute-cli' ? (
@@ -84,45 +80,6 @@ export function SettingsPanel({ state, actions }: { state: WorkbenchState; actio
         ) : null}
       </div>
     </div>
-  );
-}
-
-export function CanvasSettingsPage({
-  settings,
-  onSave
-}: {
-  settings: CanvasSettingsView | undefined;
-  onSave: (settings: CanvasSettingsView) => Promise<void>;
-}): React.ReactElement {
-  const [status, setStatus] = useState<DiscoveryState>({ status: 'idle' });
-  const imagePreviewsEnabled = settings?.imagePreviewsEnabled ?? true;
-
-  const save = async (next: CanvasSettingsView) => {
-    setStatus({ status: 'loading' });
-    try {
-      await onSave(next);
-      setStatus({ status: 'idle' });
-    } catch (error) {
-      setStatus({ status: 'error', message: errorMessage(error) });
-    }
-  };
-
-  return (
-    <section className="settings-section">
-      <SettingsSectionHeader title="Canvas" eyebrow="Rendering" description="Canvas rendering resources." />
-      <div className="settings-card">
-        <label className="settings-toggle">
-          <input
-            type="checkbox"
-            checked={imagePreviewsEnabled}
-            disabled={status.status === 'loading'}
-            onChange={(event) => void save({ imagePreviewsEnabled: event.currentTarget.checked })}
-          />
-          Canvas image previews
-        </label>
-        {status.status === 'error' ? <small className="settings-error">{status.message}</small> : null}
-      </div>
-    </section>
   );
 }
 

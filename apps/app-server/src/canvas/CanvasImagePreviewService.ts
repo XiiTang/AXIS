@@ -4,7 +4,6 @@ import { access, mkdir, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import sharp from 'sharp';
 import {
-  CANVAS_IMAGE_PREVIEW_MIN_SOURCE_BYTES,
   CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS,
   type CanvasImagePreviewWidth
 } from '@debrute/canvas-core';
@@ -18,7 +17,6 @@ import {
 const CANVAS_IMAGE_PREVIEW_GENERATION_CONCURRENCY = 2;
 const CANVAS_IMAGE_PREVIEW_METADATA_CONCURRENCY = 4;
 export {
-  CANVAS_IMAGE_PREVIEW_MIN_SOURCE_BYTES,
   CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS,
   type CanvasImagePreviewWidth
 } from '@debrute/canvas-core';
@@ -128,14 +126,10 @@ export function assertCanvasImagePreviewWidth(width: number): asserts width is C
 
 export async function canvasImagePreviewSourceInfo(
   projectRoot: string,
-  projectRelativePath: string,
-  sourceSizeBytes: number
+  projectRelativePath: string
 ): Promise<CanvasImagePreviewSourceInfo> {
   const normalizedPath = normalizePreviewProjectRelativePath(projectRelativePath);
   if (!isPreviewableRasterImagePath(normalizedPath)) {
-    return { previewable: false };
-  }
-  if (!isPreviewableSourceSize(sourceSizeBytes)) {
     return { previewable: false };
   }
   const absolutePath = await resolveExistingProjectPath(projectRoot, normalizedPath);
@@ -262,10 +256,6 @@ class LocalCanvasImagePreviewService implements CanvasImagePreviewService {
     if (actualRevision !== input.revision) {
       throw new Error(`Canvas preview revision does not match source: ${input.projectRelativePath}`);
     }
-    if (!isPreviewableSourceSize(fileStat.size)) {
-      throw new Error(`Canvas image is not previewable: ${input.projectRelativePath}`);
-    }
-
     const previewBasePath = await canvasImagePreviewCacheBasePath(input.projectRoot, {
       projectRelativePath: input.projectRelativePath,
       revision: input.revision,
@@ -343,10 +333,6 @@ async function readCanvasImagePreviewMetadata(
     }
     throw new Error(`Canvas image preview metadata could not be read: ${projectRelativePath}`);
   }
-}
-
-function isPreviewableSourceSize(sourceSizeBytes: number): boolean {
-  return sourceSizeBytes >= CANVAS_IMAGE_PREVIEW_MIN_SOURCE_BYTES;
 }
 
 async function canvasImagePreviewCacheBasePath(

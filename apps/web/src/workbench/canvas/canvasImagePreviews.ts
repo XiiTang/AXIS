@@ -9,20 +9,22 @@ export interface CanvasLoadedImage {
 
 export function canvasImageSourceUrl(input: {
   node: ProjectedCanvasNode;
-  imagePreviewsEnabled: boolean;
   cameraZoom: number;
   devicePixelRatio: number;
 }): string | undefined {
   if (input.node.availability.state !== 'available' || !input.node.availability.fileUrl) {
     return undefined;
   }
-  const bucket = input.imagePreviewsEnabled && isPreviewableImageNode(input.node)
-    ? canvasImagePreviewBucketForNode(input.node, input.cameraZoom, input.devicePixelRatio)
-    : undefined;
-  const url = bucket === undefined
-    ? new URL(input.node.availability.fileUrl)
-    : canvasImagePreviewUrl(input.node.availability.fileUrl, input.node.projectRelativePath, input.node.availability.revision, bucket);
-  return url.toString();
+  if (!isPreviewableImageNode(input.node)) {
+    return undefined;
+  }
+  const bucket = canvasImagePreviewBucketForNode(input.node, input.cameraZoom, input.devicePixelRatio);
+  return canvasImagePreviewUrl(
+    input.node.availability.fileUrl,
+    input.node.projectRelativePath,
+    input.node.availability.revision,
+    bucket
+  ).toString();
 }
 
 export function canvasImagePreviewBucket(targetWidth: number): number {
