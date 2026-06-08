@@ -289,12 +289,14 @@ function CanvasSurfaceRuntime({
       nodesByPath: renderSnapshotRef.current?.nodesByPath ?? renderSnapshot.nodesByPath,
       imageResourceZoom,
       devicePixelRatio,
+      imageHeavyEfficientMode: projectedImageNodeCount > CANVAS_EFFICIENT_IMAGE_RESOURCE_ZOOM_IMAGE_NODE_THRESHOLD,
       cameraState
     });
   }, [
     devicePixelRatio,
     imageAssetRuntime,
     imageResourceZoom,
+    projectedImageNodeCount,
     renderSnapshot.nodesByPath,
     runtime
   ]);
@@ -1194,6 +1196,7 @@ export function syncCanvasImageAssetViewport(input: {
   nodesByPath: ReadonlyMap<string, ProjectedCanvasNode>;
   imageResourceZoom: number;
   devicePixelRatio: number;
+  imageHeavyEfficientMode: boolean;
   cameraState?: CanvasRuntimeSnapshot['cameraState'];
 }): void {
   const visibleRect = input.editorRuntime.coordinates.visibleCanvasRect();
@@ -1209,6 +1212,7 @@ export function syncCanvasImageAssetViewport(input: {
     culledNodePaths,
     imageResourceZoom: input.imageResourceZoom,
     devicePixelRatio: input.devicePixelRatio,
+    imageHeavyEfficientMode: input.imageHeavyEfficientMode,
     cameraState: input.cameraState ?? input.editorRuntime.getSnapshot().cameraState
   });
 }

@@ -1,4 +1,4 @@
-import type { ProjectedCanvasNode } from '@debrute/canvas-core';
+import { CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS, type ProjectedCanvasNode } from '@debrute/canvas-core';
 import { CANVAS_PERF_INTERACTION_SESSION_TYPES, type CanvasPerfCounterName, type CanvasPerfFinalState, type CanvasPerfMonitor, type CanvasPerfSessionId } from './CanvasPerfMonitor';
 import {
   CANVAS_IMAGE_LOAD_CONCURRENCY,
@@ -25,6 +25,7 @@ export interface CanvasImageAssetViewport {
   imageResourceZoom: number;
   devicePixelRatio: number;
   cameraState: CanvasCameraState;
+  imageHeavyEfficientMode: boolean;
 }
 
 export interface CanvasImageAssetRuntime {
@@ -55,15 +56,20 @@ export type CanvasImageAssetLoader = (item: CanvasImageLoadingPlanItem) => Promi
 export interface CanvasImageAssetRuntimeBudget {
   maxPendingImages: number;
   maxHighResolutionPendingImages: number;
+  maxLargestPreviewUpgradePendingImages: number;
   highResolutionPreviewWidth: number;
+  largestPreviewWidth: number;
   movingPrefetchLimit: number;
 }
 
+const CANVAS_IMAGE_LARGEST_PREVIEW_WIDTH = CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS[3];
 export const CANVAS_IMAGE_VISIBLE_RETAIN_OVERSCAN_SCREEN_PX = 1536;
 export const CANVAS_IMAGE_ASSET_DEFAULT_BUDGET: CanvasImageAssetRuntimeBudget = {
   maxPendingImages: 3,
   maxHighResolutionPendingImages: 2,
+  maxLargestPreviewUpgradePendingImages: 1,
   highResolutionPreviewWidth: 1024,
+  largestPreviewWidth: CANVAS_IMAGE_LARGEST_PREVIEW_WIDTH,
   movingPrefetchLimit: 1
 };
 
@@ -462,7 +468,7 @@ export function createCanvasImageAssetRuntime(input: {
       }
     }
 
-    for (const path of enforcePendingImageBudget()) {
+    for (const path of enforcePendingImageBudget(currentViewport)) {
       affectedPaths.add(path);
     }
     for (const path of evictFarVisibleImages(currentViewport)) {
@@ -514,7 +520,9 @@ export function createCanvasImageAssetRuntime(input: {
       && item.intent !== 'deferred';
   }
 
-  function enforcePendingImageBudget(): Set<string> {
+  type CanvasImagePendingBudgetBlockReason = 'total' | 'high-resolution' | 'largest-preview-upgrade';
+
+  function enforcePendingImageBudget(currentViewport: CanvasImageAssetViewport): Set<string> {
     const affectedPaths = new Set<string>();
     const pending = [...records.entries()]
       .flatMap(([path, record]) => {
@@ -535,19 +543,36 @@ export function createCanvasImageAssetRuntime(input: {
 
     let pendingCount = 0;
     let highResolutionPendingCount = 0;
+    let largestPreviewUpgradePendingCount = 0;
     for (const pendingItem of pending) {
       const isHighResolution = pendingItem.record.next!.previewWidth >= budget.highResolutionPreviewWidth;
+      const isLargestPreviewUpgrade = isLargestPreviewUpgradeItem(
+        pendingItem.item,
+        pendingItem.record.next!,
+        currentViewport
+      );
       const overTotalBudget = pendingCount >= budget.maxPendingImages;
       const overHighResolutionBudget = isHighResolution
         && highResolutionPendingCount >= budget.maxHighResolutionPendingImages;
-      if (overTotalBudget || overHighResolutionBudget) {
-        removeNextImage(pendingItem.path, pendingItem.record, overTotalBudget ? 'total' : 'high-resolution');
+      const overLargestPreviewUpgradeBudget = isLargestPreviewUpgrade
+        && largestPreviewUpgradePendingCount >= budget.maxLargestPreviewUpgradePendingImages;
+      if (overTotalBudget || overHighResolutionBudget || overLargestPreviewUpgradeBudget) {
+        removeNextImage(
+          pendingItem.path,
+          pendingItem.record,
+          overTotalBudget
+            ? 'total'
+            : overHighResolutionBudget ? 'high-resolution' : 'largest-preview-upgrade'
+        );
         affectedPaths.add(pendingItem.path);
         continue;
       }
       pendingCount += 1;
       if (isHighResolution) {
         highResolutionPendingCount += 1;
+      }
+      if (isLargestPreviewUpgrade) {
+        largestPreviewUpgradePendingCount += 1;
       }
     }
 
@@ -567,7 +592,7 @@ export function createCanvasImageAssetRuntime(input: {
   function removeNextImage(
     path: string,
     record: CanvasImageAssetRecord,
-    reason: 'total' | 'high-resolution'
+    reason: CanvasImagePendingBudgetBlockReason
   ): void {
     if (!record.next) {
       return;
@@ -775,13 +800,14 @@ export function createCanvasImageAssetRuntime(input: {
       if (startedCount >= openSlots || activeLoads.size >= concurrency || pendingImageCount(records) >= budget.maxPendingImages) {
         break;
       }
-      if (!canStartWithinPendingBudget(item, records)) {
+      const budgetBlockReason = pendingImageBudgetBlockReason(item, records, currentViewport);
+      if (budgetBlockReason) {
         recordCanvasSessionCounter('image-budget-block', {
           projectRelativePath: item.projectRelativePath,
           loadKey: item.loadKey,
           intent: item.intent,
           previewWidth: item.previewWidth,
-          reason: 'high-resolution'
+          reason: budgetBlockReason
         });
         continue;
       }
@@ -790,18 +816,42 @@ export function createCanvasImageAssetRuntime(input: {
     }
   }
 
-  function canStartWithinPendingBudget(
+  function pendingImageBudgetBlockReason(
     item: CanvasImageLoadingPlanItem,
-    currentRecords: ReadonlyMap<string, CanvasImageAssetRecord>
-  ): boolean {
+    currentRecords: ReadonlyMap<string, CanvasImageAssetRecord>,
+    currentViewport: CanvasImageAssetViewport
+  ): CanvasImagePendingBudgetBlockReason | undefined {
     if (pendingImageCount(currentRecords) >= budget.maxPendingImages) {
-      return false;
+      return 'total';
     }
-    if (item.previewWidth < budget.highResolutionPreviewWidth) {
-      return true;
+    if (
+      item.previewWidth >= budget.highResolutionPreviewWidth
+      && highResolutionPendingImageCount(currentRecords, budget.highResolutionPreviewWidth) >= budget.maxHighResolutionPendingImages
+    ) {
+      return 'high-resolution';
     }
-    return highResolutionPendingImageCount(currentRecords, budget.highResolutionPreviewWidth)
-      < budget.maxHighResolutionPendingImages;
+    if (
+      isLargestPreviewUpgradeItem(
+        item,
+        { src: item.src, loadKey: item.loadKey, previewWidth: item.previewWidth },
+        currentViewport
+      )
+      && largestPreviewUpgradePendingImageCount(currentRecords, plan, budget.largestPreviewWidth) >= budget.maxLargestPreviewUpgradePendingImages
+    ) {
+      return 'largest-preview-upgrade';
+    }
+    return undefined;
+  }
+
+  function isLargestPreviewUpgradeItem(
+    item: CanvasImageLoadingPlanItem,
+    image: CanvasPendingImage,
+    currentViewport: CanvasImageAssetViewport
+  ): boolean {
+    return currentViewport.imageHeavyEfficientMode === true
+      && item.intent === 'upgrade-idle'
+      && item.loadKey === image.loadKey
+      && image.previewWidth >= budget.largestPreviewWidth;
   }
 
   function imageLoadFinalState(): CanvasPerfFinalState | undefined {
@@ -943,6 +993,26 @@ function highResolutionPendingImageCount(
   let count = 0;
   for (const record of records.values()) {
     if (record.next && record.next.previewWidth >= highResolutionPreviewWidth) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function largestPreviewUpgradePendingImageCount(
+  records: ReadonlyMap<string, CanvasImageAssetRecord>,
+  plan: ReadonlyMap<string, CanvasImageLoadingPlanItem>,
+  largestPreviewWidth: number
+): number {
+  let count = 0;
+  for (const [path, record] of records) {
+    const item = plan.get(path);
+    if (
+      record.next
+      && item?.loadKey === record.next.loadKey
+      && item.intent === 'upgrade-idle'
+      && record.next.previewWidth >= largestPreviewWidth
+    ) {
       count += 1;
     }
   }

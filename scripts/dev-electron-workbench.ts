@@ -66,7 +66,6 @@ async function launchDesktopDevRuntime(): Promise<WorkbenchRuntimeState> {
     '--filter',
     '@debrute/web',
     'dev',
-    '--',
     '--host',
     '127.0.0.1',
     '--port',

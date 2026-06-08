@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, File, FileText, Folder, Image as ImageIcon, Maximize2, Music2, RefreshCw, Save, Video } from 'lucide-react';
 import type { ProjectedCanvasNode } from '@debrute/canvas-core';
 import type { TextFileBuffer, WorkbenchActions } from '../../types';
@@ -142,6 +142,60 @@ function CanvasImageNodeContent({
 }): React.ReactElement {
   const imageState = useCanvasImageAsset(node.projectRelativePath);
   const imageAssetRuntime = useCanvasImageAssetRuntime();
+  const pendingHandoffCancelRef = useRef<(() => void) | undefined>(undefined);
+  const nextImageRef = useRef<HTMLImageElement | null>(null);
+  const nextLoadKey = imageState.kind === 'image' ? imageState.next?.loadKey : undefined;
+  const resolveLoadedNext = useCallback((loadKey: string) => {
+    pendingHandoffCancelRef.current?.();
+    pendingHandoffCancelRef.current = scheduleCanvasImageHandoffAfterPaint(() => {
+      pendingHandoffCancelRef.current = undefined;
+      imageAssetRuntime.resolvePending(node.projectRelativePath, loadKey);
+    });
+  }, [imageAssetRuntime, node.projectRelativePath]);
+  const rejectLoadedNext = useCallback((loadKey: string) => {
+    pendingHandoffCancelRef.current?.();
+    pendingHandoffCancelRef.current = undefined;
+    imageAssetRuntime.rejectPending(node.projectRelativePath, loadKey);
+  }, [imageAssetRuntime, node.projectRelativePath]);
+
+  useEffect(() => () => {
+    pendingHandoffCancelRef.current?.();
+    pendingHandoffCancelRef.current = undefined;
+  }, [nextLoadKey, node.projectRelativePath]);
+
+  useEffect(() => {
+    const image = nextImageRef.current;
+    if (!nextLoadKey || !image) {
+      return undefined;
+    }
+    const resolve = () => resolveLoadedNext(nextLoadKey);
+    const reject = () => rejectLoadedNext(nextLoadKey);
+    const handled = syncCompletedCanvasImageHandoff({
+      image,
+      loadKey: nextLoadKey,
+      resolveLoaded: resolveLoadedNext,
+      rejectLoaded: rejectLoadedNext
+    });
+    if (handled) {
+      return undefined;
+    }
+    image.addEventListener('load', resolve);
+    image.addEventListener('error', reject);
+    const frame = window.requestAnimationFrame(() => {
+      syncCompletedCanvasImageHandoff({
+        image,
+        loadKey: nextLoadKey,
+        resolveLoaded: resolveLoadedNext,
+        rejectLoaded: rejectLoadedNext
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      image.removeEventListener('load', resolve);
+      image.removeEventListener('error', reject);
+    };
+  }, [nextLoadKey, rejectLoadedNext, resolveLoadedNext]);
+
   if (imageState.kind === 'image') {
     return (
       <>
@@ -168,6 +222,7 @@ function CanvasImageNodeContent({
         ) : null}
         {imageState.next ? (
           <img
+            ref={nextImageRef}
             key={imageState.next.loadKey}
             data-canvas-image-layer="next"
             src={imageState.next.src}
@@ -175,9 +230,9 @@ function CanvasImageNodeContent({
             draggable={false}
             decoding="async"
             aria-hidden="true"
-            onLoad={() => imageAssetRuntime.resolvePending(node.projectRelativePath, imageState.next!.loadKey)}
-            onError={() => imageAssetRuntime.rejectPending(node.projectRelativePath, imageState.next!.loadKey)}
-            style={{ objectFit: 'fill', opacity: 0 }}
+            onLoad={() => resolveLoadedNext(imageState.next!.loadKey)}
+            onError={() => rejectLoadedNext(imageState.next!.loadKey)}
+            style={{ objectFit: 'fill' }}
           />
         ) : null}
       </>
@@ -190,6 +245,60 @@ function CanvasImageNodeContent({
       onRetry={imageState.kind === 'placeholder' ? imageState.retry : undefined}
     />
   );
+}
+
+export function syncCompletedCanvasImageHandoff(input: {
+  image: Pick<HTMLImageElement, 'complete' | 'naturalWidth'> | null;
+  loadKey: string | undefined;
+  resolveLoaded: (loadKey: string) => void;
+  rejectLoaded: (loadKey: string) => void;
+}): boolean {
+  if (!input.loadKey || !input.image?.complete) {
+    return false;
+  }
+  if (input.image.naturalWidth > 0) {
+    input.resolveLoaded(input.loadKey);
+  } else {
+    input.rejectLoaded(input.loadKey);
+  }
+  return true;
+}
+
+export function scheduleCanvasImageHandoffAfterPaint(
+  callback: () => void,
+  scheduler?: {
+    requestFrame: (callback: FrameRequestCallback) => number;
+    cancelFrame: (handle: number) => void;
+  }
+): () => void {
+  const requestFrame = scheduler?.requestFrame ?? window.requestAnimationFrame.bind(window);
+  const cancelFrame = scheduler?.cancelFrame ?? window.cancelAnimationFrame.bind(window);
+  let cancelled = false;
+  let firstFrame: number | undefined;
+  let secondFrame: number | undefined;
+
+  firstFrame = requestFrame(() => {
+    firstFrame = undefined;
+    if (cancelled) {
+      return;
+    }
+    secondFrame = requestFrame(() => {
+      secondFrame = undefined;
+      if (!cancelled) {
+        callback();
+      }
+    });
+  });
+
+  return () => {
+    cancelled = true;
+    if (firstFrame !== undefined) {
+      cancelFrame(firstFrame);
+    }
+    if (secondFrame !== undefined) {
+      cancelFrame(secondFrame);
+    }
+  };
 }
 
 function CanvasGenericNodeContent({

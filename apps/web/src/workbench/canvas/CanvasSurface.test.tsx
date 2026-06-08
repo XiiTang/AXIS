@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createCanvasDocument, type CanvasFeedbackDocument, type CanvasProjection } from '@debrute/canvas-core';
 import type { IntegrationSettingsView } from '@debrute/app-protocol';
 import type { WorkbenchActions, WorkbenchState } from '../../types';
@@ -8,7 +9,7 @@ import { CanvasEditor } from './CanvasEditor';
 import { createCanvasImageAssetRuntime, type CanvasImageAssetRuntime, type CanvasImageAssetRuntimeStats } from './CanvasImageAssetRuntime';
 import { CanvasImageAssetProvider } from './CanvasImageResourceContext';
 import type { CanvasImageNodeRenderState } from './canvasImageLoading';
-import { CanvasNodeContent } from './CanvasNodeContent';
+import { CanvasNodeContent, scheduleCanvasImageHandoffAfterPaint, syncCompletedCanvasImageHandoff } from './CanvasNodeContent';
 import { createCanvasOverlayRuntime } from './CanvasOverlayRuntime';
 import { areCanvasNodeShellPropsEqual, CanvasNodeShell, type CanvasNodeShellProps } from './CanvasNodeShell';
 import {
@@ -288,7 +289,8 @@ describe('CanvasSurface', () => {
       culledNodePaths: new Set(),
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      cameraState: 'idle'
+      cameraState: 'idle',
+      imageHeavyEfficientMode: false
     });
 
     const html = renderToStaticMarkup(
@@ -315,6 +317,49 @@ describe('CanvasSurface', () => {
     expect(html).toContain('src="/preview/high.jpg"');
     expect(html).toContain('data-canvas-image-layer="visible"');
     expect(html).toContain('data-canvas-image-layer="next"');
+    expect(html).not.toContain('opacity:0');
+    expect(html).not.toContain('opacity: 0');
+  });
+
+  it('does not globally hide next image preview layers in CSS', () => {
+    const css = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+
+    expect(css).not.toMatch(/data-canvas-image-layer=['"]next['"][^{]*{[^}]*opacity\s*:\s*0\b/s);
+  });
+
+  it('resolves a loaded next image only after a paint opportunity', () => {
+    const frameCallbacks: FrameRequestCallback[] = [];
+    const resolve = vi.fn();
+
+    scheduleCanvasImageHandoffAfterPaint(resolve, {
+      requestFrame: (callback) => {
+        frameCallbacks.push(callback);
+        return frameCallbacks.length;
+      },
+      cancelFrame: () => undefined
+    });
+
+    expect(resolve).not.toHaveBeenCalled();
+    frameCallbacks.shift()?.(16);
+    expect(resolve).not.toHaveBeenCalled();
+    frameCallbacks.shift()?.(32);
+    expect(resolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the same handoff path for next images that are already complete', () => {
+    const resolveLoaded = vi.fn();
+    const rejectLoaded = vi.fn();
+
+    const handled = syncCompletedCanvasImageHandoff({
+      image: { complete: true, naturalWidth: 512 },
+      loadKey: 'next',
+      resolveLoaded,
+      rejectLoaded
+    });
+
+    expect(handled).toBe(true);
+    expect(resolveLoaded).toHaveBeenCalledWith('next');
+    expect(rejectLoaded).not.toHaveBeenCalled();
   });
 
   it('renders preview-only image layers without raw image sources', () => {
@@ -409,7 +454,8 @@ describe('CanvasSurface', () => {
         [live.projectRelativePath, live]
       ]),
       imageResourceZoom: 1,
-      devicePixelRatio: 1
+      devicePixelRatio: 1,
+      imageHeavyEfficientMode: false
     });
 
     expect(viewports).toHaveLength(1);
@@ -417,7 +463,8 @@ describe('CanvasSurface', () => {
       visibleRect: { x: 350, y: 0, width: 400, height: 300 },
       imageResourceZoom: 1,
       devicePixelRatio: 1,
-      cameraState: 'moving'
+      cameraState: 'moving',
+      imageHeavyEfficientMode: false
     });
     expect((viewports[0] as { mountedNodePaths: ReadonlySet<string> }).mountedNodePaths).toEqual(new Set([
       'flow/stale-visible.png',

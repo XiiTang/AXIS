@@ -18,4 +18,31 @@ describe('Workbench development scripts', () => {
 
     expect(desktopPackage.scripts['dev:electron']).toBe('tsx ../../scripts/dev-electron-workbench.ts');
   });
+
+  it('passes Vite dev server arguments directly to the filtered web script', () => {
+    const sourceDevScript = readFileSync(join(process.cwd(), 'scripts/dev-workbench.ts'), 'utf8');
+    const electronDevScript = readFileSync(join(process.cwd(), 'scripts/dev-electron-workbench.ts'), 'utf8');
+    const cliRuntimeLauncher = readFileSync(
+      join(process.cwd(), 'apps/debrute-cli/src/workbench/workbenchRuntimeLauncher.ts'),
+      'utf8'
+    );
+
+    for (const script of [sourceDevScript, electronDevScript, cliRuntimeLauncher]) {
+      expect(script).not.toContain("'@debrute/web',\n    'dev',\n    '--',\n    '--host'");
+      expect(script).toContain("'@debrute/web',\n    'dev',\n    '--host'");
+    }
+  });
+
+  it('passes daemon runtime arguments directly to the filtered daemon script', () => {
+    const sourceDevScript = readFileSync(join(process.cwd(), 'scripts/dev-workbench.ts'), 'utf8');
+    const cliRuntimeLauncher = readFileSync(
+      join(process.cwd(), 'apps/debrute-cli/src/workbench/workbenchRuntimeLauncher.ts'),
+      'utf8'
+    );
+
+    for (const script of [sourceDevScript, cliRuntimeLauncher]) {
+      expect(script).not.toContain("'@debrute/daemon',\n    'dev',\n    '--',\n    '--port'");
+      expect(script).toContain("'@debrute/daemon',\n    'dev',\n    '--port'");
+    }
+  });
 });

@@ -712,10 +712,6 @@ small {
   pointer-events: none;
 }
 
-.canvas-node-preview img[data-canvas-image-layer='next'] {
-  opacity: 0;
-}
-
 .canvas-node-image-reserved {
   position: absolute;
   inset: 0;

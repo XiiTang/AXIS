@@ -943,6 +943,53 @@ describe('CanvasImageAssetRuntime', () => {
     expect(counterNames(monitor.getTrace().events)).toContain('image-budget-block');
   });
 
+  it('limits 2048 idle upgrades to one replacement in image-heavy efficient mode', () => {
+    const monitor = createCanvasPerfMonitor({ enabled: true });
+    const runtime = createCanvasImageAssetRuntime({
+      concurrency: 3,
+      budget: { maxHighResolutionPendingImages: 3 },
+      perfMonitor: monitor
+    });
+    runtime.setNodes(new Map([
+      ['flow/a.png', largeImageNode('flow/a.png', 0, 0)],
+      ['flow/b.png', largeImageNode('flow/b.png', 2600, 0)],
+      ['flow/c.png', largeImageNode('flow/c.png', 5200, 0)]
+    ]));
+    const allVisibleLowResolution = {
+      ...viewport({
+        cameraState: 'idle',
+        mountedNodePaths: new Set(['flow/a.png', 'flow/b.png', 'flow/c.png'])
+      }),
+      visibleRect: { x: 0, y: 0, width: 8000, height: 2000 },
+      imageResourceZoom: 0.1
+    };
+    runtime.setViewport(allVisibleLowResolution);
+
+    const pendingA = runtime.getNodeState('flow/a.png');
+    const pendingB = runtime.getNodeState('flow/b.png');
+    const pendingC = runtime.getNodeState('flow/c.png');
+    if (pendingA.kind !== 'image' || !pendingA.next || pendingB.kind !== 'image' || !pendingB.next || pendingC.kind !== 'image' || !pendingC.next) {
+      throw new Error('Expected all low-resolution images to be pending.');
+    }
+    runtime.resolvePending('flow/a.png', pendingA.next.loadKey);
+    runtime.resolvePending('flow/b.png', pendingB.next.loadKey);
+    runtime.resolvePending('flow/c.png', pendingC.next.loadKey);
+
+    runtime.setViewport({
+      ...allVisibleLowResolution,
+      imageResourceZoom: 1,
+      imageHeavyEfficientMode: true
+    });
+
+    expect(runtime.stats()).toMatchObject({
+      activeLoadCount: 1,
+      pendingImageCount: 1,
+      visiblePreviewWidths: { 256: 3 },
+      nextPreviewWidths: { 2048: 1 }
+    });
+    expect(counterNames(monitor.getTrace().events)).toContain('image-budget-block');
+  });
+
   it('evicts far high-resolution visible images from mounted records', () => {
     const monitor = createCanvasPerfMonitor({ enabled: true });
     const runtime = createCanvasImageAssetRuntime({ concurrency: 2, perfMonitor: monitor });
@@ -1115,6 +1162,7 @@ function viewport(input: {
   cameraState: 'idle' | 'moving';
   mountedNodePaths?: ReadonlySet<string>;
   culledNodePaths?: ReadonlySet<string>;
+  imageHeavyEfficientMode?: boolean;
 }) {
   return {
     visibleRect: { x: 0, y: 0, width: 400, height: 300 },
@@ -1122,7 +1170,8 @@ function viewport(input: {
     culledNodePaths: input.culledNodePaths ?? new Set(),
     imageResourceZoom: 1,
     devicePixelRatio: 1,
-    cameraState: input.cameraState
+    cameraState: input.cameraState,
+    imageHeavyEfficientMode: input.imageHeavyEfficientMode ?? false
   };
 }
 
