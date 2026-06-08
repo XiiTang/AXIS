@@ -34,6 +34,23 @@ describe('CanvasStageRuntime', () => {
     expect(element.style.properties.get('display')).toBe('none');
   });
 
+  it('restores a culled node display without clearing its layout during a pan back', () => {
+    const runtime = createCanvasStageRuntime();
+    const element = fakeElement();
+
+    runtime.registerNodeShell('flow/a.png', element as unknown as HTMLElement);
+    runtime.setNodeLayout('flow/a.png', { x: 10, y: 20, width: 320, height: 180, z: 7 });
+    runtime.setNodeVisible('flow/a.png', true);
+    runtime.setNodeVisible('flow/a.png', false);
+    runtime.setNodeVisible('flow/a.png', true);
+
+    expect(element.style.transform).toBe('translate(10px, 20px)');
+    expect(element.style.properties.get('width')).toBe('320px');
+    expect(element.style.properties.get('height')).toBe('180px');
+    expect(element.style.properties.get('z-index')).toBe('7');
+    expect(element.style.properties.get('display')).toBe('block');
+  });
+
   it('applies drag previews without mutating stored final layout', () => {
     const runtime = createCanvasStageRuntime();
     const element = fakeElement();

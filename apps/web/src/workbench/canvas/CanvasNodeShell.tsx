@@ -12,6 +12,7 @@ export interface CanvasNodeShellProps {
   selected: boolean;
   hovered: boolean;
   culled: boolean;
+  prefetch: boolean;
   zIndex: number;
   stageRuntime: CanvasStageRuntime;
   actions: WorkbenchActions;
@@ -31,6 +32,7 @@ function CanvasNodeShellComponent({
   selected,
   hovered,
   culled,
+  prefetch,
   zIndex,
   stageRuntime,
   actions,
@@ -98,6 +100,7 @@ function CanvasNodeShellComponent({
             node={node}
             selected={selected}
             culled={culled}
+            prefetch={prefetch}
             actions={actions}
             textBuffer={textBuffer}
             onSelectNode={() => onSelectNode(node)}
@@ -111,6 +114,7 @@ function CanvasNodeShellComponent({
           node={node}
           selected={selected}
           culled={culled}
+          prefetch={prefetch}
           actions={actions}
           textBuffer={textBuffer}
           onSelectNode={() => onSelectNode(node)}
@@ -145,6 +149,7 @@ export function areCanvasNodeShellPropsEqual(
     && previous.selected === next.selected
     && previous.hovered === next.hovered
     && previous.culled === next.culled
+    && previous.prefetch === next.prefetch
     && previous.zIndex === next.zIndex
     && previous.stageRuntime === next.stageRuntime
     && (previous.node.mediaKind === 'text' ? previous.actions === next.actions : true)

@@ -156,6 +156,49 @@ describe('CanvasRenderCoordinator', () => {
     expect(snapshot.culledNodePaths.has('flow/offscreen.png')).toBe(true);
   });
 
+  it('keeps image nodes mounted while culling toggles during a pan out and back', () => {
+    const coordinator = createCanvasRenderCoordinator({ projection: projection([
+      imageNode('flow/a.png', 0, 0, 1),
+      imageNode('flow/b.png', 0, 2000, 2),
+      textNode('flow/b-notes.txt', 0, 2000, 3)
+    ]) });
+
+    const atA = coordinator.update({
+      camera: { x: 0, y: 0, z: 1 },
+      cameraState: 'idle',
+      surfaceSize: { width: 800, height: 600 },
+      selection: undefined,
+      activeNodePaths: []
+    });
+    const atB = coordinator.update({
+      camera: { x: 0, y: -2000, z: 1 },
+      cameraState: 'idle',
+      surfaceSize: { width: 800, height: 600 },
+      selection: undefined,
+      activeNodePaths: []
+    });
+    const backAtA = coordinator.update({
+      camera: { x: 0, y: 0, z: 1 },
+      cameraState: 'idle',
+      surfaceSize: { width: 800, height: 600 },
+      selection: undefined,
+      activeNodePaths: []
+    });
+
+    expect([...atA.nodesByPath.keys()]).toEqual(['flow/a.png', 'flow/b.png']);
+    expect([...atB.nodesByPath.keys()]).toEqual(['flow/a.png', 'flow/b-notes.txt', 'flow/b.png']);
+    expect([...backAtA.nodesByPath.keys()]).toEqual(['flow/a.png', 'flow/b.png']);
+    expect(atA.nodesByPath.has('flow/b-notes.txt')).toBe(false);
+    expect(atB.nodesByPath.has('flow/b-notes.txt')).toBe(true);
+    expect(backAtA.nodesByPath.has('flow/b-notes.txt')).toBe(false);
+    expect(atA.culledNodePaths.has('flow/a.png')).toBe(false);
+    expect(atA.culledNodePaths.has('flow/b.png')).toBe(true);
+    expect(atB.culledNodePaths.has('flow/a.png')).toBe(true);
+    expect(atB.culledNodePaths.has('flow/b.png')).toBe(false);
+    expect(backAtA.culledNodePaths.has('flow/a.png')).toBe(false);
+    expect(backAtA.culledNodePaths.has('flow/b.png')).toBe(true);
+  });
+
   it('records snapshot build, reuse, and virtual refresh counters', () => {
     const monitor = createCanvasPerfMonitor({ enabled: true });
     const coordinator = createCanvasRenderCoordinator({

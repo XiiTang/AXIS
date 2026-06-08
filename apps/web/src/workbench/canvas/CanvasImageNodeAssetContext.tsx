@@ -43,6 +43,7 @@ export function CanvasImageNodeAssetProvider({
 export function useCanvasImageNodeAsset(input: {
   node: ProjectedCanvasNode;
   culled: boolean;
+  prefetch?: boolean | undefined;
 }): CanvasImageNodeAssetHookState {
   const context = useCanvasImageNodeAssetContext();
   const [state, dispatch] = useReducer(canvasImageNodeAssetReducer, undefined, initialCanvasImageNodeAssetState);
@@ -84,6 +85,7 @@ export function useCanvasImageNodeAsset(input: {
         source,
         loadedLoadKey: state.loaded?.loadKey,
         culled: input.culled,
+        prefetch: input.prefetch === true,
         cameraState: context.cameraState,
         revisionChanged
       });
@@ -91,7 +93,8 @@ export function useCanvasImageNodeAsset(input: {
         type: 'source-resolved',
         source,
         cameraState: context.cameraState,
-        culled: input.culled
+        culled: input.culled,
+        prefetch: input.prefetch
       });
     };
 
@@ -107,6 +110,7 @@ export function useCanvasImageNodeAsset(input: {
   }, [
     context,
     input.culled,
+    input.prefetch,
     input.node,
     source,
     state.loaded
@@ -169,6 +173,7 @@ function recordSourceCounter(input: {
   source: CanvasImageNodeResolvedSource;
   loadedLoadKey: string | undefined;
   culled: boolean;
+  prefetch: boolean;
   cameraState: CanvasCameraState;
   revisionChanged: boolean;
 }): void {
@@ -192,7 +197,7 @@ function recordSourceCounter(input: {
     });
     return;
   }
-  if (input.culled) {
+  if (input.culled && !input.prefetch) {
     recordImageNodeCounter(input.context, 'image-node-upgrade-skip-culled', {
       projectRelativePath: input.node.projectRelativePath,
       loadKey: input.source.image.loadKey

@@ -37,6 +37,47 @@ describe('CanvasVisibilityController', () => {
     ]);
   });
 
+  it('toggles only display visibility for mounted image nodes during a pan out and back', () => {
+    const writes: Array<{ path: string; visible: boolean }> = [];
+    const controller = createCanvasVisibilityController({
+      stageRuntime: {
+        setNodeVisible: (path, visible) => writes.push({ path, visible })
+      }
+    });
+    const mountedImages = new Map([
+      ['flow/a.png', node('flow/a.png')],
+      ['flow/b.png', node('flow/b.png')]
+    ]);
+
+    controller.sync({
+      nodesByPath: mountedImages,
+      culledNodePaths: new Set(['flow/b.png']),
+      selectedNodePaths: [],
+      activeNodePaths: []
+    });
+    controller.sync({
+      nodesByPath: mountedImages,
+      culledNodePaths: new Set(['flow/a.png']),
+      selectedNodePaths: [],
+      activeNodePaths: []
+    });
+    controller.sync({
+      nodesByPath: mountedImages,
+      culledNodePaths: new Set(['flow/b.png']),
+      selectedNodePaths: [],
+      activeNodePaths: []
+    });
+
+    expect(writes).toEqual([
+      { path: 'flow/a.png', visible: true },
+      { path: 'flow/b.png', visible: false },
+      { path: 'flow/a.png', visible: false },
+      { path: 'flow/b.png', visible: true },
+      { path: 'flow/a.png', visible: true },
+      { path: 'flow/b.png', visible: false }
+    ]);
+  });
+
   it('keeps selected and active nodes visible even when they are culled', () => {
     const writes: Array<{ path: string; visible: boolean }> = [];
     const controller = createCanvasVisibilityController({

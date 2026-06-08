@@ -25,6 +25,7 @@
     "preview": "pnpm --filter @debrute/web preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "diagnose:canvas-pan": "node scripts/canvas-pan-roundtrip-diagnostic.mjs",
     "lint:arch": "node scripts/check-architecture.mjs",
     "doctor": "node scripts/doctor.mjs",
     "verify": "pnpm doctor && pnpm check && pnpm test && pnpm lint:arch && pnpm build"

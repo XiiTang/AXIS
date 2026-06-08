@@ -151,6 +151,47 @@ describe('CanvasImageNodeAsset', () => {
     expect(next.next).toBeUndefined();
   });
 
+  it('prefetches a culled image when the render coordinator marks it near the viewport', () => {
+    const source = resolveCanvasImageNodeSource({
+      node: imageNode('flow/near.png', 2400, 1200, 2400, 'rev-a'),
+      imageResourceZoom: 0.1,
+      devicePixelRatio: 1,
+      retryKey: 0
+    });
+
+    const next = canvasImageNodeAssetReducer(emptyState(), {
+      type: 'source-resolved',
+      source,
+      cameraState: 'moving',
+      culled: true,
+      prefetch: true
+    });
+
+    expect(next.next).toMatchObject({
+      src: previewUrl('flow/near.png', 'rev-a', 300),
+      previewWidth: 300
+    });
+  });
+
+  it('still skips new work for far culled images', () => {
+    const source = resolveCanvasImageNodeSource({
+      node: imageNode('flow/far.png', 2400, 1200, 2400, 'rev-a'),
+      imageResourceZoom: 0.1,
+      devicePixelRatio: 1,
+      retryKey: 0
+    });
+
+    const next = canvasImageNodeAssetReducer(emptyState(), {
+      type: 'source-resolved',
+      source,
+      cameraState: 'moving',
+      culled: true,
+      prefetch: false
+    });
+
+    expect(next.next).toBeUndefined();
+  });
+
   it('promotes matching next loads and ignores stale load events', () => {
     const nextImage = {
       src: previewUrl('flow/cover.png', 'rev-a', 1200),
