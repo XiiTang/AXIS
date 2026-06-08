@@ -4,10 +4,6 @@ import { access, mkdir, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import sharp from 'sharp';
 import {
-  CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS,
-  type CanvasImagePreviewWidth
-} from '@debrute/canvas-core';
-import {
   normalizeProjectRelativePath,
   projectFileRevision,
   resolveExistingProjectPath,
@@ -16,10 +12,6 @@ import {
 
 const CANVAS_IMAGE_PREVIEW_GENERATION_CONCURRENCY = 2;
 const CANVAS_IMAGE_PREVIEW_METADATA_CONCURRENCY = 4;
-export {
-  CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS,
-  type CanvasImagePreviewWidth
-} from '@debrute/canvas-core';
 
 export interface ResolveCanvasImagePreviewInput {
   projectRoot: string;
@@ -118,9 +110,22 @@ export async function canvasImageSourceRevision(projectRoot: string, projectRela
   return projectFileRevision(fileStat.size, fileStat.mtimeMs);
 }
 
-export function assertCanvasImagePreviewWidth(width: number): asserts width is CanvasImagePreviewWidth {
-  if (!CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS.includes(width as CanvasImagePreviewWidth)) {
-    throw new Error(`Unsupported Canvas preview width: ${width}`);
+export function assertCanvasImagePreviewWidth(width: number): void {
+  if (!Number.isFinite(width) || !Number.isInteger(width) || width <= 0) {
+    throw new Error(`Canvas preview width must be a positive integer: ${width}`);
+  }
+}
+
+function assertCanvasImagePreviewWidthWithinSource(
+  width: number,
+  sourceWidth: number | undefined,
+  projectRelativePath: string
+): void {
+  if (typeof sourceWidth !== 'number' || !Number.isFinite(sourceWidth) || sourceWidth <= 0) {
+    throw new Error(`Canvas image preview metadata could not be read: ${projectRelativePath}`);
+  }
+  if (width > sourceWidth) {
+    throw new Error(`Canvas preview width exceeds source width: ${projectRelativePath}`);
   }
 }
 
@@ -171,7 +176,7 @@ class LocalCanvasImagePreviewService implements CanvasImagePreviewService {
 
   private createInFlightEntry(
     key: string,
-    input: ResolveCanvasImagePreviewInput & { width: CanvasImagePreviewWidth }
+    input: ResolveCanvasImagePreviewInput
   ): CanvasImagePreviewInFlightEntry {
     const controller = new AbortController();
     let entry: CanvasImagePreviewInFlightEntry;
@@ -241,7 +246,6 @@ class LocalCanvasImagePreviewService implements CanvasImagePreviewService {
   }
 
   private async resolvePreview(input: ResolveCanvasImagePreviewInput & {
-    width: CanvasImagePreviewWidth;
     onGenerationStart?: () => void;
   }): Promise<CanvasImagePreviewResult> {
     throwIfCanvasPreviewAborted(input.abortSignal);
@@ -256,6 +260,13 @@ class LocalCanvasImagePreviewService implements CanvasImagePreviewService {
     if (actualRevision !== input.revision) {
       throw new Error(`Canvas preview revision does not match source: ${input.projectRelativePath}`);
     }
+    const sourceMetadata = await readCanvasImagePreviewMetadata(absoluteSourcePath, input.projectRelativePath, input.abortSignal);
+    throwIfCanvasPreviewAborted(input.abortSignal);
+    if ((sourceMetadata.pages ?? 1) > 1) {
+      throw new Error(`Canvas image is not previewable: ${input.projectRelativePath}`);
+    }
+    assertCanvasImagePreviewWidthWithinSource(input.width, sourceMetadata.width, input.projectRelativePath);
+
     const previewBasePath = await canvasImagePreviewCacheBasePath(input.projectRoot, {
       projectRelativePath: input.projectRelativePath,
       revision: input.revision,
@@ -269,11 +280,6 @@ class LocalCanvasImagePreviewService implements CanvasImagePreviewService {
       };
     }
 
-    const sourceMetadata = await readCanvasImagePreviewMetadata(absoluteSourcePath, input.projectRelativePath, input.abortSignal);
-    throwIfCanvasPreviewAborted(input.abortSignal);
-    if ((sourceMetadata.pages ?? 1) > 1) {
-      throw new Error(`Canvas image is not previewable: ${input.projectRelativePath}`);
-    }
     const output = sourceMetadata.hasAlpha === true
       ? { extension: 'png' as const }
       : { extension: 'jpg' as const };
@@ -340,7 +346,7 @@ async function canvasImagePreviewCacheBasePath(
   input: {
     projectRelativePath: string;
     revision: string;
-    width: CanvasImagePreviewWidth;
+    width: number;
   }
 ): Promise<string> {
   const hash = createHash('sha256')

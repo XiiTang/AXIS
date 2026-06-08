@@ -366,14 +366,14 @@ describe('CanvasSurface', () => {
     const html = renderCanvasSurfaceWithImageState({
       kind: 'image',
       visible: {
-        src: '/api/projects/p/canvas-image-preview?path=flow%2Fcover.png&v=rev&w=256',
+        src: '/api/projects/p/canvas-image-preview?path=flow%2Fcover.png&v=rev&w=300',
         loadKey: 'preview',
-        previewWidth: 256
+        previewWidth: 300
       },
       next: {
-        src: '/api/projects/p/canvas-image-preview?path=flow%2Fcover.png&v=rev&w=512',
+        src: '/api/projects/p/canvas-image-preview?path=flow%2Fcover.png&v=rev&w=2400',
         loadKey: 'preview-next',
-        previewWidth: 512
+        previewWidth: 2400
       },
       retry: () => undefined
     });

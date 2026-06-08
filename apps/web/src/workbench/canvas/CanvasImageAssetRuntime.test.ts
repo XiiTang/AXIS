@@ -74,7 +74,7 @@ describe('CanvasImageAssetRuntime', () => {
 
     const visible = runtime.getNodeState('flow/a.png');
     expect(visible.kind).toBe('image');
-    expect(visible.kind === 'image' ? visible.visible?.loadKey : undefined).toContain('w=256');
+    expect(visible.kind === 'image' ? visible.visible?.loadKey : undefined).toContain('w=300');
 
     runtime.setViewport({
       ...viewport({ cameraState: 'idle', mountedNodePaths: new Set(['flow/a.png']) }),
@@ -85,6 +85,41 @@ describe('CanvasImageAssetRuntime', () => {
     expect(upgrading.kind).toBe('image');
     expect(upgrading.kind === 'image' ? upgrading.visible : undefined).toBeDefined();
     expect(upgrading.kind === 'image' ? upgrading.next : undefined).toBeDefined();
+    expect(loadKeys).toHaveLength(2);
+  });
+
+  it('upgrades visible images from dynamic low width to source width after idle zoom settles', async () => {
+    const loadKeys: string[] = [];
+    const runtime = createCanvasImageAssetRuntime({
+      concurrency: 1,
+      loadImage: async (item) => {
+        loadKeys.push(item.loadKey);
+        return { src: item.src, loadKey: item.loadKey, previewWidth: item.previewWidth };
+      }
+    });
+
+    runtime.setNodes(new Map([['flow/a.png', largeImageNode('flow/a.png', 0, 0)]]));
+    runtime.setViewport({
+      ...viewport({ cameraState: 'idle', mountedNodePaths: new Set(['flow/a.png']) }),
+      imageResourceZoom: 0.1
+    });
+    await flushPromises();
+
+    const visible = runtime.getNodeState('flow/a.png');
+    expect(visible.kind).toBe('image');
+    expect(visible.kind === 'image' ? visible.visible?.previewWidth : undefined).toBe(300);
+    expect(visible.kind === 'image' ? visible.visible?.loadKey : undefined).toContain('w=300');
+
+    runtime.setViewport({
+      ...viewport({ cameraState: 'idle', mountedNodePaths: new Set(['flow/a.png']) }),
+      imageResourceZoom: 1
+    });
+
+    const upgrading = runtime.getNodeState('flow/a.png');
+    expect(upgrading.kind).toBe('image');
+    expect(upgrading.kind === 'image' ? upgrading.visible?.previewWidth : undefined).toBe(300);
+    expect(upgrading.kind === 'image' ? upgrading.next?.previewWidth : undefined).toBe(2400);
+    expect(upgrading.kind === 'image' ? upgrading.next?.loadKey : undefined).toContain('w=2400');
     expect(loadKeys).toHaveLength(2);
   });
 
@@ -142,7 +177,7 @@ describe('CanvasImageAssetRuntime', () => {
         'prefetch-near': 1,
         deferred: 1
       },
-      nextPreviewWidths: { 2048: 2 }
+      nextPreviewWidths: { 2400: 2 }
     });
   });
 
@@ -167,7 +202,7 @@ describe('CanvasImageAssetRuntime', () => {
     cover.mockClear();
     other.mockClear();
 
-    resolveLoad?.({ src: rawPreviewUrl('flow/cover.png', 256, 'rev'), loadKey: `${rawPreviewUrl('flow/cover.png', 256, 'rev')}:0`, previewWidth: 256 });
+    resolveLoad?.({ src: rawPreviewUrl('flow/cover.png', 200, 'rev'), loadKey: `${rawPreviewUrl('flow/cover.png', 200, 'rev')}:0`, previewWidth: 200 });
     await flushPromises();
 
     expect(cover).toHaveBeenCalled();
@@ -191,12 +226,12 @@ describe('CanvasImageAssetRuntime', () => {
     runtime.setViewport(viewport({ cameraState: 'idle' }));
     runtime.setNodes(new Map([['flow/cover.png', imageNode('flow/cover.png', 0, 0, 'rev-b')]]));
 
-    resolveLoads[0]?.({ src: rawPreviewUrl('flow/cover.png', 256, 'rev-a'), loadKey: `${rawPreviewUrl('flow/cover.png', 256, 'rev-a')}:0`, previewWidth: 256 });
+    resolveLoads[0]?.({ src: rawPreviewUrl('flow/cover.png', 200, 'rev-a'), loadKey: `${rawPreviewUrl('flow/cover.png', 200, 'rev-a')}:0`, previewWidth: 200 });
     await flushPromises();
 
     expect(runtime.getNodeState('flow/cover.png')).toMatchObject({ kind: 'image', next: expect.any(Object) });
     expect(runtime.getNodeState('flow/cover.png')).not.toMatchObject({
-      visible: { src: rawPreviewUrl('flow/cover.png', 256, 'rev-a') }
+      visible: { src: rawPreviewUrl('flow/cover.png', 200, 'rev-a') }
     });
   });
 
@@ -488,15 +523,15 @@ describe('CanvasImageAssetRuntime', () => {
     runtime.setNodes(new Map([['flow/cover.png', imageNode('flow/cover.png', 0, 0, 'rev-b')]]));
 
     resolveLoads[0]?.({
-      src: rawPreviewUrl('flow/cover.png', 256, 'rev-a'),
-      loadKey: `${rawPreviewUrl('flow/cover.png', 256, 'rev-a')}:0`,
-      previewWidth: 256
+      src: rawPreviewUrl('flow/cover.png', 200, 'rev-a'),
+      loadKey: `${rawPreviewUrl('flow/cover.png', 200, 'rev-a')}:0`,
+      previewWidth: 200
     });
     await flushPromises();
 
     expect(counterNames(monitor.getTrace().events)).toContain('image-load-stale-result');
     expect(runtime.getNodeState('flow/cover.png')).not.toMatchObject({
-      visible: { src: rawPreviewUrl('flow/cover.png', 256, 'rev-a') }
+      visible: { src: rawPreviewUrl('flow/cover.png', 200, 'rev-a') }
     });
   });
 
@@ -938,12 +973,12 @@ describe('CanvasImageAssetRuntime', () => {
     expect(runtime.stats()).toMatchObject({
       activeLoadCount: 1,
       pendingImageCount: 1,
-      nextPreviewWidths: { 2048: 1 }
+      nextPreviewWidths: { 2400: 1 }
     });
     expect(counterNames(monitor.getTrace().events)).toContain('image-budget-block');
   });
 
-  it('limits 2048 idle upgrades to one replacement in image-heavy efficient mode', () => {
+  it('limits source-width idle upgrades to one replacement in image-heavy efficient mode', () => {
     const monitor = createCanvasPerfMonitor({ enabled: true });
     const runtime = createCanvasImageAssetRuntime({
       concurrency: 3,
@@ -984,8 +1019,8 @@ describe('CanvasImageAssetRuntime', () => {
     expect(runtime.stats()).toMatchObject({
       activeLoadCount: 1,
       pendingImageCount: 1,
-      visiblePreviewWidths: { 256: 3 },
-      nextPreviewWidths: { 2048: 1 }
+      visiblePreviewWidths: { 300: 3 },
+      nextPreviewWidths: { 2400: 1 }
     });
     expect(counterNames(monitor.getTrace().events)).toContain('image-budget-block');
   });
@@ -1013,7 +1048,7 @@ describe('CanvasImageAssetRuntime', () => {
     runtime.resolvePending('flow/a.png', pendingA.next.loadKey);
     runtime.resolvePending('flow/b.png', pendingB.next.loadKey);
 
-    expect(runtime.stats().visiblePreviewWidths).toEqual({ 2048: 2 });
+    expect(runtime.stats().visiblePreviewWidths).toEqual({ 2400: 2 });
 
     runtime.setViewport({
       ...viewport({
@@ -1025,7 +1060,7 @@ describe('CanvasImageAssetRuntime', () => {
       imageResourceZoom: 1
     });
 
-    expect(runtime.stats().visiblePreviewWidths).toEqual({ 2048: 1 });
+    expect(runtime.stats().visiblePreviewWidths).toEqual({ 2400: 1 });
     expect(runtime.getNodeState('flow/b.png')).toMatchObject({ kind: 'placeholder' });
     expect(runtime.stats().imageEvictionReasons).toEqual({ 'far-high-resolution': 1 });
     expect(counterNames(monitor.getTrace().events)).toContain('image-visible-evict');

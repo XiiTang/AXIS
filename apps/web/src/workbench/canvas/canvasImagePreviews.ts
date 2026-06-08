@@ -1,5 +1,7 @@
-import { CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS, type ProjectedCanvasNode } from '@debrute/canvas-core';
+import type { ProjectedCanvasNode } from '@debrute/canvas-core';
 
+export const CANVAS_IMAGE_PREVIEW_MIN_SCALE = 1 / 32;
+export const CANVAS_IMAGE_PREVIEW_MAX_SCALE = 1;
 export const CANVAS_IMAGE_PREVIEW_RESOURCE_SETTLE_MS = 500;
 
 export interface CanvasImageSource {
@@ -22,7 +24,7 @@ export function canvasImageSource(input: {
   if (!isPreviewableImageNode(input.node)) {
     return undefined;
   }
-  const previewWidth = canvasImagePreviewBucketForNode(input.node, input.cameraZoom, input.devicePixelRatio);
+  const previewWidth = canvasImagePreviewWidthForNode(input.node, input.cameraZoom, input.devicePixelRatio);
   const src = canvasImagePreviewUrl(
     input.node.availability.fileUrl,
     input.node.projectRelativePath,
@@ -35,36 +37,56 @@ export function canvasImageSource(input: {
   };
 }
 
-export function canvasImagePreviewBucket(targetWidth: number): number {
-  if (!Number.isFinite(targetWidth) || targetWidth <= 0) {
-    throw new Error('Canvas image preview target width must be a positive finite number.');
+export function canvasImagePreviewSteppedScale(screenScale: number): number {
+  assertPositiveFinite(screenScale, 'Canvas image preview screen scale must be a positive finite number.');
+  return 2 ** Math.ceil(Math.log2(screenScale));
+}
+
+export function canvasImagePreviewWidth(input: {
+  nodeDisplayWidth: number;
+  sourceWidth: number;
+  imageResourceZoom: number;
+  devicePixelRatio: number;
+}): number {
+  assertPositiveFinite(input.nodeDisplayWidth, 'Canvas image preview node display width must be a positive finite number.');
+  assertPositiveFinite(input.sourceWidth, 'Canvas image preview source width must be a positive finite number.');
+  assertPositiveFinite(input.imageResourceZoom, 'Canvas image preview resource zoom must be a positive finite number.');
+  assertPositiveFinite(input.devicePixelRatio, 'Canvas image devicePixelRatio must be a positive finite number.');
+
+  const screenScale = input.imageResourceZoom * (input.nodeDisplayWidth / input.sourceWidth);
+  const steppedScale = canvasImagePreviewSteppedScale(screenScale);
+  const clampedScale = Math.min(
+    CANVAS_IMAGE_PREVIEW_MAX_SCALE,
+    Math.max(CANVAS_IMAGE_PREVIEW_MIN_SCALE, steppedScale)
+  );
+  const previewWidth = Math.ceil(Math.min(
+    input.sourceWidth * clampedScale * input.devicePixelRatio,
+    input.sourceWidth
+  ));
+  if (!Number.isInteger(previewWidth) || previewWidth <= 0) {
+    throw new Error('Canvas image preview width must be a positive integer.');
   }
-  return CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS.find((bucket) => bucket >= targetWidth)
-    ?? CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS[3];
+  return previewWidth;
 }
 
-export function canvasImagePreviewBucketForNode(
+export function canvasImagePreviewWidthForNode(
   node: Pick<ProjectedCanvasNode, 'width' | 'availability'>,
   cameraZoom: number,
   devicePixelRatio: number
 ): number {
-  return canvasImagePreviewBucket(canvasImagePreviewTargetWidth(node, cameraZoom, devicePixelRatio));
-}
-
-function canvasImagePreviewTargetWidth(
-  node: Pick<ProjectedCanvasNode, 'width' | 'availability'>,
-  cameraZoom: number,
-  devicePixelRatio: number
-): number {
-  const targetWidth = node.width * cameraZoom * devicePixelRatio;
   if (node.availability.state !== 'available') {
-    return targetWidth;
+    throw new Error('Canvas previewable image nodes must be available.');
   }
   const sourceWidth = node.availability.canvasImagePreviewSourceWidth;
   if (typeof sourceWidth !== 'number' || !Number.isFinite(sourceWidth) || sourceWidth <= 0) {
     throw new Error('Canvas previewable image nodes must include a positive finite source width.');
   }
-  return Math.min(targetWidth, sourceWidth);
+  return canvasImagePreviewWidth({
+    nodeDisplayWidth: node.width,
+    sourceWidth,
+    imageResourceZoom: cameraZoom,
+    devicePixelRatio
+  });
 }
 
 function canvasImagePreviewUrl(fileUrl: string, projectRelativePath: string, revision: string, width: number): URL {
@@ -84,4 +106,10 @@ function isPreviewableImageNode(node: ProjectedCanvasNode): boolean {
     return false;
   }
   return node.availability.canvasImagePreviewable === true;
+}
+
+function assertPositiveFinite(value: number, message: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(message);
+  }
 }

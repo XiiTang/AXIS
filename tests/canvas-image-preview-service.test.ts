@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS } from '@debrute/canvas-core';
 import {
   canvasImageSourceRevision,
   createCanvasImagePreviewConcurrencyLimiter,
@@ -12,7 +11,7 @@ import {
 } from '../apps/app-server/src/canvas/CanvasImagePreviewService';
 
 describe('canvas image preview service', () => {
-  it('generates fixed-width local previews and reuses the cache file', async () => {
+  it('generates dynamic-width local previews and reuses the cache file', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-canvas-preview-service-'));
     try {
       await mkdir(join(projectRoot, 'images'), { recursive: true });
@@ -24,7 +23,7 @@ describe('canvas image preview service', () => {
         projectRoot,
         projectRelativePath: 'images/cover.png',
         revision,
-        width: 256
+        width: 300
       });
       const firstStat = await stat(first.absolutePath);
       const firstMetadata = await sharp(first.absolutePath).metadata();
@@ -32,14 +31,13 @@ describe('canvas image preview service', () => {
         projectRoot,
         projectRelativePath: 'images/cover.png',
         revision,
-        width: 256
+        width: 300
       });
 
-      expect(CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS).toEqual([256, 512, 1024, 2048]);
       expect(Object.keys(first).sort()).toEqual(['absolutePath']);
       expect(first.absolutePath).toContain('/.debrute/cache/canvas-image-previews/');
-      expect(firstMetadata.width).toBe(256);
-      expect(firstMetadata.height).toBe(128);
+      expect(firstMetadata.width).toBe(300);
+      expect(firstMetadata.height).toBe(150);
       expect(second.absolutePath).toBe(first.absolutePath);
       await expect(stat(second.absolutePath)).resolves.toMatchObject({ mtimeMs: firstStat.mtimeMs });
     } finally {
@@ -56,8 +54,8 @@ describe('canvas image preview service', () => {
       const revision = await canvasImageSourceRevision(projectRoot, 'images/cover.png');
 
       const [first, second] = await Promise.all([
-        service.resolve({ projectRoot, projectRelativePath: 'images/cover.png', revision, width: 1024 }),
-        service.resolve({ projectRoot, projectRelativePath: 'images/cover.png', revision, width: 1024 })
+        service.resolve({ projectRoot, projectRelativePath: 'images/cover.png', revision, width: 777 }),
+        service.resolve({ projectRoot, projectRelativePath: 'images/cover.png', revision, width: 777 })
       ]);
 
       expect(second).toBe(first);
@@ -100,8 +98,8 @@ describe('canvas image preview service', () => {
     }
   });
 
-  it('reuses an existing cache file without re-reading source image metadata', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-canvas-preview-service-cache-first-'));
+  it('validates current source metadata before reusing a same-key cache file', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-canvas-preview-service-cache-validated-'));
     try {
       await mkdir(join(projectRoot, 'images'), { recursive: true });
       const sourcePath = join(projectRoot, 'images/cover.png');
@@ -111,11 +109,11 @@ describe('canvas image preview service', () => {
       await utimes(sourcePath, fixedTime, fixedTime);
       const service = createCanvasImagePreviewService();
       const revision = await canvasImageSourceRevision(projectRoot, 'images/cover.png');
-      const first = await service.resolve({
+      await service.resolve({
         projectRoot,
         projectRelativePath: 'images/cover.png',
         revision,
-        width: 256
+        width: 300
       });
 
       await writeFile(sourcePath, Buffer.alloc(sourceBytes.byteLength, 0));
@@ -126,8 +124,8 @@ describe('canvas image preview service', () => {
         projectRoot,
         projectRelativePath: 'images/cover.png',
         revision,
-        width: 256
-      })).resolves.toEqual(first);
+        width: 300
+      })).rejects.toThrow('Canvas image preview metadata could not be read');
     } finally {
       await rm(projectRoot, { recursive: true, force: true });
     }
@@ -251,7 +249,7 @@ describe('canvas image preview service', () => {
     }
   });
 
-  it('rejects stale revisions, unsupported widths, unsafe paths, and non-previewable images', async () => {
+  it('rejects stale revisions, invalid dynamic widths, unsafe paths, and non-previewable images', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-canvas-preview-service-reject-'));
     try {
       await mkdir(join(projectRoot, 'images'), { recursive: true });
@@ -270,8 +268,20 @@ describe('canvas image preview service', () => {
         projectRoot,
         projectRelativePath: 'images/cover.png',
         revision,
-        width: 300
-      })).rejects.toThrow('Unsupported Canvas preview width');
+        width: 0
+      })).rejects.toThrow('Canvas preview width must be a positive integer');
+      await expect(service.resolve({
+        projectRoot,
+        projectRelativePath: 'images/cover.png',
+        revision,
+        width: 12.5
+      })).rejects.toThrow('Canvas preview width must be a positive integer');
+      await expect(service.resolve({
+        projectRoot,
+        projectRelativePath: 'images/cover.png',
+        revision,
+        width: 1025
+      })).rejects.toThrow('Canvas preview width exceeds source width');
       await expect(service.resolve({
         projectRoot,
         projectRelativePath: '../cover.png',

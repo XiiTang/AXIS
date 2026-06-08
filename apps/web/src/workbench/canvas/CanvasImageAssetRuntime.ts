@@ -1,4 +1,4 @@
-import { CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS, type ProjectedCanvasNode } from '@debrute/canvas-core';
+import type { ProjectedCanvasNode } from '@debrute/canvas-core';
 import { CANVAS_PERF_INTERACTION_SESSION_TYPES, type CanvasPerfCounterName, type CanvasPerfFinalState, type CanvasPerfMonitor, type CanvasPerfSessionId } from './CanvasPerfMonitor';
 import {
   CANVAS_IMAGE_LOAD_CONCURRENCY,
@@ -56,20 +56,17 @@ export type CanvasImageAssetLoader = (item: CanvasImageLoadingPlanItem) => Promi
 export interface CanvasImageAssetRuntimeBudget {
   maxPendingImages: number;
   maxHighResolutionPendingImages: number;
-  maxLargestPreviewUpgradePendingImages: number;
+  maxSourceWidthUpgradePendingImages: number;
   highResolutionPreviewWidth: number;
-  largestPreviewWidth: number;
   movingPrefetchLimit: number;
 }
 
-const CANVAS_IMAGE_LARGEST_PREVIEW_WIDTH = CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS[3];
 export const CANVAS_IMAGE_VISIBLE_RETAIN_OVERSCAN_SCREEN_PX = 1536;
 export const CANVAS_IMAGE_ASSET_DEFAULT_BUDGET: CanvasImageAssetRuntimeBudget = {
   maxPendingImages: 3,
   maxHighResolutionPendingImages: 2,
-  maxLargestPreviewUpgradePendingImages: 1,
+  maxSourceWidthUpgradePendingImages: 1,
   highResolutionPreviewWidth: 1024,
-  largestPreviewWidth: CANVAS_IMAGE_LARGEST_PREVIEW_WIDTH,
   movingPrefetchLimit: 1
 };
 
@@ -520,7 +517,7 @@ export function createCanvasImageAssetRuntime(input: {
       && item.intent !== 'deferred';
   }
 
-  type CanvasImagePendingBudgetBlockReason = 'total' | 'high-resolution' | 'largest-preview-upgrade';
+  type CanvasImagePendingBudgetBlockReason = 'total' | 'high-resolution' | 'source-width-upgrade';
 
   function enforcePendingImageBudget(currentViewport: CanvasImageAssetViewport): Set<string> {
     const affectedPaths = new Set<string>();
@@ -543,26 +540,27 @@ export function createCanvasImageAssetRuntime(input: {
 
     let pendingCount = 0;
     let highResolutionPendingCount = 0;
-    let largestPreviewUpgradePendingCount = 0;
+    let sourceWidthUpgradePendingCount = 0;
     for (const pendingItem of pending) {
       const isHighResolution = pendingItem.record.next!.previewWidth >= budget.highResolutionPreviewWidth;
-      const isLargestPreviewUpgrade = isLargestPreviewUpgradeItem(
+      const isSourceWidthUpgrade = isSourceWidthUpgradeItem(
         pendingItem.item,
         pendingItem.record.next!,
-        currentViewport
+        currentViewport,
+        nodes
       );
       const overTotalBudget = pendingCount >= budget.maxPendingImages;
       const overHighResolutionBudget = isHighResolution
         && highResolutionPendingCount >= budget.maxHighResolutionPendingImages;
-      const overLargestPreviewUpgradeBudget = isLargestPreviewUpgrade
-        && largestPreviewUpgradePendingCount >= budget.maxLargestPreviewUpgradePendingImages;
-      if (overTotalBudget || overHighResolutionBudget || overLargestPreviewUpgradeBudget) {
+      const overSourceWidthUpgradeBudget = isSourceWidthUpgrade
+        && sourceWidthUpgradePendingCount >= budget.maxSourceWidthUpgradePendingImages;
+      if (overTotalBudget || overHighResolutionBudget || overSourceWidthUpgradeBudget) {
         removeNextImage(
           pendingItem.path,
           pendingItem.record,
           overTotalBudget
             ? 'total'
-            : overHighResolutionBudget ? 'high-resolution' : 'largest-preview-upgrade'
+            : overHighResolutionBudget ? 'high-resolution' : 'source-width-upgrade'
         );
         affectedPaths.add(pendingItem.path);
         continue;
@@ -571,8 +569,8 @@ export function createCanvasImageAssetRuntime(input: {
       if (isHighResolution) {
         highResolutionPendingCount += 1;
       }
-      if (isLargestPreviewUpgrade) {
-        largestPreviewUpgradePendingCount += 1;
+      if (isSourceWidthUpgrade) {
+        sourceWidthUpgradePendingCount += 1;
       }
     }
 
@@ -831,27 +829,45 @@ export function createCanvasImageAssetRuntime(input: {
       return 'high-resolution';
     }
     if (
-      isLargestPreviewUpgradeItem(
+      isSourceWidthUpgradeItem(
         item,
         { src: item.src, loadKey: item.loadKey, previewWidth: item.previewWidth },
-        currentViewport
+        currentViewport,
+        nodes
       )
-      && largestPreviewUpgradePendingImageCount(currentRecords, plan, budget.largestPreviewWidth) >= budget.maxLargestPreviewUpgradePendingImages
+      && sourceWidthUpgradePendingImageCount(currentRecords, plan, nodes) >= budget.maxSourceWidthUpgradePendingImages
     ) {
-      return 'largest-preview-upgrade';
+      return 'source-width-upgrade';
     }
     return undefined;
   }
 
-  function isLargestPreviewUpgradeItem(
+  function isSourceWidthUpgradeItem(
     item: CanvasImageLoadingPlanItem,
     image: CanvasPendingImage,
-    currentViewport: CanvasImageAssetViewport
+    currentViewport: CanvasImageAssetViewport,
+    nodes: ReadonlyMap<string, ProjectedCanvasNode>
   ): boolean {
+    const sourceWidth = sourceWidthForPath(nodes, item.projectRelativePath);
     return currentViewport.imageHeavyEfficientMode === true
       && item.intent === 'upgrade-idle'
       && item.loadKey === image.loadKey
-      && image.previewWidth >= budget.largestPreviewWidth;
+      && sourceWidth !== undefined
+      && image.previewWidth >= sourceWidth;
+  }
+
+  function sourceWidthForPath(
+    nodes: ReadonlyMap<string, ProjectedCanvasNode>,
+    projectRelativePath: string
+  ): number | undefined {
+    const node = nodes.get(projectRelativePath);
+    if (!node || node.availability.state !== 'available') {
+      return undefined;
+    }
+    const sourceWidth = node.availability.canvasImagePreviewSourceWidth;
+    return typeof sourceWidth === 'number' && Number.isFinite(sourceWidth) && sourceWidth > 0
+      ? sourceWidth
+      : undefined;
   }
 
   function imageLoadFinalState(): CanvasPerfFinalState | undefined {
@@ -999,19 +1015,26 @@ function highResolutionPendingImageCount(
   return count;
 }
 
-function largestPreviewUpgradePendingImageCount(
+function sourceWidthUpgradePendingImageCount(
   records: ReadonlyMap<string, CanvasImageAssetRecord>,
   plan: ReadonlyMap<string, CanvasImageLoadingPlanItem>,
-  largestPreviewWidth: number
+  nodes: ReadonlyMap<string, ProjectedCanvasNode>
 ): number {
   let count = 0;
   for (const [path, record] of records) {
     const item = plan.get(path);
+    const node = nodes.get(path);
+    const sourceWidth = node?.availability.state === 'available'
+      ? node.availability.canvasImagePreviewSourceWidth
+      : undefined;
     if (
       record.next
       && item?.loadKey === record.next.loadKey
       && item.intent === 'upgrade-idle'
-      && record.next.previewWidth >= largestPreviewWidth
+      && typeof sourceWidth === 'number'
+      && Number.isFinite(sourceWidth)
+      && sourceWidth > 0
+      && record.next.previewWidth >= sourceWidth
     ) {
       count += 1;
     }

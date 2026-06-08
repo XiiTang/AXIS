@@ -1,36 +1,81 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectedCanvasNode } from '@debrute/canvas-core';
 import {
-  canvasImagePreviewBucket,
+  canvasImagePreviewSteppedScale,
+  canvasImagePreviewWidth,
   canvasImageSource
 } from './canvasImagePreviews';
 
 describe('canvas image preview URLs', () => {
-  it('uses bounded preview buckets without falling back to original files by screen width', () => {
+  it('rounds screen scale up to tldraw-like powers of two', () => {
+    expect(canvasImagePreviewSteppedScale(0.18)).toBe(0.25);
+    expect(canvasImagePreviewSteppedScale(0.5)).toBe(0.5);
+    expect(canvasImagePreviewSteppedScale(0.51)).toBe(1);
+  });
+
+  it('calculates dynamic preview widths from source width, display width, zoom, and DPR', () => {
+    expect(canvasImagePreviewWidth({
+      nodeDisplayWidth: 2400,
+      sourceWidth: 2400,
+      imageResourceZoom: 0.1,
+      devicePixelRatio: 1
+    })).toBe(300);
+
+    expect(canvasImagePreviewWidth({
+      nodeDisplayWidth: 2400,
+      sourceWidth: 2400,
+      imageResourceZoom: 0.1,
+      devicePixelRatio: 2
+    })).toBe(600);
+
+    expect(canvasImagePreviewWidth({
+      nodeDisplayWidth: 2400,
+      sourceWidth: 2400,
+      imageResourceZoom: 1,
+      devicePixelRatio: 2
+    })).toBe(2400);
+  });
+
+  it('clamps preview scale to the tldraw minimum and source width maximum', () => {
+    expect(canvasImagePreviewWidth({
+      nodeDisplayWidth: 2400,
+      sourceWidth: 2400,
+      imageResourceZoom: 0.001,
+      devicePixelRatio: 1
+    })).toBe(75);
+
+    expect(canvasImagePreviewWidth({
+      nodeDisplayWidth: 1200,
+      sourceWidth: 300,
+      imageResourceZoom: 2,
+      devicePixelRatio: 2
+    })).toBe(300);
+  });
+
+  it('uses dynamic preview URLs without falling back to original files by screen width', () => {
     const node = nodeFixture('flow/cover.png', 2400, 'image/png');
 
-    expect(canvasImagePreviewBucket(240)).toBe(256);
     expect(canvasImageSource({
       node,
       cameraZoom: 0.1,
       devicePixelRatio: 1
-    })).toEqual({ src: previewUrl('flow/cover.png', 256), previewWidth: 256 });
+    })).toEqual({ src: previewUrl('flow/cover.png', 300), previewWidth: 300 });
 
     expect(canvasImageSource({
       node,
       cameraZoom: 1,
       devicePixelRatio: 1
-    })).toEqual({ src: previewUrl('flow/cover.png', 2048), previewWidth: 2048 });
+    })).toEqual({ src: previewUrl('flow/cover.png', 2400), previewWidth: 2400 });
   });
 
-  it('returns source metadata with the chosen preview width', () => {
+  it('returns source metadata with the chosen dynamic preview width', () => {
     expect(canvasImageSource({
       node: nodeFixture('flow/cover.png', 2400, 'image/png'),
       cameraZoom: 0.2,
       devicePixelRatio: 1
     })).toEqual({
-      src: previewUrl('flow/cover.png', 512),
-      previewWidth: 512
+      src: previewUrl('flow/cover.png', 600),
+      previewWidth: 600
     });
   });
 
@@ -54,41 +99,47 @@ describe('canvas image preview URLs', () => {
     })).toBeUndefined();
   });
 
-  it('caps preview bucket selection at the source image width', () => {
+  it('scales dynamic previews below source width and caps them at source width', () => {
     const node = nodeFixture('flow/small.png', 1200, 'image/png', true, 300);
 
     expect(canvasImageSource({
       node,
       cameraZoom: 0.1,
       devicePixelRatio: 1
-    })).toEqual({ src: previewUrl('flow/small.png', 256), previewWidth: 256 });
-
-    expect(canvasImageSource({
-      node,
-      cameraZoom: 0.5,
-      devicePixelRatio: 1
-    })).toEqual({ src: previewUrl('flow/small.png', 512), previewWidth: 512 });
+    })).toEqual({ src: previewUrl('flow/small.png', 150), previewWidth: 150 });
 
     expect(canvasImageSource({
       node,
       cameraZoom: 2,
+      devicePixelRatio: 2
+    })).toEqual({ src: previewUrl('flow/small.png', 300), previewWidth: 300 });
+  });
+
+  it('rejects invalid dynamic preview inputs', () => {
+    expect(() => canvasImagePreviewSteppedScale(0)).toThrow('Canvas image preview screen scale must be a positive finite number.');
+    expect(() => canvasImagePreviewSteppedScale(Number.NaN)).toThrow('Canvas image preview screen scale must be a positive finite number.');
+    expect(() => canvasImagePreviewWidth({
+      nodeDisplayWidth: 0,
+      sourceWidth: 2400,
+      imageResourceZoom: 1,
       devicePixelRatio: 1
-    })).toEqual({ src: previewUrl('flow/small.png', 512), previewWidth: 512 });
+    })).toThrow('Canvas image preview node display width must be a positive finite number.');
+    expect(() => canvasImagePreviewWidth({
+      nodeDisplayWidth: 2400,
+      sourceWidth: 0,
+      imageResourceZoom: 1,
+      devicePixelRatio: 1
+    })).toThrow('Canvas image preview source width must be a positive finite number.');
   });
 
-  it('rejects invalid target widths', () => {
-    expect(() => canvasImagePreviewBucket(0)).toThrow('Canvas image preview target width must be a positive finite number.');
-    expect(() => canvasImagePreviewBucket(Number.NaN)).toThrow('Canvas image preview target width must be a positive finite number.');
-  });
-
-  it('keeps preview URLs limited to path, revision, and width', () => {
+  it('keeps preview URLs limited to path, revision, and dynamic width', () => {
     expect(canvasImageSource({
       node: nodeFixture('flow/cover art.png', 1000, 'image/png'),
       cameraZoom: 0.2,
       devicePixelRatio: 1
     })).toEqual({
-      src: 'http://127.0.0.1:17321/api/projects/123e4567-e89b-42d3-a456-426614174000/canvas-image-preview?path=flow%2Fcover+art.png&v=rev&w=256',
-      previewWidth: 256
+      src: 'http://127.0.0.1:17321/api/projects/123e4567-e89b-42d3-a456-426614174000/canvas-image-preview?path=flow%2Fcover+art.png&v=rev&w=250',
+      previewWidth: 250
     });
   });
 

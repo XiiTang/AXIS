@@ -369,8 +369,8 @@ function snapshot(): DebruteCanvasPerfCanvasSnapshot {
     pendingImageCount: 2,
     decodedImageCount: 4,
     imageResourceZoom: 0.75,
-    visiblePreviewWidths: { 256: 2, 1024: 2 },
-    nextPreviewWidths: { 512: 1, 2048: 1 },
+    visiblePreviewWidths: { 300: 2, 1200: 2 },
+    nextPreviewWidths: { 600: 1, 2400: 1 },
     imageWorkIntentCounts: {
       'display-critical': 1,
       'prefetch-near': 2,

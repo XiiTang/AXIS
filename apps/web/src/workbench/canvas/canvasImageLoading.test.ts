@@ -20,7 +20,7 @@ describe('canvas image loading plan', () => {
 
     expect(plan.get('flow/visible.png')).toMatchObject({
       intent: 'display-critical',
-      previewWidth: 256,
+      previewWidth: 200,
       eligible: true
     });
     expect(plan.get('flow/overscan.png')).toMatchObject({
@@ -34,7 +34,7 @@ describe('canvas image loading plan', () => {
   });
 
   it('uses loaded images to distinguish upgrades from empty loads', () => {
-    const loaded = loadedImage('http://127.0.0.1:17321/api/projects/p/canvas-image-preview?path=flow%2Fvisible.png&v=rev&w=256');
+    const loaded = loadedImage('http://127.0.0.1:17321/api/projects/p/canvas-image-preview?path=flow%2Fvisible.png&v=rev&w=300', 300);
     const plan = createCanvasImageLoadingPlan({
       nodes: [imageNode('flow/visible.png', 0, 0, 2400, 1200)],
       visibleRect: { x: 0, y: 0, width: 400, height: 300 },
@@ -50,7 +50,7 @@ describe('canvas image loading plan', () => {
   });
 
   it('classifies image work by final intent and carries preview width', () => {
-    const lowQualityUrl = previewUrl('flow/visible-upgrade.png', 256);
+    const lowQualityUrl = previewUrl('flow/visible-upgrade.png', 300);
     const plan = createCanvasImageLoadingPlan({
       nodes: [
         imageNode('flow/visible-empty.png', 0, 0, 2400, 1200),
@@ -63,15 +63,15 @@ describe('canvas image loading plan', () => {
       imageResourceZoom: 1,
       devicePixelRatio: 1,
       existingImages: new Map([
-        ['flow/visible-upgrade.png', loadedImage(lowQualityUrl, 256)],
-        ['flow/prefetch-upgrade.png', loadedImage(previewUrl('flow/prefetch-upgrade.png', 256), 256)]
+        ['flow/visible-upgrade.png', loadedImage(lowQualityUrl, 300)],
+        ['flow/prefetch-upgrade.png', loadedImage(previewUrl('flow/prefetch-upgrade.png', 300), 300)]
       ]),
       retryKeys: new Map()
     });
 
     expect(plan.get('flow/visible-empty.png')).toMatchObject({
       intent: 'display-critical',
-      previewWidth: 2048,
+      previewWidth: 2400,
       eligible: true
     });
     expect(plan.get('flow/visible-upgrade.png')).toMatchObject({ intent: 'upgrade-idle' });
@@ -90,11 +90,11 @@ describe('canvas image loading plan', () => {
       retryKeys: new Map([['flow/original.png', 2]])
     });
 
-    const src = previewUrl('flow/original.png', 256);
+    const src = previewUrl('flow/original.png', 25);
     expect(plan.get('flow/original.png')).toMatchObject({
       intent: 'display-critical',
       src,
-      previewWidth: 256,
+      previewWidth: 25,
       loadKey: `${src}:2`
     });
   });
@@ -148,8 +148,8 @@ describe('canvas image loading plan', () => {
     const visibleUpgrade = imageNode('flow/visible-upgrade.png', 220, 0, 2400, 1200);
     const nearPrefetchEmpty = imageNode('flow/near-prefetch-empty.png', 900, 0, 2400, 1200);
     const nearPrefetchUpgrade = imageNode('flow/near-prefetch-upgrade.png', 1000, 0, 2400, 1200);
-    const visibleUpgradeUrl = 'http://127.0.0.1:17321/api/projects/p/canvas-image-preview?path=flow%2Fvisible-upgrade.png&v=rev&w=256';
-    const nearPrefetchUpgradeUrl = 'http://127.0.0.1:17321/api/projects/p/canvas-image-preview?path=flow%2Fnear-prefetch-upgrade.png&v=rev&w=256';
+    const visibleUpgradeUrl = 'http://127.0.0.1:17321/api/projects/p/canvas-image-preview?path=flow%2Fvisible-upgrade.png&v=rev&w=300';
+    const nearPrefetchUpgradeUrl = 'http://127.0.0.1:17321/api/projects/p/canvas-image-preview?path=flow%2Fnear-prefetch-upgrade.png&v=rev&w=300';
     const plan = createCanvasImageLoadingPlan({
       nodes: [visibleEmpty, visibleUpgrade, nearPrefetchEmpty, nearPrefetchUpgrade],
       visibleRect: { x: 0, y: 0, width: 500, height: 300 },
@@ -221,6 +221,6 @@ function previewUrl(path: string, width: number): string {
   return url.toString();
 }
 
-function loadedImage(src: string, previewWidth = 256): CanvasLoadedImage {
+function loadedImage(src: string, previewWidth = 300): CanvasLoadedImage {
   return { src, loadKey: `${src}:0`, previewWidth };
 }

@@ -1,7 +1,5 @@
 export const CANVAS_DOCUMENT_SCHEMA_VERSION = 1;
-export const CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS = [256, 512, 1024, 2048] as const;
 
-export type CanvasImagePreviewWidth = typeof CANVAS_IMAGE_PREVIEW_WIDTH_BUCKETS[number];
 export type CanvasNodeKind = 'directory' | 'file';
 export type CanvasMediaKind = 'image' | 'video' | 'audio' | 'text' | 'unknown';
 export type DiagnosticSeverity = 'error' | 'warning' | 'info';
