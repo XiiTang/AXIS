@@ -25,6 +25,22 @@ describe('CanvasImageNodePreview', () => {
     expect(html).not.toContain('opacity: 0');
   });
 
+  it('renders only the visible layer when pan-back state already has the same loaded URL', () => {
+    const html = renderImagePreview({
+      kind: 'image',
+      visible: { src: '/preview/loaded.jpg', loadKey: 'loaded', previewWidth: 512 },
+      retry: () => undefined,
+      resolveNext: () => undefined,
+      rejectNext: () => undefined
+    });
+
+    expect(html).toContain('src="/preview/loaded.jpg"');
+    expect(html).toContain('data-canvas-image-layer="visible"');
+    expect(html).not.toContain('data-canvas-image-layer="next"');
+    expect(html).not.toContain('class="canvas-node-image-reserved"');
+    expect(html).not.toContain('class="canvas-node-placeholder"');
+  });
+
   it('reserves the first pending image slot without flashing a placeholder', () => {
     const html = renderImagePreview({
       kind: 'image',

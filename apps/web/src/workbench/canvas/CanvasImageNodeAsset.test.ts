@@ -72,6 +72,45 @@ describe('CanvasImageNodeAsset', () => {
     expect(next.error).toBeUndefined();
   });
 
+  it('keeps the loaded URL through a culled pan out and unculled pan back without scheduling another image', () => {
+    const loaded = loadedState('flow/cover.png', 'rev-a', 300);
+    const source = resolveCanvasImageNodeSource({
+      node: imageNode('flow/cover.png', 200, 120, 2400, 'rev-a'),
+      imageResourceZoom: 1,
+      devicePixelRatio: 1,
+      retryKey: 0
+    });
+
+    const panOut = canvasImageNodeAssetReducer(loaded, {
+      type: 'source-resolved',
+      source,
+      cameraState: 'moving',
+      culled: true
+    });
+    const panBack = canvasImageNodeAssetReducer(panOut, {
+      type: 'source-resolved',
+      source,
+      cameraState: 'idle',
+      culled: false
+    });
+    const renderState = deriveCanvasImageNodeRenderState({
+      state: panBack,
+      retry: () => undefined
+    });
+
+    expect(panOut.loaded).toEqual(loaded.loaded);
+    expect(panOut.next).toBeUndefined();
+    expect(panBack.loaded).toEqual(loaded.loaded);
+    expect(panBack.next).toBeUndefined();
+    expect(renderState).toMatchObject({
+      kind: 'image',
+      visible: loaded.loaded
+    });
+    if (renderState.kind === 'image') {
+      expect(renderState.next).toBeUndefined();
+    }
+  });
+
   it('skips quality upgrades while moving when a loaded image exists', () => {
     const state = loadedState('flow/cover.png', 'rev-a', 300);
     const source = resolveCanvasImageNodeSource({

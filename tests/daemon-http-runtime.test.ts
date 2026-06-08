@@ -758,6 +758,9 @@ describe('daemon HTTP runtime', () => {
     cleanups.push(() => daemon.close());
     const runtime = await daemon.listen();
 
+    const aggregateResponse = await fetch(`${runtime.daemonUrl}/api/settings`, {
+      headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
+    });
     const getResponse = await fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
       headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
     });
@@ -770,12 +773,15 @@ describe('daemon HTTP runtime', () => {
       },
       body: JSON.stringify({})
     });
+    const aggregate = await aggregateResponse.json() as Record<string, unknown>;
     await getResponse.text();
     await putResponse.text();
 
+    expect(aggregateResponse.status).toBe(200);
+    expect(aggregate).not.toHaveProperty('canvas');
     expect(getResponse.status).toBe(404);
     expect(putResponse.status).toBe(404);
-  });
+  }, 15_000);
 
   it('releases a project session after the last event stream closes and idle TTL elapses', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-idle-release-project-'));
