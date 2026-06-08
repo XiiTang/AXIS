@@ -1416,10 +1416,18 @@ function movingViewportImageCandidateSignature(
       const intent: 'display-critical' | 'prefetch-near' = rectsIntersect(viewport.visibleRect, bounds)
         ? 'display-critical'
         : 'prefetch-near';
+      const retentionSource = intent === 'display-critical'
+        ? canvasImageSource({
+          node,
+          cameraZoom: viewport.retentionResourceZoom,
+          devicePixelRatio: viewport.devicePixelRatio
+        })
+        : undefined;
       return [{
         intent,
         distanceToVisibleCenter: pointDistance(visibleCenter, rectCenter(bounds)),
-        sourceSignature: imageNodeSourceSignature(node)
+        sourceSignature: imageNodeSourceSignature(node),
+        retentionPreviewWidth: retentionSource?.previewWidth
       }];
     })
     .sort((left, right) => (
@@ -1427,7 +1435,7 @@ function movingViewportImageCandidateSignature(
       || left.distanceToVisibleCenter - right.distanceToVisibleCenter
       || (left.sourceSignature ?? '').localeCompare(right.sourceSignature ?? '')
     ))
-    .map((entry) => `${entry.intent}\u001c${entry.sourceSignature ?? ''}`)
+    .map((entry) => `${entry.intent}\u001c${entry.sourceSignature ?? ''}\u001c${entry.retentionPreviewWidth ?? ''}`)
     .join('\u001f');
 }
 

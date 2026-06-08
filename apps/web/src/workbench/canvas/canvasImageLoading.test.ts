@@ -49,6 +49,25 @@ describe('canvas image loading plan', () => {
     });
   });
 
+  it('uses the retention preview for blank visible images when retention zoom is lower', () => {
+    const plan = createCanvasImageLoadingPlan({
+      nodes: [imageNode('flow/visible.png', 0, 0, 2400, 1200)],
+      visibleRect: { x: 0, y: 0, width: 400, height: 300 },
+      imageResourceZoom: 1,
+      retentionResourceZoom: 0.1,
+      devicePixelRatio: 1,
+      existingImages: new Map(),
+      retryKeys: new Map()
+    });
+
+    expect(plan.get('flow/visible.png')).toMatchObject({
+      intent: 'display-critical',
+      src: previewUrl('flow/visible.png', 300),
+      previewWidth: 300,
+      eligible: true
+    });
+  });
+
   it('classifies visible oversized previews as downshift work', () => {
     const visibleHighRes = previewUrl('flow/visible.png', 2400);
     const plan = createCanvasImageLoadingPlan({

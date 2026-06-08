@@ -119,9 +119,10 @@ export function createCanvasImageLoadingPlan(input: CanvasImageLoadingPlanInput)
       upgradeNeeded: loaded !== undefined && loaded.loadKey !== `${upgradeSource.src}:${retryKey}`,
       oversized
     });
-    const selectedSource = intent === 'downshift-visible' || intent === 'evict-oversized'
-      ? retentionSource
-      : upgradeSource;
+    const useRetentionSource = intent === 'downshift-visible'
+      || intent === 'evict-oversized'
+      || (intent === 'display-critical' && retentionSource.previewWidth < upgradeSource.previewWidth);
+    const selectedSource = useRetentionSource ? retentionSource : upgradeSource;
     const loadKey = `${selectedSource.src}:${retryKey}`;
 
     result.set(node.projectRelativePath, {

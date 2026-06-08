@@ -909,6 +909,63 @@ describe('CanvasImageAssetRuntime', () => {
     expect(idle.kind === 'image' ? idle.next?.loadKey : undefined).toBe(upgrade.next.loadKey);
   });
 
+  it('cancels an in-flight blank visible high-resolution load when retention zoom downshifts', () => {
+    const monitor = createCanvasPerfMonitor({ enabled: true });
+    const runtime = createCanvasImageAssetRuntime({ concurrency: 1, perfMonitor: monitor });
+    runtime.setNodes(new Map([['flow/a.png', largeImageNode('flow/a.png', 0, 0)]]));
+    runtime.setViewport({
+      ...viewport({
+        cameraState: 'idle',
+        mountedNodePaths: new Set(['flow/a.png'])
+      }),
+      imageResourceZoom: 1,
+      retentionResourceZoom: 1
+    });
+
+    const high = runtime.getNodeState('flow/a.png');
+    if (high.kind !== 'image' || !high.next) {
+      throw new Error('Expected high-resolution display-critical load.');
+    }
+    expect(high.next.previewWidth).toBe(2400);
+    const highLoadKey = high.next.loadKey;
+
+    runtime.setViewport({
+      ...viewport({
+        cameraState: 'moving',
+        mountedNodePaths: new Set(['flow/a.png'])
+      }),
+      imageResourceZoom: 1,
+      retentionResourceZoom: 0.1
+    });
+
+    const retained = runtime.getNodeState('flow/a.png');
+    if (retained.kind !== 'image' || !retained.next) {
+      throw new Error('Expected retained display-critical load.');
+    }
+    expect(retained.next.previewWidth).toBe(300);
+    expect(retained.next.loadKey).not.toBe(highLoadKey);
+    expect(runtime.stats()).toMatchObject({
+      activeLoadCount: 1,
+      pendingImageCount: 1,
+      nextPreviewWidths: { 300: 1 }
+    });
+
+    runtime.resolvePending('flow/a.png', highLoadKey);
+
+    expect(runtime.getNodeState('flow/a.png')).toMatchObject({
+      kind: 'image',
+      next: { loadKey: retained.next.loadKey, previewWidth: 300 }
+    });
+
+    runtime.resolvePending('flow/a.png', retained.next.loadKey);
+
+    expect(runtime.getNodeState('flow/a.png')).toMatchObject({
+      kind: 'image',
+      visible: { loadKey: retained.next.loadKey, previewWidth: 300 }
+    });
+    expect(counterNames(monitor.getTrace().events)).toContain('image-load-stale-result');
+  });
+
   it('reuses the idle image plan when setNodes receives the same image source identities', () => {
     const monitor = createCanvasPerfMonitor({ enabled: true });
     const runtime = createCanvasImageAssetRuntime({ concurrency: 1, perfMonitor: monitor });
