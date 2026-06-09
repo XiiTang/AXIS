@@ -41,6 +41,7 @@ const applicationMenu = createApplicationMenuController({
     await desktopStateStore().clearRecentProjectRoots();
   }
 });
+const projectIconPath = join(__dirname, 'icon.svg');
 
 async function createWindow(initialUrl?: string, projectId?: string): Promise<Electron.BrowserWindow> {
   const window = new BrowserWindow({
@@ -50,6 +51,7 @@ async function createWindow(initialUrl?: string, projectId?: string): Promise<El
     minHeight: 720,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#151616',
+    icon: projectIconPath,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -39,3 +39,5 @@ await cp(
   'dist-electron/snapshots',
   { recursive: true }
 );
+
+await cp('build/icon.svg', 'dist-electron/icon.svg');

@@ -18,8 +18,8 @@ describe('Electron development scripts', () => {
       readFileSync(join(process.cwd(), 'apps/desktop/package.json'), 'utf8')
     ) as PackageJson;
 
-    expect(desktopPackage.scripts['build:electron']).toBe('node scripts/bundle-electron.mjs');
-    expect(desktopPackage.scripts['build:electron:dev']).toBe('node scripts/bundle-electron.mjs --skip-web-dist');
+    expect(desktopPackage.scripts['build:electron']).toBe('pnpm --workspace-root icons:sync && node scripts/bundle-electron.mjs');
+    expect(desktopPackage.scripts['build:electron:dev']).toBe('pnpm --workspace-root icons:sync && node scripts/bundle-electron.mjs --skip-web-dist');
     expect(desktopPackage.scripts['dev:electron']).toBe('tsx ../../scripts/dev-electron-workbench.ts');
     expect(desktopPackage.scripts['dev:electron']).not.toContain('pnpm build:electron &&');
   });
@@ -43,6 +43,12 @@ describe('Electron development scripts', () => {
 
     expect(script).toContain("target: 'node24'");
     expect(script).not.toContain("target: 'node22'");
+  });
+
+  it('copies the project icon into the Electron runtime bundle', () => {
+    const script = readFileSync(join(process.cwd(), 'apps/desktop/scripts/bundle-electron.mjs'), 'utf8');
+
+    expect(script).toContain("await cp('build/icon.svg', 'dist-electron/icon.svg')");
   });
 
   it('runs Electron main and preload bundles on embedded Node.js 24', () => {
