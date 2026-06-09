@@ -19,6 +19,8 @@ describe('project icon assets', () => {
 
     await expect(readFile(join(root, 'apps/web/public/debrute.svg'), 'utf8')).resolves.toBe(svg);
     await expect(readFile(join(root, 'apps/desktop/build/icon.svg'), 'utf8')).resolves.toBe(svg);
+    const desktopPng = await readFile(join(root, 'apps/desktop/build/icon.png'));
+    expect(desktopPng.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   });
 
   it('fails when the canonical project icon is missing', async () => {
@@ -40,7 +42,7 @@ describe('project icon assets', () => {
 
     expect(rootPackage.scripts['icons:sync']).toBe('node scripts/sync-project-icons.mjs');
     expect(webHtml).toContain('<link rel="icon" type="image/svg+xml" href="/debrute.svg" />');
-    expect(desktopPackage.build.icon).toBe('build/icon.svg');
+    expect(desktopPackage.build.icon).toBe('build/icon.png');
     expect(electronMain).toContain("const projectIconPath = join(__dirname, 'icon.svg')");
     expect(electronMain).toContain('icon: projectIconPath');
   });

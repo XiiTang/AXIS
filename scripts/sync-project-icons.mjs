@@ -1,6 +1,7 @@
 import { mkdir, readFile, copyFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import sharp from 'sharp';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const defaultRoot = resolve(dirname(scriptPath), '..');
@@ -9,6 +10,7 @@ const iconTargets = [
   'apps/web/public/debrute.svg',
   'apps/desktop/build/icon.svg'
 ];
+const desktopPngTarget = 'apps/desktop/build/icon.png';
 
 export async function syncProjectIcons({ root = defaultRoot } = {}) {
   const source = resolve(root, 'assets/project-icon/debrute.svg');
@@ -19,12 +21,21 @@ export async function syncProjectIcons({ root = defaultRoot } = {}) {
     await mkdir(dirname(target), { recursive: true });
     await copyFile(source, target);
   }));
+  await writeDesktopPngIcon(svg, resolve(root, desktopPngTarget));
 
   return {
     source,
-    targets: iconTargets.map((relativeTarget) => resolve(root, relativeTarget)),
+    targets: [...iconTargets, desktopPngTarget].map((relativeTarget) => resolve(root, relativeTarget)),
     bytes: Buffer.byteLength(svg)
   };
+}
+
+async function writeDesktopPngIcon(svg, target) {
+  await mkdir(dirname(target), { recursive: true });
+  await sharp(Buffer.from(svg))
+    .resize(1024, 1024, { fit: 'contain' })
+    .png()
+    .toFile(target);
 }
 
 async function readCanonicalSvg(source) {
