@@ -108,28 +108,7 @@ describe('daemon project native file operations', () => {
       await writeFile(join(projectRoot, 'brief.md'), '# Brief', 'utf8');
       const shell = nativeShellFixture();
       let refreshCount = 0;
-      const refreshedSnapshot: ProjectSessionSnapshot = {
-        projectRoot,
-        metadata: {
-          schemaVersion: 1,
-          name: 'Test Project'
-        },
-        files: [],
-        canvases: [],
-        projections: [],
-        diagnostics: [],
-        health: {
-          projectName: 'Test Project',
-          canvasCount: 0,
-          diagnosticCounts: {
-            errors: 0,
-            warnings: 0,
-            infos: 0
-          },
-          runtimeDataLocation: 'debrute-home',
-          checkedAt: '2026-06-06T00:00:00.000Z'
-        }
-      };
+      const refreshedSnapshot: ProjectSessionSnapshot = snapshotFixture(projectRoot);
 
       await expect(trashProjectPathsWithNativeShell({
         projectRoot,
@@ -157,6 +136,58 @@ describe('daemon project native file operations', () => {
       await rm(projectRoot, { recursive: true, force: true });
     }
   });
+
+  it('validates the whole trash batch before invoking the native shell', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-native-trash-validate-'));
+    try {
+      await writeFile(join(projectRoot, 'brief.md'), '# Brief', 'utf8');
+      const shell = nativeShellFixture();
+      const refreshProject = vi.fn(async () => snapshotFixture(projectRoot));
+
+      await expect(trashProjectPathsWithNativeShell({
+        projectRoot,
+        entries: [
+          { projectRelativePath: 'brief.md', kind: 'file' },
+          { projectRelativePath: 'missing.md', kind: 'file' }
+        ],
+        nativeShell: shell,
+        refreshProject
+      })).rejects.toThrow();
+
+      expect(shell.trashItem).not.toHaveBeenCalled();
+      expect(refreshProject).not.toHaveBeenCalled();
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('refreshes after a native trash failure once mutation has started', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-native-trash-failure-refresh-'));
+    try {
+      await writeFile(join(projectRoot, 'brief.md'), '# Brief', 'utf8');
+      await writeFile(join(projectRoot, 'cover.md'), '# Cover', 'utf8');
+      const shell = nativeShellFixture();
+      shell.trashItem
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('Trash failed'));
+      const refreshProject = vi.fn(async () => snapshotFixture(projectRoot));
+
+      await expect(trashProjectPathsWithNativeShell({
+        projectRoot,
+        entries: [
+          { projectRelativePath: 'brief.md', kind: 'file' },
+          { projectRelativePath: 'cover.md', kind: 'file' }
+        ],
+        nativeShell: shell,
+        refreshProject
+      })).rejects.toThrow('Trash failed');
+
+      expect(shell.trashItem).toHaveBeenCalledTimes(2);
+      expect(refreshProject).toHaveBeenCalledTimes(1);
+    } finally {
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 function nativeShellFixture() {
@@ -165,5 +196,30 @@ function nativeShellFixture() {
     showItemInFolder: vi.fn(async () => undefined),
     openPath: vi.fn(async () => undefined),
     trashItem: vi.fn(async () => undefined)
+  };
+}
+
+function snapshotFixture(projectRoot: string): ProjectSessionSnapshot {
+  return {
+    projectRoot,
+    metadata: {
+      schemaVersion: 1,
+      name: 'Test Project'
+    },
+    files: [],
+    canvases: [],
+    projections: [],
+    diagnostics: [],
+    health: {
+      projectName: 'Test Project',
+      canvasCount: 0,
+      diagnosticCounts: {
+        errors: 0,
+        warnings: 0,
+        infos: 0
+      },
+      runtimeDataLocation: 'debrute-home',
+      checkedAt: '2026-06-06T00:00:00.000Z'
+    }
   };
 }

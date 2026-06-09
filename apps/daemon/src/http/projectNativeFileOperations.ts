@@ -15,6 +15,11 @@ export interface ProjectNativePathInput {
   kind: ProjectNativePathKind;
 }
 
+interface ResolvedNativeTrashEntry {
+  entry: WorkbenchProjectPathEntry;
+  absolutePath: string;
+}
+
 export async function copyProjectAbsolutePaths(input: {
   projectRoot: string;
   entries: WorkbenchProjectPathEntry[];
@@ -49,20 +54,36 @@ export async function trashProjectPathsWithNativeShell(input: {
   refreshProject(): Promise<ProjectSessionSnapshot>;
 }): Promise<ProjectFileBatchOperationResult> {
   const entries = topLevelProjectPathEntries(input.entries);
-  const results: ProjectFileBatchOperationResult['results'] = [];
+  const resolvedEntries: ResolvedNativeTrashEntry[] = [];
   for (const entry of entries) {
-    const absolutePath = await resolveProjectNativePath({
-      projectRoot: input.projectRoot,
-      projectRelativePath: entry.projectRelativePath,
-      kind: entry.kind
+    resolvedEntries.push({
+      entry,
+      absolutePath: await resolveProjectNativePath({
+        projectRoot: input.projectRoot,
+        projectRelativePath: entry.projectRelativePath,
+        kind: entry.kind
+      })
     });
-    await input.nativeShell.trashItem(absolutePath);
-    results.push({
-      sourceProjectRelativePath: entry.projectRelativePath,
-      projectRelativePath: entry.projectRelativePath,
-      kind: entry.kind,
-      status: 'ok'
-    });
+  }
+
+  const results: ProjectFileBatchOperationResult['results'] = [];
+  let attemptedNativeTrash = false;
+  try {
+    for (const { entry, absolutePath } of resolvedEntries) {
+      attemptedNativeTrash = true;
+      await input.nativeShell.trashItem(absolutePath);
+      results.push({
+        sourceProjectRelativePath: entry.projectRelativePath,
+        projectRelativePath: entry.projectRelativePath,
+        kind: entry.kind,
+        status: 'ok'
+      });
+    }
+  } catch (error) {
+    if (attemptedNativeTrash) {
+      await input.refreshProject();
+    }
+    throw error;
   }
   return {
     results,

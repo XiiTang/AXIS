@@ -117,14 +117,10 @@ export function ProjectTree({
           }
         }}
         onContextMenu={(event) => {
-          if (!isRootBlankAreaEventTarget(event)) {
-            return;
-          }
-          event.preventDefault();
-          onSelectionChange(clearProjectTreeSelection());
-          onOpenContextMenu?.(rootExplorerTarget(), {
-            x: event.clientX,
-            y: event.clientY
+          handleProjectTreeRootContextMenuEvent({
+            event,
+            onSelectionChange,
+            onOpenContextMenu
           });
         }}
         onDragOver={(event) => {
@@ -311,6 +307,29 @@ export function isRootBlankAreaEventTarget(input: { target: unknown; currentTarg
   }
   const closest = (input.target as { closest?: unknown }).closest;
   return typeof closest === 'function' && Boolean(closest.call(input.target, '[data-project-tree-empty-line]'));
+}
+
+export function handleProjectTreeRootContextMenuEvent(input: {
+  event: {
+    target: unknown;
+    currentTarget: unknown;
+    clientX: number;
+    clientY: number;
+    preventDefault(): void;
+  };
+  onSelectionChange: (selection: ProjectTreeSelectionState) => void;
+  onOpenContextMenu?: ((target: WorkbenchContextMenuTarget, position: WorkbenchContextMenuPosition) => void) | undefined;
+}): boolean {
+  if (!isRootBlankAreaEventTarget(input.event)) {
+    return false;
+  }
+  input.event.preventDefault();
+  input.onSelectionChange(clearProjectTreeSelection());
+  input.onOpenContextMenu?.(rootExplorerTarget(), {
+    x: input.event.clientX,
+    y: input.event.clientY
+  });
+  return true;
 }
 
 function projectTreeKeyboardNavigation(input: {

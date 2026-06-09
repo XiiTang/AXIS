@@ -4,7 +4,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkbenchProjectSessionSnapshot } from '@debrute/app-protocol';
 import type { WorkbenchContextMenuTarget } from '../shell/contextMenu';
-import { handleProjectTreeKeyboardEvent, isRootBlankAreaEventTarget, ProjectTree } from './ProjectTree';
+import {
+  handleProjectTreeKeyboardEvent,
+  handleProjectTreeRootContextMenuEvent,
+  isRootBlankAreaEventTarget,
+  ProjectTree
+} from './ProjectTree';
 import { flattenProjectTree, type ProjectTreeSelectionState } from './projectTreeInteraction';
 import { buildProjectFileTree } from './projectFileTree';
 import type { ProjectTreeFileKeyboardCommand } from './projectTreeKeyboardCommands';
@@ -167,6 +172,38 @@ describe('ProjectTree', () => {
       target: emptyLine,
       currentTarget: root
     })).toBe(true);
+  });
+
+  it('opens the root context menu from Project Tree blank space', () => {
+    const root = {};
+    const preventDefault = vi.fn();
+    const selections: ProjectTreeSelectionState[] = [];
+    const onOpenContextMenu = vi.fn();
+
+    expect(handleProjectTreeRootContextMenuEvent({
+      event: {
+        target: root,
+        currentTarget: root,
+        clientX: 12,
+        clientY: 34,
+        preventDefault
+      },
+      onSelectionChange: (next) => selections.push(next),
+      onOpenContextMenu
+    })).toBe(true);
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(selections).toEqual([selection([])]);
+    expect(onOpenContextMenu).toHaveBeenCalledWith({
+      source: 'explorer',
+      targetKind: 'root',
+      paths: [],
+      primaryPath: null,
+      targetDirectoryPath: ''
+    }, {
+      x: 12,
+      y: 34
+    });
   });
 
   it('sizes the Project Tree event surface across the panel blank space', () => {

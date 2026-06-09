@@ -27,12 +27,10 @@ export async function createProjectTreeExternalDropPlan(input: {
   targetDirectoryProjectRelativePath: string;
 }): Promise<ProjectTreeExternalDropPlan> {
   const files = Array.from(input.dataTransfer.files ?? []);
-  const localPaths = files
-    .map((file) => input.shell?.getDroppedFilePath?.(file))
-    .filter((path): path is string => typeof path === 'string' && path.length > 0);
-  if (localPaths.length > 0) {
+  const electronLocalPaths = electronLocalDropPaths(files, input.shell);
+  if (electronLocalPaths) {
     return {
-      localPaths,
+      localPaths: electronLocalPaths,
       uploads: [],
       targetDirectoryProjectRelativePath: normalizeExternalDropPath(input.targetDirectoryProjectRelativePath)
     };
@@ -61,6 +59,21 @@ export async function createProjectTreeExternalDropPlan(input: {
   };
 }
 
+function electronLocalDropPaths(files: File[], shell: DebruteShellApi | undefined): string[] | undefined {
+  if (!shell?.getDroppedFilePath || files.length === 0) {
+    return undefined;
+  }
+  const paths = files.map((file) => shell.getDroppedFilePath?.(file));
+  const resolvedPaths = paths.filter((path): path is string => typeof path === 'string' && path.length > 0);
+  if (resolvedPaths.length === 0) {
+    return undefined;
+  }
+  if (resolvedPaths.length !== files.length) {
+    throw new Error('Electron external drop did not expose every dropped file path.');
+  }
+  return resolvedPaths;
+}
+
 interface BrowserFileSystemEntry {
   name: string;
   isFile: boolean;
@@ -81,17 +94,29 @@ async function browserEntryUploadEntries(
   dataTransfer: DataTransfer,
   targetDirectoryProjectRelativePath: string
 ): Promise<ProjectTreeExternalUploadEntry[]> {
-  const items = Array.from(dataTransfer.items ?? []);
-  const uploads: ProjectTreeExternalUploadEntry[] = [];
+  const items = Array.from(dataTransfer.items ?? []).filter((item) => item.kind === 'file');
+  const entries: BrowserFileSystemEntry[] = [];
   for (const item of items) {
-    const entry = (item as DataTransferItem & {
-      webkitGetAsEntry?: () => BrowserFileSystemEntry | null;
-    }).webkitGetAsEntry?.();
+    const entry = browserEntryFromDataTransferItem(item);
     if (entry) {
-      uploads.push(...await uploadEntriesFromBrowserEntry(entry, targetDirectoryProjectRelativePath));
+      entries.push(entry);
     }
   }
+  if (entries.length > 0 && entries.length !== items.length) {
+    throw new Error('Browser external drop did not expose every dropped file entry.');
+  }
+
+  const uploads: ProjectTreeExternalUploadEntry[] = [];
+  for (const entry of entries) {
+    uploads.push(...await uploadEntriesFromBrowserEntry(entry, targetDirectoryProjectRelativePath));
+  }
   return uploads;
+}
+
+function browserEntryFromDataTransferItem(item: DataTransferItem): BrowserFileSystemEntry | null {
+  return (item as DataTransferItem & {
+    webkitGetAsEntry?: () => BrowserFileSystemEntry | null;
+  }).webkitGetAsEntry?.() ?? null;
 }
 
 async function uploadEntriesFromBrowserEntry(

@@ -19,6 +19,20 @@ describe('project tree external drop', () => {
     });
   });
 
+  it('rejects Electron external drops when only part of the batch exposes local paths', async () => {
+    const cover = new File(['cover'], 'cover.png');
+    const notes = new File(['notes'], 'notes.md');
+
+    await expect(createProjectTreeExternalDropPlan({
+      dataTransfer: dataTransferWithFiles([cover, notes]),
+      shell: {
+        chooseProjectRoot: async () => undefined,
+        getDroppedFilePath: (file) => file.name === 'cover.png' ? '/external/cover.png' : undefined
+      },
+      targetDirectoryProjectRelativePath: 'assets'
+    })).rejects.toThrow('Electron external drop did not expose every dropped file path.');
+  });
+
   it('detects browser external drags before files are exposed on dragover', () => {
     expect(hasProjectTreeExternalDrag({
       files: [],
@@ -82,6 +96,28 @@ describe('project tree external drop', () => {
       ],
       targetDirectoryProjectRelativePath: 'assets'
     });
+  });
+
+  it('rejects browser entry drops when only part of the batch exposes file entries', async () => {
+    const cover = new File(['cover'], 'cover.png');
+
+    await expect(createProjectTreeExternalDropPlan({
+      dataTransfer: {
+        files: [cover, new File(['notes'], 'notes.md')],
+        items: [
+          {
+            kind: 'file',
+            webkitGetAsEntry: () => fileEntry('cover.png', cover)
+          },
+          {
+            kind: 'file',
+            webkitGetAsEntry: () => null
+          }
+        ]
+      } as unknown as DataTransfer,
+      shell: undefined,
+      targetDirectoryProjectRelativePath: 'assets'
+    })).rejects.toThrow('Browser external drop did not expose every dropped file entry.');
   });
 
   it('keeps empty browser directories in the external import plan', async () => {
