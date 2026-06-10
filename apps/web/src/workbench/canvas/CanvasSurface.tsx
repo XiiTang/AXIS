@@ -778,22 +778,19 @@ function CanvasSurfaceRuntime({
         }
       }}
       onDragOver={(event) => {
-        if (!canvasMapProjectTreeDropEntry(event.dataTransfer)) {
+        if (!canvasMapProjectTreeDropInput(canvas.id, event.dataTransfer)) {
           return;
         }
         event.preventDefault();
         event.dataTransfer.dropEffect = 'copy';
       }}
       onDrop={(event) => {
-        const entry = canvasMapProjectTreeDropEntry(event.dataTransfer);
-        if (!entry) {
+        const input = canvasMapProjectTreeDropInput(canvas.id, event.dataTransfer);
+        if (!input) {
           return;
         }
         event.preventDefault();
-        void actions.addProjectPathToCanvasMap({
-          canvasId: canvas.id,
-          projectRelativePath: entry.projectRelativePath
-        });
+        void actions.addProjectPathToCanvasMap(input);
       }}
     >
       <div
@@ -858,6 +855,19 @@ export function canvasMapProjectTreeDropEntry(
 ): ReturnType<typeof readInternalProjectTreeDragEntries>[number] | undefined {
   const entries = readInternalProjectTreeDragEntries(dataTransfer);
   return entries.length === 1 ? entries[0] : undefined;
+}
+
+export function canvasMapProjectTreeDropInput(
+  canvasId: string,
+  dataTransfer: Pick<DataTransfer, 'getData'>
+): { canvasId: string; projectRelativePath: string } | undefined {
+  const entry = canvasMapProjectTreeDropEntry(dataTransfer);
+  return entry
+    ? {
+        canvasId,
+        projectRelativePath: entry.projectRelativePath
+      }
+    : undefined;
 }
 
 export function shouldClearFeedbackBarPlacementForFeedbackTarget(input: {

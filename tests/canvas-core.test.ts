@@ -203,6 +203,39 @@ describe('canvas-core', () => {
     });
   });
 
+  it('lays out automatic hierarchy columns by name order without automatic overlaps', () => {
+    const desired: CanvasDesiredNode[] = [
+      { projectRelativePath: 'outputs/gpt/z.png', nodeKind: 'file', mediaKind: 'image' },
+      { projectRelativePath: 'prompts/cover.md', nodeKind: 'file', mediaKind: 'text' },
+      { projectRelativePath: 'outputs', nodeKind: 'directory' },
+      { projectRelativePath: 'outputs/gpt', nodeKind: 'directory' },
+      { projectRelativePath: 'outputs/gpt/a.png', nodeKind: 'file', mediaKind: 'image' },
+      { projectRelativePath: 'prompts', nodeKind: 'directory' }
+    ];
+
+    const reconciled = reconcileCanvasNodeElements({
+      existing: [],
+      desired,
+      layoutSizeForNode: layoutSize
+    });
+
+    expect(reconciled.map((item) => item.projectRelativePath)).toEqual([
+      'outputs',
+      'outputs/gpt',
+      'outputs/gpt/a.png',
+      'outputs/gpt/z.png',
+      'prompts',
+      'prompts/cover.md'
+    ]);
+    expect(nodeByPath(reconciled, 'outputs').x).toBe(0);
+    expect(nodeByPath(reconciled, 'prompts').x).toBe(0);
+    expect(nodeByPath(reconciled, 'outputs/gpt').x).toBe(340);
+    expect(nodeByPath(reconciled, 'prompts/cover.md').x).toBe(340);
+    expect(nodeByPath(reconciled, 'outputs/gpt/a.png').x).toBe(860);
+    expect(nodeByPath(reconciled, 'outputs/gpt/z.png').x).toBe(860);
+    expectNoAutomaticOverlaps(reconciled);
+  });
+
   it('lays out row-controlled direct child files in one horizontal row', () => {
     const desired: CanvasDesiredNode[] = [
       { projectRelativePath: 'flow', nodeKind: 'directory' },
@@ -307,7 +340,7 @@ describe('canvas-core', () => {
     expect(reconciled.find((node) => node.projectRelativePath === 'flow/outputs/notes.md')).toMatchObject({ x: 680, y: 440 });
   });
 
-  it('keeps manual row nodes at their actual layout while reserving their theoretical slot', () => {
+  it('excludes manual row nodes from automatic row slots and overlap checks', () => {
     const existing = [{
       projectRelativePath: 'flow/outputs/b.png',
       nodeKind: 'file' as const,
@@ -343,15 +376,45 @@ describe('canvas-core', () => {
       layoutSizeForNode: layoutSize
     });
 
-    expect(reconciled.find((node) => node.projectRelativePath === 'flow/outputs/a.png')).toMatchObject({ x: 680, y: 0 });
-    expect(reconciled.find((node) => node.projectRelativePath === 'flow/outputs/b.png')).toMatchObject({
+    expect(nodeByPath(reconciled, 'flow/outputs/a.png')).toMatchObject({ x: 680, y: 0 });
+    expect(nodeByPath(reconciled, 'flow/outputs/c.png')).toMatchObject({ x: 1400, y: 0 });
+    expect(nodeByPath(reconciled, 'flow/outputs/b.png')).toMatchObject({
       x: 999,
       y: 888,
       width: 777,
       height: 666,
       layoutMode: 'manual'
     });
-    expect(reconciled.find((node) => node.projectRelativePath === 'flow/outputs/c.png')).toMatchObject({ x: 2120, y: 0 });
+    expectNoAutomaticOverlaps(reconciled);
+  });
+
+  it('keeps directory nodes out of horizontal row layout', () => {
+    const desired: CanvasDesiredNode[] = [
+      { projectRelativePath: 'flow', nodeKind: 'directory' },
+      { projectRelativePath: 'flow/assets', nodeKind: 'directory' },
+      { projectRelativePath: 'flow/assets/a.png', nodeKind: 'file', mediaKind: 'image' },
+      { projectRelativePath: 'flow/assets/b.png', nodeKind: 'file', mediaKind: 'image' },
+      { projectRelativePath: 'flow/assets/folder.png', nodeKind: 'directory' }
+    ];
+
+    const reconciled = reconcileCanvasNodeElements({
+      existing: [],
+      desired,
+      layoutRows: [{
+        parentProjectRelativePath: 'flow/assets',
+        memberProjectRelativePaths: [
+          'flow/assets/a.png',
+          'flow/assets/b.png',
+          'flow/assets/folder.png'
+        ]
+      }],
+      layoutSizeForNode: layoutSize
+    });
+
+    expect(nodeByPath(reconciled, 'flow/assets/a.png')).toMatchObject({ x: 680, y: 0 });
+    expect(nodeByPath(reconciled, 'flow/assets/b.png')).toMatchObject({ x: 1400, y: 0 });
+    expect(nodeByPath(reconciled, 'flow/assets/folder.png')).toMatchObject({ x: 680, y: 440 });
+    expectNoAutomaticOverlaps(reconciled);
   });
 
   it('assigns unique layer values when new automatic nodes are inserted before existing nodes', () => {
@@ -515,6 +578,37 @@ function node(projectRelativePath: string, input: Partial<CanvasNodeElement> = {
     locked: input.locked ?? false,
     ...(input.layoutMode ? { layoutMode: input.layoutMode } : {})
   };
+}
+
+function automaticNodes(nodes: CanvasNodeElement[]): CanvasNodeElement[] {
+  return nodes.filter((item) => item.layoutMode !== 'manual');
+}
+
+function expectNoAutomaticOverlaps(nodes: CanvasNodeElement[]): void {
+  const automatic = automaticNodes(nodes);
+  for (const [index, left] of automatic.entries()) {
+    for (const right of automatic.slice(index + 1)) {
+      expect(rectanglesOverlap(left, right), `${left.projectRelativePath} overlaps ${right.projectRelativePath}`).toBe(false);
+    }
+  }
+}
+
+function rectanglesOverlap(
+  left: Pick<CanvasNodeElement, 'x' | 'y' | 'width' | 'height'>,
+  right: Pick<CanvasNodeElement, 'x' | 'y' | 'width' | 'height'>
+): boolean {
+  return left.x < right.x + right.width
+    && left.x + left.width > right.x
+    && left.y < right.y + right.height
+    && left.y + left.height > right.y;
+}
+
+function nodeByPath(nodes: CanvasNodeElement[], projectRelativePath: string): CanvasNodeElement {
+  const found = nodes.find((item) => item.projectRelativePath === projectRelativePath);
+  if (!found) {
+    throw new Error(`Missing Canvas node fixture: ${projectRelativePath}`);
+  }
+  return found;
 }
 
 function availableNode(): CanvasNodeAvailability {

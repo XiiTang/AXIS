@@ -1,3 +1,5 @@
+import { layoutCanvasDesiredNodes } from './canvasAutoLayout.js';
+
 export const CANVAS_DOCUMENT_SCHEMA_VERSION = 1;
 
 export type CanvasNodeKind = 'directory' | 'file';
@@ -157,20 +159,6 @@ export interface UpdateCanvasFeedbackEntryInput {
 const CANVAS_FEEDBACK_MARK_ORDER = new Map<string, number>(
   CANVAS_FEEDBACK_MARKS.map((mark, index) => [mark, index])
 );
-
-const HORIZONTAL_TREE_GAP = 100;
-const VERTICAL_GAP = 80;
-const HORIZONTAL_ROW_GAP = VERTICAL_GAP;
-const ROOT_HORIZONTAL_GAP = 180;
-
-type CanvasLayoutBlock =
-  | { kind: 'node'; node: CanvasDesiredNode }
-  | { kind: 'horizontal-row'; members: CanvasDesiredNode[] };
-
-interface CanvasLayoutBounds {
-  maxDepth: number;
-  rightEdge: number;
-}
 
 export function createEmptyCanvasFeedbackDocument(updatedAt: string): CanvasFeedbackDocument {
   assertIsoDateTime(updatedAt, 'Canvas feedback updatedAt must be an ISO date-time string.');
@@ -358,8 +346,16 @@ export function canvasNodeLayerOrderTopFirst(canvas: Pick<CanvasDocument, 'nodeE
 
 export function reconcileCanvasNodeElements(input: ReconcileCanvasNodeElementsInput): CanvasNodeElement[] {
   const desired = sortDesiredNodes(input.desired);
-  const layoutByPath = compactTreeLayout(desired, input.layoutSizeForNode, input.layoutRows ?? []);
   const existingByPath = new Map(input.existing.map((node) => [node.projectRelativePath, node]));
+  const manualPaths = new Set(input.existing
+    .filter((node) => node.layoutMode === 'manual')
+    .map((node) => node.projectRelativePath));
+  const layoutByPath = layoutCanvasDesiredNodes({
+    desired,
+    layoutRows: input.layoutRows ?? [],
+    manualPaths,
+    layoutSizeForNode: input.layoutSizeForNode
+  });
   const desiredPaths = new Set(desired.map((node) => node.projectRelativePath));
   const usedZ = new Set<number>();
   const preservedZByPath = new Map<string, number>();
@@ -381,10 +377,6 @@ export function reconcileCanvasNodeElements(input: ReconcileCanvasNodeElementsIn
   };
   return desired.map((desiredNode) => {
     const existing = existingByPath.get(desiredNode.projectRelativePath);
-    const layout = layoutByPath.get(desiredNode.projectRelativePath);
-    if (!layout) {
-      throw new Error(`Canvas node layout is missing: ${desiredNode.projectRelativePath}`);
-    }
     const base = {
       projectRelativePath: desiredNode.projectRelativePath,
       nodeKind: desiredNode.nodeKind,
@@ -402,6 +394,10 @@ export function reconcileCanvasNodeElements(input: ReconcileCanvasNodeElementsIn
         height: existing.height,
         layoutMode: 'manual'
       };
+    }
+    const layout = layoutByPath.get(desiredNode.projectRelativePath);
+    if (!layout) {
+      throw new Error(`Canvas node layout is missing: ${desiredNode.projectRelativePath}`);
     }
     return {
       ...base,
@@ -474,229 +470,8 @@ function structureEdgesForCanvasNodes(nodes: CanvasNodeElement[]): CanvasStructu
   });
 }
 
-function compactTreeLayout(
-  desired: CanvasDesiredNode[],
-  layoutSizeForNode: (node: CanvasDesiredNode) => CanvasLayoutSize,
-  layoutRows: CanvasDesiredLayoutRow[]
-): Map<string, CanvasLayoutSize & { x: number; y: number }> {
-  const layoutByPath = new Map<string, CanvasLayoutSize & { x: number; y: number }>();
-  const desiredByPath = new Map(desired.map((node) => [node.projectRelativePath, node]));
-  const childrenByPath = new Map<string, CanvasDesiredNode[]>();
-  const roots: CanvasDesiredNode[] = [];
-  for (const node of desired) {
-    const parent = parentPath(node.projectRelativePath);
-    if (parent && desiredByPath.has(parent)) {
-      const children = childrenByPath.get(parent) ?? [];
-      children.push(node);
-      childrenByPath.set(parent, children);
-    } else {
-      roots.push(node);
-    }
-  }
-  for (const children of childrenByPath.values()) {
-    children.sort(compareDesiredSibling);
-  }
-  roots.sort(compareDesiredSibling);
-
-  const rowsByParent = buildLayoutRowsByParent(layoutRows, desiredByPath);
-  let rootOffset = 0;
-  for (const root of roots) {
-    let cursorY = 0;
-    const columnOffsets = canvasColumnOffsets(root, rootOffset, childrenByPath, rowsByParent, layoutSizeForNode);
-    const bounds = layoutSubtree(root, columnOffsets, 0, () => cursorY, (value) => {
-      cursorY = value;
-    }, childrenByPath, rowsByParent, layoutSizeForNode, layoutByPath);
-    rootOffset = Math.max(
-      bounds.rightEdge + ROOT_HORIZONTAL_GAP,
-      rootOffset + (bounds.maxDepth + 1) * HORIZONTAL_TREE_GAP + ROOT_HORIZONTAL_GAP
-    );
-  }
-  return layoutByPath;
-}
-
-function buildLayoutRowsByParent(
-  layoutRows: CanvasDesiredLayoutRow[],
-  desiredByPath: Map<string, CanvasDesiredNode>
-): Map<string, CanvasDesiredNode[][]> {
-  const rowsByParent = new Map<string, CanvasDesiredNode[][]>();
-  const used = new Set<string>();
-  for (const row of layoutRows) {
-    const directMembers = row.memberProjectRelativePaths
-      .map((path) => desiredByPath.get(path))
-      .filter((node): node is CanvasDesiredNode => Boolean(node))
-      .filter((node) => parentPath(node.projectRelativePath) === row.parentProjectRelativePath && !used.has(node.projectRelativePath))
-      .sort(compareDesiredPath);
-    if (directMembers.length === 0) {
-      continue;
-    }
-    for (const member of directMembers) {
-      used.add(member.projectRelativePath);
-    }
-    rowsByParent.set(row.parentProjectRelativePath, [
-      ...(rowsByParent.get(row.parentProjectRelativePath) ?? []),
-      directMembers
-    ]);
-  }
-  return rowsByParent;
-}
-
-function layoutSubtree(
-  node: CanvasDesiredNode,
-  columnOffsets: number[],
-  depth: number,
-  getCursorY: () => number,
-  setCursorY: (value: number) => void,
-  childrenByPath: Map<string, CanvasDesiredNode[]>,
-  rowsByParent: Map<string, CanvasDesiredNode[][]>,
-  layoutSizeForNode: (node: CanvasDesiredNode) => CanvasLayoutSize,
-  layoutByPath: Map<string, CanvasLayoutSize & { x: number; y: number }>
-): CanvasLayoutBounds {
-  const size = layoutSizeForNode(node);
-  const blocks = childBlocksForNode(node, childrenByPath, rowsByParent);
-  const x = columnOffsets[depth]!;
-  if (blocks.length === 0) {
-    const y = getCursorY();
-    layoutByPath.set(node.projectRelativePath, {
-      x,
-      y,
-      ...size
-    });
-    setCursorY(y + size.height + VERTICAL_GAP);
-    return {
-      maxDepth: depth,
-      rightEdge: x + size.width
-    };
-  }
-
-  let maxDepth = depth;
-  let rightEdge = x + size.width;
-  const childCenters: number[] = [];
-  for (const block of blocks) {
-    if (block.kind === 'node') {
-      const childBounds = layoutSubtree(block.node, columnOffsets, depth + 1, getCursorY, setCursorY, childrenByPath, rowsByParent, layoutSizeForNode, layoutByPath);
-      maxDepth = Math.max(maxDepth, childBounds.maxDepth);
-      rightEdge = Math.max(rightEdge, childBounds.rightEdge);
-      const childLayout = layoutByPath.get(block.node.projectRelativePath)!;
-      childCenters.push(childLayout.y + childLayout.height / 2);
-      continue;
-    }
-    const rowLayout = layoutHorizontalRow(block.members, columnOffsets, depth + 1, getCursorY, setCursorY, layoutSizeForNode, layoutByPath);
-    maxDepth = Math.max(maxDepth, rowLayout.maxDepth);
-    rightEdge = Math.max(rightEdge, rowLayout.rightEdge);
-    childCenters.push(rowLayout.y + rowLayout.height / 2);
-  }
-  const first = childCenters[0]!;
-  const last = childCenters[childCenters.length - 1]!;
-  layoutByPath.set(node.projectRelativePath, {
-    x,
-    y: (first + last) / 2 - size.height / 2,
-    ...size
-  });
-  return {
-    maxDepth,
-    rightEdge
-  };
-}
-
-function childBlocksForNode(
-  node: CanvasDesiredNode,
-  childrenByPath: Map<string, CanvasDesiredNode[]>,
-  rowsByParent: Map<string, CanvasDesiredNode[][]>
-): CanvasLayoutBlock[] {
-  const rows = rowsByParent.get(node.projectRelativePath) ?? [];
-  const rowPaths = new Set(rows.flat().map((member) => member.projectRelativePath));
-  const rowBlocks: CanvasLayoutBlock[] = rows.map((members) => ({
-    kind: 'horizontal-row',
-    members
-  }));
-  const childBlocks: CanvasLayoutBlock[] = (childrenByPath.get(node.projectRelativePath) ?? [])
-    .filter((child) => !rowPaths.has(child.projectRelativePath))
-    .map((child) => ({ kind: 'node', node: child }));
-  return [...rowBlocks, ...childBlocks];
-}
-
-function layoutHorizontalRow(
-  members: CanvasDesiredNode[],
-  columnOffsets: number[],
-  depth: number,
-  getCursorY: () => number,
-  setCursorY: (value: number) => void,
-  layoutSizeForNode: (node: CanvasDesiredNode) => CanvasLayoutSize,
-  layoutByPath: Map<string, CanvasLayoutSize & { x: number; y: number }>
-): { y: number; height: number; maxDepth: number; rightEdge: number } {
-  const rowTop = getCursorY();
-  const memberLayouts = members.map((member) => ({
-    member,
-    size: layoutSizeForNode(member)
-  }));
-  const rowHeight = Math.max(...memberLayouts.map(({ size }) => size.height));
-  let cursorX = columnOffsets[depth]!;
-  let rightEdge = cursorX;
-  for (const { member, size } of memberLayouts) {
-    layoutByPath.set(member.projectRelativePath, {
-      x: cursorX,
-      y: rowTop + (rowHeight - size.height) / 2,
-      ...size
-    });
-    rightEdge = cursorX + size.width;
-    cursorX = rightEdge + HORIZONTAL_ROW_GAP;
-  }
-  setCursorY(rowTop + rowHeight + VERTICAL_GAP);
-  return {
-    y: rowTop,
-    height: rowHeight,
-    maxDepth: depth,
-    rightEdge
-  };
-}
-
-function canvasColumnOffsets(
-  root: CanvasDesiredNode,
-  rootOffset: number,
-  childrenByPath: Map<string, CanvasDesiredNode[]>,
-  rowsByParent: Map<string, CanvasDesiredNode[][]>,
-  layoutSizeForNode: (node: CanvasDesiredNode) => CanvasLayoutSize
-): number[] {
-  const widthsByDepth: number[] = [];
-  collectCanvasColumnWidths(root, 0, childrenByPath, rowsByParent, layoutSizeForNode, widthsByDepth);
-  const offsets: number[] = [rootOffset];
-  for (let depth = 1; depth < widthsByDepth.length; depth += 1) {
-    offsets[depth] = offsets[depth - 1]! + (widthsByDepth[depth - 1] ?? 0) + HORIZONTAL_TREE_GAP;
-  }
-  return offsets;
-}
-
-function collectCanvasColumnWidths(
-  node: CanvasDesiredNode,
-  depth: number,
-  childrenByPath: Map<string, CanvasDesiredNode[]>,
-  rowsByParent: Map<string, CanvasDesiredNode[][]>,
-  layoutSizeForNode: (node: CanvasDesiredNode) => CanvasLayoutSize,
-  widthsByDepth: number[]
-): void {
-  const size = layoutSizeForNode(node);
-  widthsByDepth[depth] = Math.max(widthsByDepth[depth] ?? 0, size.width);
-  for (const block of childBlocksForNode(node, childrenByPath, rowsByParent)) {
-    if (block.kind === 'node') {
-      collectCanvasColumnWidths(block.node, depth + 1, childrenByPath, rowsByParent, layoutSizeForNode, widthsByDepth);
-      continue;
-    }
-    for (const member of block.members) {
-      const memberSize = layoutSizeForNode(member);
-      widthsByDepth[depth + 1] = Math.max(widthsByDepth[depth + 1] ?? 0, memberSize.width);
-    }
-  }
-}
-
 function sortDesiredNodes(nodes: CanvasDesiredNode[]): CanvasDesiredNode[] {
   return [...nodes].sort(compareDesiredPath);
-}
-
-function compareDesiredSibling(left: CanvasDesiredNode, right: CanvasDesiredNode): number {
-  if (left.nodeKind !== right.nodeKind) {
-    return left.nodeKind === 'directory' ? -1 : 1;
-  }
-  return basename(left.projectRelativePath).localeCompare(basename(right.projectRelativePath), undefined, { numeric: true, sensitivity: 'base' });
 }
 
 function compareDesiredPath(left: CanvasDesiredNode, right: CanvasDesiredNode): number {
@@ -710,11 +485,6 @@ function compareDesiredPath(left: CanvasDesiredNode, right: CanvasDesiredNode): 
     }
   }
   return leftParts.length - rightParts.length;
-}
-
-function basename(path: string): string {
-  const index = path.lastIndexOf('/');
-  return index >= 0 ? path.slice(index + 1) : path;
 }
 
 function parentPath(path: string): string | undefined {

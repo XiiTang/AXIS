@@ -840,6 +840,12 @@ describe('app-server', () => {
 
       const snapshot = await server.refreshProject();
 
+      expect(snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual([
+        'outputs',
+        'outputs/gpt',
+        'outputs/gpt/b.png'
+      ]);
+      expectNoAutomaticCanvasNodeOverlaps(snapshot.canvases[0]!.nodeElements);
       expect(snapshot.canvases[0]?.nodeElements.map((node) => [node.projectRelativePath, node.layoutMode])).toEqual([
         ['outputs', undefined],
         ['outputs/gpt', undefined],
@@ -892,6 +898,11 @@ describe('app-server', () => {
       expect(geminiA.y + geminiA.height / 2).toBe(geminiB.y + geminiB.height / 2);
       expect(gptB.x).toBeGreaterThan(gptA.x);
       expect(gptA.y + gptA.height / 2).toBe(gptB.y + gptB.height / 2);
+      expectNoAutomaticCanvasNodeOverlaps(nodes);
+      expect(nodes.find((node) => node.projectRelativePath === 'outputs')?.x).toBe(0);
+      expect(nodes.find((node) => node.projectRelativePath === 'outputs/gemini')?.x).toBe(340);
+      expect(nodes.find((node) => node.projectRelativePath === 'outputs/gemini/high')?.x).toBe(680);
+      expect(nodes.find((node) => node.projectRelativePath === 'outputs/gemini/high/a.png')?.x).toBe(1020);
     } finally {
       server.close();
       await rm(projectRoot, { recursive: true, force: true });
@@ -1037,12 +1048,20 @@ describe('app-server', () => {
 
       const snapshot = await server.refreshProject();
 
-      expect(snapshot.canvases[0]?.nodeElements.map((node) => [node.projectRelativePath, node.x, node.y, node.width, node.height, node.layoutMode])).toEqual([
-        ['image-production', 0, 79.5, 240, 96, undefined],
-        ['image-production/generated', 340, 79.5, 240, 96, undefined],
-        ['image-production/generated/a.png', 680, 0, 100, 100, undefined],
-        ['image-production/generated/b.png', 999, 888, 777, 666, 'manual']
+      expect(snapshot.canvases[0]?.nodeElements.map((node) => [node.projectRelativePath, node.layoutMode])).toEqual([
+        ['image-production', undefined],
+        ['image-production/generated', undefined],
+        ['image-production/generated/a.png', undefined],
+        ['image-production/generated/b.png', 'manual']
       ]);
+      expect(snapshot.canvases[0]?.nodeElements.find((node) => node.projectRelativePath === 'image-production/generated/b.png')).toMatchObject({
+        x: 999,
+        y: 888,
+        width: 777,
+        height: 666,
+        layoutMode: 'manual'
+      });
+      expectNoAutomaticCanvasNodeOverlaps(snapshot.canvases[0]!.nodeElements);
     } finally {
       server.close();
       await rm(projectRoot, { recursive: true, force: true });
@@ -1278,6 +1297,32 @@ async function largePreviewablePngBuffer(): Promise<Buffer> {
       channels: 3
     }
   }).png().toBuffer();
+}
+
+function expectNoAutomaticCanvasNodeOverlaps(nodes: Array<{
+  projectRelativePath: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  layoutMode?: 'manual';
+}>): void {
+  const automatic = nodes.filter((node) => node.layoutMode !== 'manual');
+  for (const [index, left] of automatic.entries()) {
+    for (const right of automatic.slice(index + 1)) {
+      expect(canvasNodeRectsOverlap(left, right), `${left.projectRelativePath} overlaps ${right.projectRelativePath}`).toBe(false);
+    }
+  }
+}
+
+function canvasNodeRectsOverlap(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number }
+): boolean {
+  return left.x < right.x + right.width
+    && left.x + left.width > right.x
+    && left.y < right.y + right.height
+    && left.y + left.height > right.y;
 }
 
 function canvasLayoutSizeReader(sizes: Record<string, { width: number; height: number }>) {

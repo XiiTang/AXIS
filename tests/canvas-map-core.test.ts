@@ -161,6 +161,41 @@ describe('canvas-map core', () => {
     });
   });
 
+  it('keeps row expansion file-only even when a matching project path is a directory', () => {
+    const map = parseCanvasMap({
+      canvasId: 'main',
+      sourcePath: '.debrute/canvas-maps/main.yaml',
+      content: [
+        'paths:',
+        '  - outputs/gpt/',
+        'layout:',
+        '  rows:',
+        '    - outputs/gpt/*.png',
+        ''
+      ].join('\n')
+    });
+
+    expect(expandCanvasMap(map, [
+      { projectRelativePath: 'outputs', kind: 'directory' },
+      { projectRelativePath: 'outputs/gpt', kind: 'directory' },
+      { projectRelativePath: 'outputs/gpt/a.png', kind: 'file' },
+      { projectRelativePath: 'outputs/gpt/folder.png', kind: 'directory' },
+      { projectRelativePath: 'outputs/gpt/folder.png/nested.png', kind: 'file' }
+    ])).toMatchObject({
+      nodes: [
+        { projectRelativePath: 'outputs', nodeKind: 'directory' },
+        { projectRelativePath: 'outputs/gpt', nodeKind: 'directory' },
+        { projectRelativePath: 'outputs/gpt/folder.png', nodeKind: 'directory' },
+        { projectRelativePath: 'outputs/gpt/folder.png/nested.png', nodeKind: 'file' },
+        { projectRelativePath: 'outputs/gpt/a.png', nodeKind: 'file' }
+      ],
+      layoutRows: [{
+        parentProjectRelativePath: 'outputs/gpt',
+        memberProjectRelativePaths: ['outputs/gpt/a.png']
+      }]
+    });
+  });
+
   it('accepts quiet future row rules and rejects duplicate row control', () => {
     expect(expandCanvasMap(parseCanvasMap({
       canvasId: 'main',

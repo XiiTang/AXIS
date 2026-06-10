@@ -12,6 +12,7 @@ import {
   CanvasSurface,
   canvasImageResourceZoomPreviewSignature,
   canvasMapProjectTreeDropEntry,
+  canvasMapProjectTreeDropInput,
   createCanvasRenderSnapshotScheduler,
   recordCanvasPerfFrame,
   shouldUseEfficientImageResourceZoom,
@@ -50,6 +51,19 @@ describe('CanvasSurface', () => {
     ]))?.projectRelativePath).toBe('outputs/gpt/cover.png');
     expect(canvasMapProjectTreeDropEntry(projectTreeDragDataTransfer([]))).toBeUndefined();
     expect(canvasMapProjectTreeDropEntry(projectTreeDragDataTransfer([
+      { kind: 'file', projectRelativePath: 'outputs/gpt/a.png' },
+      { kind: 'file', projectRelativePath: 'outputs/gpt/b.png' }
+    ]))).toBeUndefined();
+  });
+
+  it('builds Canvas Map drop input without drop coordinates', () => {
+    expect(canvasMapProjectTreeDropInput('production-map', projectTreeDragDataTransfer([
+      { kind: 'file', projectRelativePath: 'outputs/gpt/cover.png' }
+    ]))).toEqual({
+      canvasId: 'production-map',
+      projectRelativePath: 'outputs/gpt/cover.png'
+    });
+    expect(canvasMapProjectTreeDropInput('production-map', projectTreeDragDataTransfer([
       { kind: 'file', projectRelativePath: 'outputs/gpt/a.png' },
       { kind: 'file', projectRelativePath: 'outputs/gpt/b.png' }
     ]))).toBeUndefined();
