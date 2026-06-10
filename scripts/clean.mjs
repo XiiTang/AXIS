@@ -9,7 +9,7 @@ const paths = [
   'packages/capability-core/dist',
   'packages/capability-runtime/dist',
   'packages/canvas-core/dist',
-  'packages/flowmap-core/dist',
+  'packages/canvas-map-core/dist',
   'packages/project-core/dist',
   'packages/workbench-runtime/dist',
   'apps/app-server/dist',

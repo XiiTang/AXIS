@@ -40,39 +40,25 @@ describe('Debrute image director Skill', () => {
     expect(skill).toContain('Batch result JSONL contains one final item outcome per line.');
   });
 
-  it('teaches Flowmap draft publishing for generated image output paths', () => {
+  it('teaches Canvas Map publishing for generated image output paths', () => {
     const core = readRepoFile('skills/debrute-core/SKILL.md');
     const imageDirector = readRepoFile('skills/debrute-image-director/SKILL.md');
 
-    expect(core).toContain('.debrute/flowmaps/<flowmap-id>.draft.yaml');
-    expect(core).toContain('debrute flowmap publish /path/to/project --from .debrute/flowmaps/<flowmap-id>.draft.yaml');
-    expect(core).toContain('Do not edit `.debrute/flowmaps/<flowmap-id>.yaml` directly.');
-    expect(core).toContain('Maintain the Flowmap draft while creating file-producing scripts, prompts, llm requests, image requests, or video requests.');
-    expect(core).toContain('include');
-    expect(core).toContain('canvases');
-    expect(core).toContain('write them under `<flowmap-id>/`, add matching relative paths or globs to `include`');
-    expect(imageDirector).toContain('Update the Flowmap draft when planning image output paths.');
-    expect(imageDirector).toContain('add matching paths or globs to `include`');
-    expect(imageDirector).toContain('Publish the draft with `debrute flowmap publish');
-  });
-
-  it('teaches Flowmap horizontal layout groups for comparable output folders', () => {
-    const core = readRepoFile('skills/debrute-core/SKILL.md');
-    const imageDirector = readRepoFile('skills/debrute-image-director/SKILL.md');
-
-    expect(core).toContain('layout.groups');
-    expect(core).toContain('directory: outputs/gpt-image-2/2000x2000/high');
-    expect(core).toContain('include:');
-    expect(imageDirector).toContain('layout.groups');
-    expect(imageDirector).toContain('comparable variants');
-    expect(imageDirector).toContain('direct child output files');
+    expect(core).toContain('.debrute/canvas-maps/<canvas-id>.yaml');
+    expect(core).toContain('debrute canvas-map publish /path/to/project --canvas <canvas-id>');
+    expect(core).toContain('- outputs/gpt/');
+    expect(core).toContain('Folder rules must end with `/`, for example `outputs/gpt/`.');
+    expect(core).toContain('Maintain the Canvas Map while creating file-producing scripts, prompts, llm requests, image requests, or video requests.');
+    expect(imageDirector).toContain('Update the Canvas Map when planning image output paths.');
+    expect(imageDirector).toContain('Add exact file, folder, or glob rules to `.debrute/canvas-maps/<canvas-id>.yaml`; folder rules must end with `/`.');
+    expect(imageDirector).toContain('Publish the Canvas Map with `debrute canvas-map publish');
   });
 
   it('documents batch command semantics in the README', () => {
     const readme = readRepoFile('README.md');
 
     expect(readme).toContain('- `apps/daemon` - loopback HTTP/SSE runtime that serves the Web workbench and owns privileged project, Canvas, settings, and generated asset operations.');
-    expect(readme).toContain('- `apps/app-server` - local domain service boundary for project sessions, Flowmap publishing and sync, Canvas node projection, model settings, generated asset metadata, and explicit CLI service methods.');
+    expect(readme).toContain('- `apps/app-server` - local domain service boundary for project sessions, Canvas Map publishing and sync, Canvas node projection, model settings, generated asset metadata, and explicit CLI service methods.');
     expect(readme).toContain('- `packages/capability-core` - result and artifact value shapes shared by Debrute runtime services.');
     expect(readme).toContain('- `packages/capability-runtime` - model catalogs, model executors, runtime LLM request execution, LLM provider settings, generation model settings, and Skills registry code.');
     expect(readme).toContain('Use `generate image-batch` for multiple planned image requests; do not loop over `generate image` for planned batches.');

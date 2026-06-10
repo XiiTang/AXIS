@@ -52,59 +52,59 @@ describe('debrute-cli', () => {
     }
   });
 
-  it('publishes Flowmaps through flowmap publish', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'debrute-cli-flowmap-publish-'));
+  it('publishes Canvas Maps through canvas-map publish', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'debrute-cli-canvas-map-publish-'));
     const originalExitCode = process.exitCode;
     try {
       await runCli(['project', 'init', root], () => {});
-      await mkdir(join(root, '.debrute/flowmaps'), { recursive: true });
-      await writeFile(join(root, '.debrute/flowmaps/image-production.draft.yaml'), [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include: []',
+      await mkdir(join(root, '.debrute/canvas-maps'), { recursive: true });
+      await mkdir(join(root, 'prompts'), { recursive: true });
+      await writeFile(join(root, 'prompts/cover.md'), '# Cover\n', 'utf8');
+      await writeFile(join(root, '.debrute/canvas-maps/production-map.yaml'), [
+        '- prompts/cover.md',
         ''
       ].join('\n'), 'utf8');
 
       const output: string[] = [];
       await runCli([
-        'flowmap',
+        'canvas-map',
         'publish',
         root,
-        '--from',
-        '.debrute/flowmaps/image-production.draft.yaml'
+        '--canvas',
+        'production-map'
       ], (text) => output.push(text));
 
-      expect(output).toEqual(['debrute/1 ok cmd=flowmap.publish\nsource=.debrute/flowmaps/image-production.draft.yaml']);
-      await expect(readFile(join(root, '.debrute/flowmaps/image-production.yaml'), 'utf8')).resolves.toContain('contentHash: sha256:');
+      expect(output).toEqual(['debrute/1 ok cmd=canvas-map.publish\ncanvas=production-map']);
+      await expect(readFile(join(root, '.debrute/canvases/production-map.json'), 'utf8')).resolves.toContain('"projectRelativePath": "prompts/cover.md"');
     } finally {
       process.exitCode = originalExitCode;
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  it('returns Flowmap-specific debrute/1 errors', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'debrute-cli-flowmap-error-'));
+  it('returns Canvas Map-specific debrute/1 errors', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'debrute-cli-canvas-map-error-'));
     const originalExitCode = process.exitCode;
     try {
       await runCli(['project', 'init', root], () => {});
 
       const output: string[] = [];
       await runCli([
-        'flowmap',
+        'canvas-map',
         'publish',
         root,
-        '--from',
-        '.debrute/flowmaps/new-map.draft.yaml'
+        '--canvas',
+        'new-map'
       ], (text) => output.push(text));
 
       expect(process.exitCode).toBe(1);
       expect(output).toEqual([[
-        'debrute/1 error cmd=flowmap.publish code=flowmap_draft_read_failed',
-        'message="Flowmap draft could not be read."',
-        'file_path=.debrute/flowmaps/new-map.draft.yaml'
+        'debrute/1 error cmd=canvas-map.publish code=canvas_map_read_failed',
+        'message="Canvas Map source could not be read."',
+        'canvas_id=new-map',
+        'file_path=.debrute/canvas-maps/new-map.yaml'
       ].join('\n')]);
-      await expect(readFile(join(root, '.debrute/flowmaps/new-map.yaml'), 'utf8')).rejects.toThrow();
+      await expect(readFile(join(root, '.debrute/canvas-maps/new-map.yaml'), 'utf8')).rejects.toThrow();
     } finally {
       process.exitCode = originalExitCode;
       await rm(root, { recursive: true, force: true });

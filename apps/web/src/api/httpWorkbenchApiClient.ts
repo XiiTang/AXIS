@@ -1,4 +1,5 @@
 import type {
+  AddProjectPathToCanvasMapInput,
   DebruteRuntimeInfo,
   DaemonProjectUploadImportPlan,
   DiscoverLlmProviderModelsInput,
@@ -20,7 +21,8 @@ import type {
   WorkbenchProjectFileOperationResult,
   WorkbenchProjectSessionSnapshot,
   WorkbenchProjectTextFile,
-  WorkbenchProjectUploadImportInput
+  WorkbenchProjectUploadImportInput,
+  WorkbenchAddProjectPathToCanvasMapResult
 } from '@debrute/app-protocol';
 import type {
   CanvasFeedbackDocument,
@@ -179,6 +181,11 @@ export function createHttpWorkbenchApiClient(options: HttpWorkbenchApiClientOpti
     readCanvasFeedback: () => request<CanvasFeedbackDocument>('GET', projectPath('/canvas-feedback')),
     updateCanvasFeedbackEntry: (input) => request<CanvasFeedbackDocument>('PATCH', projectPath('/canvas-feedback'), input),
     refreshProject: () => request<WorkbenchProjectSessionSnapshot>('POST', projectPath('/refresh')),
+    addProjectPathToCanvasMap: (input: AddProjectPathToCanvasMapInput) => request<WorkbenchAddProjectPathToCanvasMapResult>(
+      'POST',
+      projectPath(`/canvases/${encodeURIComponent(input.canvasId)}/canvas-map/project-paths`),
+      { projectRelativePath: input.projectRelativePath }
+    ),
     updateCanvasNodeLayouts: (input) => request('PATCH', projectPath(`/canvases/${encodeURIComponent(input.canvasId)}/node-layouts`), {
       nodeLayouts: input.nodeLayouts
     }),

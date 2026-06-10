@@ -6,7 +6,7 @@ export type DiagnosticSeverity = 'error' | 'warning' | 'info';
 
 export interface Diagnostic {
   id: string;
-  source: 'project' | 'canvas' | 'capability' | 'settings' | 'generated_asset' | 'flowmap';
+  source: 'project' | 'canvas' | 'capability' | 'settings' | 'generated_asset' | 'canvas-map';
   severity: DiagnosticSeverity;
   code: string;
   message: string;
@@ -95,7 +95,6 @@ export interface CanvasProjection {
 export interface ProjectCanvasInput {
   canvas: CanvasDocument;
   diagnostics?: Diagnostic[];
-  structureEdges?: CanvasStructureEdgeProjection[];
   nodeAvailability: (node: CanvasNodeElement) => CanvasNodeAvailability;
 }
 
@@ -280,13 +279,14 @@ export function createCanvasDocument(input: { id: string; title: string }): Canv
 }
 
 export function projectCanvas(input: ProjectCanvasInput): CanvasProjection {
+  const nodeElements = sortedCanvasNodeElements(input.canvas.nodeElements);
   return {
     canvasId: input.canvas.id,
-    nodes: sortedCanvasNodeElements(input.canvas.nodeElements).map((node) => ({
+    nodes: nodeElements.map((node) => ({
       ...node,
       availability: input.nodeAvailability(node)
     })),
-    edges: input.structureEdges ?? [],
+    edges: structureEdgesForCanvasNodes(nodeElements),
     diagnostics: input.diagnostics ?? []
   };
 }
@@ -456,6 +456,21 @@ function reorderCanvasNodeElementsTopFirst(
     }
     const z = zByPath.get(node.projectRelativePath);
     return z === undefined ? node : { ...node, z };
+  });
+}
+
+function structureEdgesForCanvasNodes(nodes: CanvasNodeElement[]): CanvasStructureEdgeProjection[] {
+  const existing = new Set(nodes.map((node) => node.projectRelativePath));
+  return nodes.flatMap((node) => {
+    const parent = parentPath(node.projectRelativePath);
+    if (!parent || !existing.has(parent)) {
+      return [];
+    }
+    return [{
+      id: `${parent}--${node.projectRelativePath}`,
+      sourceProjectRelativePath: parent,
+      targetProjectRelativePath: node.projectRelativePath
+    }];
   });
 }
 

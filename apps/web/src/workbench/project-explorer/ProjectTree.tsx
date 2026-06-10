@@ -33,7 +33,7 @@ import {
 } from './projectTreeInteraction';
 import { hasProjectTreeExternalDrag } from './projectTreeExternalDrop';
 
-const PROJECT_TREE_DRAG_MIME = 'application/x-debrute-project-tree-paths';
+export const PROJECT_TREE_DRAG_MIME = 'application/x-debrute-project-tree-paths';
 
 export function ProjectTree({
   snapshot,
@@ -686,11 +686,11 @@ function ProjectTreeRow({
   );
 }
 
-function hasInternalProjectTreeDrag(dataTransfer: DataTransfer): boolean {
+export function hasInternalProjectTreeDrag(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
   return Array.from(dataTransfer.types).includes(PROJECT_TREE_DRAG_MIME);
 }
 
-function readInternalProjectTreeDragEntries(dataTransfer: DataTransfer): WorkbenchProjectPathEntry[] {
+export function readInternalProjectTreeDragEntries(dataTransfer: Pick<DataTransfer, 'getData'>): WorkbenchProjectPathEntry[] {
   const raw = dataTransfer.getData(PROJECT_TREE_DRAG_MIME);
   if (!raw) {
     return [];

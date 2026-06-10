@@ -85,7 +85,7 @@ describe('debrute cli parser and renderer', () => {
       'project.status',
       'project.validate',
       'workbench.url',
-      'flowmap.publish',
+      'canvas-map.publish',
       'generated-asset.lookup',
       'generate.image',
       'generate.image-batch',
@@ -108,10 +108,12 @@ describe('debrute cli parser and renderer', () => {
       requires: 'project',
       writes: 'debrute-project'
     });
-    expect(specForCommandPath(['flowmap', 'publish'])?.errors).toEqual(expect.arrayContaining([
-      'flowmap_invalid_draft_path',
-      'flowmap_draft_read_failed',
-      'flowmap_invalid_yaml'
+    expect(specForCommandPath(['canvas-map', 'publish'])?.errors).toEqual(expect.arrayContaining([
+      'canvas_map_invalid_canvas_id',
+      'canvas_map_invalid_path',
+      'canvas_map_read_failed',
+      'canvas_map_invalid_yaml',
+      'canvas_map_canvas_missing'
     ]));
     expect(specForCommandPath(['generate', 'image'])?.errors).toEqual([
       'invalid_command',

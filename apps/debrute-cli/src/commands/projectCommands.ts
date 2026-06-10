@@ -35,9 +35,9 @@ export async function runProjectCommand(args: ParsedDebruteArgs, server: Debrute
     };
   }
 
-  if (args.command === 'flowmap.publish') {
+  if (args.command === 'canvas-map.publish') {
     try {
-      await server.publishFlowmapDraftForProject(args.projectRoot, { sourceDraftPath: args.options.from! });
+      await server.publishCanvasMapForProject(args.projectRoot, { canvasId: args.options.canvas! });
     } catch (error) {
       if (isServiceError(error)) {
         throw cliError(normalizeServiceErrorCode(error.code), error.message, primitiveErrorFields(error.fields));
@@ -47,7 +47,7 @@ export async function runProjectCommand(args: ParsedDebruteArgs, server: Debrute
     return {
       status: 'ok',
       command: args.command,
-      fields: { source: args.options.from! }
+      fields: { canvas: args.options.canvas! }
     };
   }
 

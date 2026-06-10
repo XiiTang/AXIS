@@ -27,8 +27,8 @@ Use `debrute` as the Debrute execution interface. Debrute Skills describe how to
 - Project-local video references require Debrute upload-server support unless the source is already `http(s)` or `asset://`.
 - Submit the request with `debrute generate video /path/to/project --input-json '<json>'`.
 - When project artifacts should be created, use output arguments supported by the selected model so generated files are written inside the project.
-- Update the Flowmap draft when planning video output paths. Write outputs under `<flowmap-id>/` and add matching paths or globs to `include`.
-- Publish the draft with `debrute flowmap publish /path/to/project --from .debrute/flowmaps/<flowmap-id>.draft.yaml`.
+- Update the Canvas Map when planning video output paths. Add exact file, folder, or glob rules to `.debrute/canvas-maps/<canvas-id>.yaml`; folder rules must end with `/`.
+- Publish the Canvas Map with `debrute canvas-map publish /path/to/project --canvas <canvas-id>`.
 - Surface structured CLI errors to the user when a command fails.
 
 ## Workflow
@@ -40,8 +40,8 @@ Use `debrute` as the Debrute execution interface. Debrute Skills describe how to
 5. Before generation, run `debrute models video describe <model-id>` once for the selected model.
 6. Build the request payload from `description_markdown`, the Debrute example, and `arguments_schema`.
 7. Use `prompt`, `intent`, and `references`; do not assemble official Seedance `content` arrays.
-8. When output paths or output globs are planned, update `.debrute/flowmaps/<flowmap-id>.draft.yaml` so the generated files match `include` and will appear on mounted Canvases.
-9. Publish the draft with `debrute flowmap publish /path/to/project --from .debrute/flowmaps/<flowmap-id>.draft.yaml`.
+8. When output paths or output globs are planned, update `.debrute/canvas-maps/<canvas-id>.yaml` so the generated files appear on that Canvas.
+9. Publish the Canvas Map with `debrute canvas-map publish /path/to/project --canvas <canvas-id>`.
 10. Run `debrute generate video /path/to/project --input-json '<json>'`.
 11. Report artifact paths, generated asset metadata, and any structured errors.
 

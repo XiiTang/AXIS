@@ -1,6 +1,6 @@
 ---
 name: debrute-core
-description: Use when an external Agent needs Debrute project semantics through the debrute command, including project status, visual Workbench URLs, Flowmap publishing, generated assets, and model-backed generation.
+description: Use when an external Agent needs Debrute project semantics through the debrute command, including project status, visual Workbench URLs, Canvas Map publishing, generated assets, and model-backed generation.
 metadata:
   debrute.managed: "true"
   debrute.package: "debrute"
@@ -29,7 +29,7 @@ debrute project init /path/to/project
 debrute project status /path/to/project
 debrute project validate /path/to/project
 debrute workbench url /path/to/project
-debrute flowmap publish /path/to/project --from .debrute/flowmaps/image-production.draft.yaml
+debrute canvas-map publish /path/to/project --canvas production-map
 debrute generated-asset lookup /path/to/project --path generated/example.png
 debrute llm request --input-json '{"prompt":"Summarize this project."}'
 debrute models image list
@@ -67,65 +67,35 @@ Codex app:
 
 If the agent cannot control a browser, report `project_url` to the user.
 
-## Flowmaps
+## Canvas Maps
 
-Flowmap YAML controls which files appear as Canvas nodes and which Canvases display that Flowmap. File structure defines hierarchy and structure edges.
+Canvas Map YAML controls which project files and folders appear on one Canvas. File structure defines hierarchy and structure edges.
 
-Edit the draft file:
+Edit the Canvas Map whose filename matches the Canvas id:
 
 ```text
-.debrute/flowmaps/<flowmap-id>.draft.yaml
+.debrute/canvas-maps/<canvas-id>.yaml
 ```
 
 Publish it:
 
 ```sh
-debrute flowmap publish /path/to/project --from .debrute/flowmaps/<flowmap-id>.draft.yaml
+debrute canvas-map publish /path/to/project --canvas <canvas-id>
 ```
 
-The Flowmap id is the YAML filename. Debrute uses the project directory with the same name as the Flowmap id as the root directory for include matching:
-
-```text
-.debrute/flowmaps/<flowmap-id>.draft.yaml
-<flowmap-id>/
-```
-
-Use `include` to choose files under `<flowmap-id>/`. Matched files appear on Canvas with their ancestor directories. Use `canvases` to explicitly mount the Flowmap to one or more Canvases. An empty `canvases` list is valid and means the Flowmap is not mounted.
-
-Minimal draft:
+The YAML file is a top-level sequence of positive project-relative rules:
 
 ```yaml
-schemaVersion: 1
-canvases:
-  - production-map
-include:
-  - "**/*.png"
+- outputs/gpt/
+- outputs/gpt/*.png
+- prompts/cover.md
 ```
 
-Use `layout.groups` when a final or near-final output directory contains direct child files that should be compared side by side. The group only affects automatic Canvas layout for files already matched by `include`; it does not add files.
+Folder rules must end with `/`, for example `outputs/gpt/`. A folder node appears automatically when matching files exist below that folder. Exact file rules and glob rules match files. Missing future files are allowed and do not produce diagnostics.
 
-```yaml
-schemaVersion: 1
-canvases:
-  - production-map
-include:
-  - outputs/**/*
-layout:
-  groups:
-    - directory: outputs/gpt-image-2/2000x2000/high
-      include:
-        - "*.png"
-    - directory: outputs/gemini-3.1-flash/4k
-      include:
-        - "*.png"
-```
-
-Add a horizontal group when files are direct siblings and comparable variants from the same prompt, model, size, quality, batch, render pass, or export format. Do not add one for source folders, scripts, logs, request files, deeply nested mixed-content directories, or folders where vertical tree reading is clearer.
-
-Do not edit `.debrute/flowmaps/<flowmap-id>.yaml` directly.
 Do not use CLI commands to add, remove, inspect, or modify Canvas nodes or edges.
-Maintain the Flowmap draft while creating file-producing scripts, prompts, llm requests, image requests, or video requests.
-When output paths are known before generation starts, write them under `<flowmap-id>/`, add matching relative paths or globs to `include`, and publish before running generation.
+Maintain the Canvas Map while creating file-producing scripts, prompts, llm requests, image requests, or video requests.
+When output paths are known before generation starts, add matching file, folder, or glob rules to the Canvas Map and publish before running generation.
 
 ## Canvas Feedback
 

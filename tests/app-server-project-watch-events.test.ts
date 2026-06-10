@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { NormalizedFileWatchEvent } from '@debrute/project-core';
@@ -22,74 +22,44 @@ describe('App Server project watch events', () => {
     })).resolves.toBe(false);
   });
 
-  it('serializes watched refreshes with manual Canvas layout updates', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-watch-layout-race-'));
-    const watcherLayoutStarted = deferred<void>();
-    const releaseWatcherLayout = deferred<void>();
-    let blockLayoutRead = false;
+  it('refreshes Canvas Map file changes without compiling Canvas JSON', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-watch-canvas-map-'));
     const server = new DebruteAppServer({
       canvasNodeLayoutSizeReader: async (input) => {
         if (input.nodeKind === 'directory') {
           return { width: 240, height: 96 };
         }
-        if (input.projectRelativePath === 'image-production/generated/a.png' && blockLayoutRead) {
-          watcherLayoutStarted.resolve();
-          await releaseWatcherLayout.promise;
-        }
-        return input.projectRelativePath.endsWith('/b.png')
-          ? { width: 200, height: 50 }
-          : { width: 100, height: 100 };
+        return { width: 100, height: 100 };
       }
     });
 
     try {
-      await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/generated/b.png'), 'fake', 'utf8');
+      await mkdir(join(projectRoot, 'outputs'), { recursive: true });
+      await writeFile(join(projectRoot, 'outputs/a.png'), 'fake', 'utf8');
+      await writeFile(join(projectRoot, 'outputs/b.png'), 'fake', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true, watchFiles: false });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/*.png"',
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- outputs/a.png',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
-      await server.refreshProject();
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+      const canvasBefore = await readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8');
 
-      const changedFilePath = join(projectRoot, 'image-production/generated/a.png');
-      const observedAt = Date.now() + 1000;
-      await writeFile(changedFilePath, 'fake', 'utf8');
-      await utimes(changedFilePath, new Date(observedAt), new Date(observedAt));
-      blockLayoutRead = true;
-      const watchedRefresh = callWatchedFileEvent(server, {
+      const mapPath = join(projectRoot, '.debrute/canvas-maps/production-map.yaml');
+      await writeFile(mapPath, '- outputs/b.png\n', 'utf8');
+      await callWatchedFileEvent(server, {
         type: 'changed',
-        absolutePath: changedFilePath,
-        projectRelativePath: 'image-production/generated/a.png',
-        observedAt,
-        affects: ['content']
+        absolutePath: mapPath,
+        projectRelativePath: '.debrute/canvas-maps/production-map.yaml',
+        observedAt: Date.now() + 1000,
+        affects: ['canvas-map']
       });
-      await watcherLayoutStarted.promise;
-      const manualLayoutUpdate = server.updateCanvasNodeLayouts({
-        canvasId: 'production-map',
-        nodeLayouts: [{ projectRelativePath: 'image-production/generated/b.png', x: 999, y: 888, width: 777, height: 666 }]
-      });
-      releaseWatcherLayout.resolve();
-      await watchedRefresh;
-      await manualLayoutUpdate;
 
-      const snapshot = await server.refreshProject();
-      expect(snapshot.canvases[0]?.nodeElements.find((node) => node.projectRelativePath === 'image-production/generated/b.png')).toMatchObject({
-        x: 999,
-        y: 888,
-        width: 777,
-        height: 666,
-        layoutMode: 'manual'
-      });
+      const snapshot = server.getSnapshot();
+      expect(snapshot.files.map((file) => file.projectRelativePath)).toContain('.debrute/canvas-maps/production-map.yaml');
+      await expect(readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8')).resolves.toBe(canvasBefore);
+      expect(snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual(['outputs', 'outputs/a.png']);
     } finally {
-      releaseWatcherLayout.resolve();
       server.close();
       await rm(projectRoot, { recursive: true, force: true });
     }
@@ -102,17 +72,7 @@ async function callWatchedFileEvent(server: DebruteAppServer, event: NormalizedF
   }).handleWatchedFileEvent(event);
 }
 
-async function writeFlowmapDraft(projectRoot: string, flowmapId: string, lines: string[]): Promise<void> {
-  await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-  await writeFile(join(projectRoot, `.debrute/flowmaps/${flowmapId}.draft.yaml`), lines.join('\n'), 'utf8');
-}
-
-function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
-  let resolve!: (value: T) => void;
-  return {
-    promise: new Promise<T>((next) => {
-      resolve = next;
-    }),
-    resolve
-  };
+async function writeCanvasMap(projectRoot: string, canvasId: string, lines: string[]): Promise<void> {
+  await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
+  await writeFile(join(projectRoot, `.debrute/canvas-maps/${canvasId}.yaml`), lines.join('\n'), 'utf8');
 }

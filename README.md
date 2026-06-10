@@ -7,10 +7,10 @@ Debrute is a browser-first local creative production workbench for projects, Can
 - `apps/web` - Vite/React browser workbench. It talks to the daemon through HTTP and SSE.
 - `apps/daemon` - loopback HTTP/SSE runtime that serves the Web workbench and owns privileged project, Canvas, settings, and generated asset operations.
 - `apps/desktop` - optional Electron shell for native folder picking, menus, packaging, and loading the Web workbench URL.
-- `apps/app-server` - local domain service boundary for project sessions, Flowmap publishing and sync, Canvas node projection, model settings, generated asset metadata, and explicit CLI service methods.
+- `apps/app-server` - local domain service boundary for project sessions, Canvas Map publishing and sync, Canvas node projection, model settings, generated asset metadata, and explicit CLI service methods.
 - `apps/debrute-cli` - external Agent interface for invoking Debrute capabilities with structured output.
 - `packages/project-core` - project identity, `.debrute/` path conventions, atomic JSON persistence, project text/binary file access, and file event normalization.
-- `packages/flowmap-core` - Flowmap YAML parsing, publishing, include expansion, file-tree node derivation, and structure edge derivation.
+- `packages/canvas-map-core` - Canvas Map YAML parsing, rule expansion, and file-tree node derivation.
 - `packages/canvas-core` - Canvas documents, projected node state, derived structure edges, selection, viewport, diagnostics, and node layout operations.
 - `packages/capability-core` - result and artifact value shapes shared by Debrute runtime services.
 - `packages/capability-runtime` - model catalogs, model executors, runtime LLM request execution, LLM provider settings, generation model settings, and Skills registry code.
@@ -101,9 +101,13 @@ debrute skills sync --force
 
 Project is the local file workspace plus `.debrute/` metadata, generated assets, and health diagnostics.
 
-Flowmap YAML controls file membership and Canvas mounts. A Flowmap lives at `.debrute/flowmaps/<flowmap-id>.draft.yaml`, publishes to `.debrute/flowmaps/<flowmap-id>.yaml`, and uses the project directory `<flowmap-id>/` as its file-tree root.
+Canvas Map YAML controls which project files and folders appear on one Canvas. A Canvas Map lives at `.debrute/canvas-maps/<canvas-id>.yaml`; the Canvas with the same id is the map's target. The file is a top-level YAML sequence of positive project-relative path rules:
 
-Canvas is the visual workspace for projected Flowmap nodes. Canvas JSON under `.debrute/canvases/<canvas-id>.json` stores visual state only: node layout, layers, viewport, selection, annotations, and preferences. File structure defines hierarchy and structure edges; YAML only defines `canvases` and `include`.
+- `outputs/gpt/` recursively includes files under that folder.
+- `outputs/gpt/*.png` includes matching files.
+- `prompts/cover.md` includes one file.
+
+Canvas is the visual workspace for projected Canvas Map nodes. Canvas JSON under `.debrute/canvases/<canvas-id>.json` stores visual state: node layout, layers, viewport, selection, annotations, and preferences. File and folder hierarchy is derived from the project filesystem. Publish copies the current Canvas Map membership into Canvas JSON, while Canvas display always derives default structure from filesystem paths.
 
 Capabilities are discrete operations that the daemon-backed Web workbench or the `debrute` command can invoke: project semantics, LLM requests, image generation, video generation, and generated asset metadata lookup. External Agents use their own filesystem tools for generic file access.
 
@@ -124,7 +128,7 @@ pnpm exec tsx apps/debrute-cli/src/index.ts skills sync
 pnpm exec tsx apps/debrute-cli/src/index.ts project init path/to/project
 pnpm exec tsx apps/debrute-cli/src/index.ts project validate path/to/project
 pnpm exec tsx apps/debrute-cli/src/index.ts workbench url path/to/project
-pnpm exec tsx apps/debrute-cli/src/index.ts flowmap publish path/to/project --from .debrute/flowmaps/image-production.draft.yaml
+pnpm exec tsx apps/debrute-cli/src/index.ts canvas-map publish path/to/project --canvas production-map
 pnpm exec tsx apps/debrute-cli/src/index.ts generated-asset lookup path/to/project --path generated/example.png
 pnpm exec tsx apps/debrute-cli/src/index.ts llm request --input-json '{"prompt":"Summarize this project."}'
 pnpm exec tsx apps/debrute-cli/src/index.ts models image list
@@ -149,21 +153,18 @@ Do not include model API keys in generation requests; Debrute reads configured k
 
 Model request failures keep the stable CLI error code and include the Debrute model id, message, and structured logs when available.
 
-Minimal Flowmap draft:
+Minimal Canvas Map:
 
 ```yaml
-schemaVersion: 1
-canvases:
-  - production-map
-include:
-  - "**/*.png"
+- outputs/gpt/
+- prompts/cover.md
 ```
 
 ## Storage Boundaries
 
 Project metadata and canvas state live under `.debrute/`. Generated asset metadata, LLM provider settings, generation model settings, LLM provider secrets, and generation model secrets live in Debrute-owned runtime storage. Renderer code does not read or write project files, generated asset metadata, model secret files, or Skills directories directly; project and settings operations use the daemon/App Server boundary, while Skills synchronization is owned by the CLI.
 
-The CLI and Skills product posture is command-first: Debrute provides commands, structured output, safety guidance, and Skills for external Agents while not being the Agent itself. `debrute workbench url <project>` is the only CLI browser-facing entrypoint: it starts or reuses the local Workbench runtime, opens the project through the daemon, and returns the Workbench URL without opening a browser. One-shot project, Flowmap, and generation commands do not require the Workbench daemon.
+The CLI and Skills product posture is command-first: Debrute provides commands, structured output, safety guidance, and Skills for external Agents while not being the Agent itself. `debrute workbench url <project>` is the only CLI browser-facing entrypoint: it starts or reuses the local Workbench runtime, opens the project through the daemon, and returns the Workbench URL without opening a browser. One-shot project, Canvas Map, and generation commands do not require the Workbench daemon.
 
 ## License
 

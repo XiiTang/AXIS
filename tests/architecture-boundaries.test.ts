@@ -97,13 +97,13 @@ describe('Debrute architecture boundaries', () => {
     )).toEqual(['@debrute/app-protocol']);
   });
 
-  it('keeps App Server project, Flowmap, and Canvas ownership out of the coordinator', () => {
+  it('keeps App Server project, Canvas Map, and Canvas ownership out of the coordinator', () => {
     for (const file of [
       'apps/app-server/src/project-session/projectSnapshot.ts',
       'apps/app-server/src/project-session/projectFileOperations.ts',
       'apps/app-server/src/project-session/projectHealth.ts',
       'apps/app-server/src/project-session/projectWatchEvents.ts',
-      'apps/app-server/src/flowmap/FlowmapSessionService.ts',
+      'apps/app-server/src/canvas-map/CanvasMapSessionService.ts',
       'apps/app-server/src/canvas/CanvasProjectionService.ts',
       'apps/app-server/src/canvas/CanvasSessionService.ts'
     ]) {
@@ -240,10 +240,10 @@ describe('Debrute architecture boundaries', () => {
 
   it('keeps generated TypeScript output out of source directories', () => {
     for (const file of [
-      'packages/flowmap-core/src/index.js',
-      'packages/flowmap-core/src/index.js.map',
-      'packages/flowmap-core/src/index.d.ts',
-      'packages/flowmap-core/src/index.d.ts.map',
+      'packages/canvas-map-core/src/index.js',
+      'packages/canvas-map-core/src/index.js.map',
+      'packages/canvas-map-core/src/index.d.ts',
+      'packages/canvas-map-core/src/index.d.ts.map',
       'apps/daemon/src/index.js',
       'apps/daemon/src/index.js.map',
       'apps/daemon/src/index.d.ts',

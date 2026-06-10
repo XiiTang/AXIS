@@ -215,28 +215,23 @@ describe('DebruteAppServer CLI service methods', () => {
     }
   });
 
-  it('does not synchronize Flowmaps into Canvas files for CLI project status reads', async () => {
+  it('does not compile Canvas Maps into Canvas files for CLI project status reads', async () => {
     const root = await mkdtemp(join(tmpdir(), 'debrute-app-server-cli-readonly-status-'));
     const server = new DebruteAppServer();
     try {
       await server.initProjectForCli(root);
       await mkdir(join(root, 'production'), { recursive: true });
       await writeFile(join(root, 'production/story.md'), '# Story\n', 'utf8');
-      await mkdir(join(root, '.debrute/flowmaps'), { recursive: true });
-      await writeFile(join(root, '.debrute/flowmaps/production.draft.yaml'), [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "**/*.md"',
+      await mkdir(join(root, '.debrute/canvas-maps'), { recursive: true });
+      await writeFile(join(root, '.debrute/canvas-maps/production-map.yaml'), [
+        '- production/**/*.md',
         ''
       ].join('\n'), 'utf8');
-      await server.publishFlowmapDraftForProject(root, {
-        sourceDraftPath: '.debrute/flowmaps/production.draft.yaml'
-      });
+      await server.publishCanvasMapForProject(root, { canvasId: 'production-map' });
 
       const canvasPath = join(root, '.debrute/canvases/production-map.json');
       const before = await readFile(canvasPath, 'utf8');
+      await writeFile(join(root, '.debrute/canvas-maps/production-map.yaml'), '- missing/future.md\n', 'utf8');
 
       await server.projectStatusForCli(root);
 

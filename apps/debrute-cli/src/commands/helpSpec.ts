@@ -1,7 +1,7 @@
 export type DebruteCommandScope = 'runtime' | 'project' | 'generation';
 export type DebruteCommandRisk = 'read' | 'write' | 'generate' | 'destructive';
 export type DebruteCommandRequirement = 'none' | 'project' | 'project-session' | 'model-config' | 'secrets';
-export type DebruteCommandWrites = 'none' | 'debrute-project' | 'flowmap' | 'assets' | 'metadata' | 'skills' | 'logs';
+export type DebruteCommandWrites = 'none' | 'debrute-project' | 'canvas-map' | 'assets' | 'metadata' | 'skills' | 'logs';
 
 export interface DebruteCommandSpec {
   command: string;
@@ -45,7 +45,7 @@ export const commandSpecs: DebruteCommandSpec[] = [
   spec('project.status', ['project', 'status'], 'project', 'read', 'project', 'none', '<project>', 'project status record', PROJECT_LOAD_ERRORS),
   spec('project.validate', ['project', 'validate'], 'project', 'read', 'project', 'none', '<project>', 'validation problem records', [...PROJECT_LOAD_ERRORS, 'project_validation_failed']),
   spec('workbench.url', ['workbench', 'url'], 'runtime', 'write', 'project', 'debrute-project', '<project>', 'Workbench URL and runtime port fields', [...PROJECT_LOAD_ERRORS, ...WORKBENCH_RUNTIME_ERRORS]),
-  spec('flowmap.publish', ['flowmap', 'publish'], 'project', 'write', 'project', 'flowmap', '<project> --from <draft-path>', 'flowmap publish record', [...PROJECT_LOAD_ERRORS, 'flowmap_invalid_draft_path', 'flowmap_draft_read_failed', 'flowmap_invalid_yaml']),
+  spec('canvas-map.publish', ['canvas-map', 'publish'], 'project', 'write', 'project', 'canvas-map', '<project> --canvas <canvas-id>', 'Canvas Map publish record', [...PROJECT_LOAD_ERRORS, 'canvas_map_invalid_canvas_id', 'canvas_map_invalid_path', 'canvas_map_read_failed', 'canvas_map_invalid_yaml', 'canvas_map_canvas_missing']),
   spec('generated-asset.lookup', ['generated-asset', 'lookup'], 'project', 'read', 'project', 'none', '<project> --path <project-relative-path>', 'generated asset metadata record', PROJECT_LOAD_ERRORS),
   spec('generate.image', ['generate', 'image'], 'generation', 'generate', 'project-session', 'assets', '<project> --input-json <json>', 'generated image artifact records', [...PROJECT_LOAD_ERRORS, 'invalid_json_input', ...MODEL_RUNTIME_ERRORS]),
   spec('generate.image-batch', ['generate', 'image-batch'], 'generation', 'generate', 'project-session', 'assets', '<project> --manifest <path> --log <path> | <project> --input-jsonl <path> --log <path>', 'batch summary records', [...PROJECT_LOAD_ERRORS, ...MODEL_RUNTIME_ERRORS]),

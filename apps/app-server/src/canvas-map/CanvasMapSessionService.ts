@@ -1,0 +1,274 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import {
+  getDebruteProjectPaths,
+  listDebruteProjectFiles,
+  normalizeProjectRelativePath,
+  readProjectMetadata,
+  readProjectTextFile,
+  resolveExistingProjectPath,
+  resolveProjectPathForWrite
+} from '@debrute/project-core';
+import {
+  reconcileCanvasNodeElements,
+  type CanvasDesiredNode,
+  type CanvasDocument,
+  type CanvasLayoutSize
+} from '@debrute/canvas-core';
+import {
+  CanvasMapError,
+  canvasMapPath,
+  canvasMapSourceHash,
+  expandCanvasMap,
+  parseCanvasMap,
+  serializeCanvasMapWithRule,
+  type ExpandedCanvasMap
+} from '@debrute/canvas-map-core';
+import { canvasMediaKindFromPath } from '../canvas/CanvasProjectionService.js';
+
+export interface CanvasMapSessionServiceOptions {
+  ensureCanvas(projectRoot: string, canvasId: string): Promise<void>;
+  loadCanvases(projectRoot: string): Promise<CanvasDocument[]>;
+  resolveCanvasNodeLayoutSize(projectRoot: string, node: CanvasDesiredNode): Promise<CanvasLayoutSize>;
+  writeCanvasJson(canvasPath: string, canvas: CanvasDocument): Promise<void>;
+  suppressInternalProjectPathEvent(absolutePath: string, content?: string): void;
+  clearInternalProjectPathEvent(absolutePath: string): void;
+}
+
+export interface CanvasMapPublishResult {
+  ok: true;
+  command: 'canvas-map.publish';
+  canvasId: string;
+}
+
+export interface AddProjectPathToCanvasMapResult {
+  canvas: CanvasDocument;
+  centerProjectRelativePath: string;
+}
+
+interface PreparedCanvasMapPublish {
+  sourceHash: string;
+  currentCanvas: CanvasDocument;
+  nextCanvas: CanvasDocument;
+  desired: CanvasDesiredNode[];
+}
+
+export class CanvasMapSessionService {
+  private readonly sourceHashByCanvasId = new Map<string, string>();
+
+  constructor(private readonly options: CanvasMapSessionServiceOptions) {}
+
+  async publishCanvasMapForProject(projectRoot: string, input: { canvasId: string }): Promise<CanvasMapPublishResult> {
+    await readProjectMetadata(projectRoot);
+    const sourcePath = canvasMapPath(input.canvasId);
+    const source = await this.readCanvasMapSource(projectRoot, sourcePath);
+    const prepared = await this.prepareCanvasMapPublish(projectRoot, {
+      canvasId: input.canvasId,
+      sourceContent: source.content,
+      createCanvasIfMissing: true
+    });
+    await this.options.writeCanvasJson(canvasPathFor(projectRoot, input.canvasId), prepared.nextCanvas);
+    this.sourceHashByCanvasId.set(input.canvasId, prepared.sourceHash);
+    return { ok: true, command: 'canvas-map.publish', canvasId: input.canvasId };
+  }
+
+  async addProjectPathToCanvasMap(
+    projectRoot: string,
+    input: { canvasId: string; projectRelativePath: string }
+  ): Promise<AddProjectPathToCanvasMapResult> {
+    const normalizedProjectPath = normalizeProjectRelativePath(input.projectRelativePath);
+    const absolutePath = await resolveExistingProjectPath(projectRoot, normalizedProjectPath).catch(() => {
+      throw new CanvasMapError(`Canvas Map target path is missing: ${normalizedProjectPath}`, 'canvas_map_target_missing');
+    });
+    const targetStat = await stat(absolutePath);
+    if (!targetStat.isFile() && !targetStat.isDirectory()) {
+      throw new CanvasMapError(`Canvas Map target path must be a file or directory: ${normalizedProjectPath}`, 'canvas_map_target_missing');
+    }
+
+    const sourcePath = canvasMapPath(input.canvasId);
+    const source = await this.readCanvasMapSource(projectRoot, sourcePath);
+    const sourceHash = canvasMapSourceHash(source.content);
+    await this.ensureDragSourceHash(projectRoot, input.canvasId, source.content, sourceHash);
+
+    const rule = targetStat.isDirectory()
+      ? `${normalizedProjectPath}/`
+      : normalizedProjectPath;
+    const nextContent = serializeCanvasMapWithRule(source.content, rule);
+    const prepared = await this.prepareCanvasMapPublish(projectRoot, {
+      canvasId: input.canvasId,
+      sourceContent: nextContent,
+      createCanvasIfMissing: false
+    });
+    await this.writeInternalCanvasMapTextFile(
+      await resolveProjectPathForWrite(projectRoot, sourcePath),
+      nextContent
+    );
+    await this.options.writeCanvasJson(canvasPathFor(projectRoot, input.canvasId), prepared.nextCanvas);
+    this.sourceHashByCanvasId.set(input.canvasId, prepared.sourceHash);
+    return {
+      canvas: prepared.nextCanvas,
+      centerProjectRelativePath: normalizedProjectPath
+    };
+  }
+
+  sourceHash(canvasId: string): string | undefined {
+    return this.sourceHashByCanvasId.get(canvasId);
+  }
+
+  private async readCanvasMapSource(projectRoot: string, sourcePath: string): Promise<{ content: string }> {
+    try {
+      return await readProjectTextFile(projectRoot, sourcePath);
+    } catch {
+      throw new CanvasMapError('Canvas Map source could not be read.', 'canvas_map_read_failed');
+    }
+  }
+
+  private async readCanvas(projectRoot: string, canvasId: string): Promise<CanvasDocument> {
+    const canvas = (await this.options.loadCanvases(projectRoot)).find((item) => item.id === canvasId);
+    if (!canvas) {
+      throw new CanvasMapError(`Canvas JSON is missing: .debrute/canvases/${canvasId}.json`, 'canvas_map_canvas_missing');
+    }
+    return canvas;
+  }
+
+  private async prepareCanvasMapPublish(
+    projectRoot: string,
+    input: { canvasId: string; sourceContent: string; createCanvasIfMissing: boolean }
+  ): Promise<PreparedCanvasMapPublish> {
+    const sourcePath = canvasMapPath(input.canvasId);
+    const map = parseCanvasMap({
+      canvasId: input.canvasId,
+      sourcePath,
+      content: input.sourceContent
+    });
+    const expanded = expandCanvasMap(map, await listDebruteProjectFiles(projectRoot));
+    const prepared = await this.prepareExpandedCanvasMapProjection(projectRoot, expanded);
+    if (input.createCanvasIfMissing) {
+      await this.options.ensureCanvas(projectRoot, input.canvasId);
+    }
+    const currentCanvas = await this.readCanvas(projectRoot, input.canvasId);
+    return {
+      sourceHash: canvasMapSourceHash(input.sourceContent),
+      currentCanvas,
+      nextCanvas: {
+        ...currentCanvas,
+        nodeElements: reconcileCanvasNodeElements({
+          existing: currentCanvas.nodeElements,
+          desired: prepared.desired,
+          layoutSizeForNode: (node) => requiredLayoutSize(prepared.layoutSizes, node.projectRelativePath)
+        })
+      },
+      desired: prepared.desired
+    };
+  }
+
+  private async ensureDragSourceHash(
+    projectRoot: string,
+    canvasId: string,
+    sourceContent: string,
+    sourceHash: string
+  ): Promise<void> {
+    const previousHash = this.sourceHashByCanvasId.get(canvasId);
+    if (previousHash === sourceHash) {
+      return;
+    }
+    if (previousHash) {
+      throwCanvasMapConflict();
+    }
+    const prepared = await this.prepareCanvasMapPublish(projectRoot, {
+      canvasId,
+      sourceContent,
+      createCanvasIfMissing: false
+    });
+    if (!canvasHasExactlyDesiredNodes(prepared.currentCanvas, prepared.desired)) {
+      throwCanvasMapConflict();
+    }
+    this.sourceHashByCanvasId.set(canvasId, sourceHash);
+  }
+
+  private async prepareExpandedCanvasMapProjection(
+    projectRoot: string,
+    expanded: ExpandedCanvasMap
+  ): Promise<{ desired: CanvasDesiredNode[]; layoutSizes: Map<string, CanvasLayoutSize> }> {
+    const candidates = expanded.nodes.map((node): CanvasDesiredNode => ({
+      projectRelativePath: node.projectRelativePath,
+      nodeKind: node.nodeKind,
+      ...(node.nodeKind === 'file' ? { mediaKind: canvasMediaKindFromPath(node.projectRelativePath) } : {})
+    }));
+    const layoutSizes = new Map<string, CanvasLayoutSize>();
+    for (const node of candidates) {
+      try {
+        layoutSizes.set(node.projectRelativePath, await this.options.resolveCanvasNodeLayoutSize(projectRoot, node));
+      } catch (error) {
+        throw new CanvasMapError(
+          `Canvas Map node layout could not be read: ${node.projectRelativePath}: ${errorMessage(error)}`,
+          'canvas_map_invalid_path'
+        );
+      }
+    }
+    return {
+      desired: candidates,
+      layoutSizes
+    };
+  }
+
+  private async writeInternalCanvasMapTextFile(absolutePath: string, content: string): Promise<void> {
+    this.options.suppressInternalProjectPathEvent(absolutePath, content);
+    let staged: Awaited<ReturnType<typeof stageFileAtomicText>> | undefined;
+    try {
+      staged = await stageFileAtomicText(absolutePath, content);
+      await staged.commit();
+    } catch (error) {
+      this.options.clearInternalProjectPathEvent(absolutePath);
+      if (staged) {
+        await staged.cleanup();
+      }
+      throw new CanvasMapError(`Canvas Map file could not be written: ${errorMessage(error)}`, 'canvas_map_write_failed');
+    }
+  }
+}
+
+async function stageFileAtomicText(absolutePath: string, content: string): Promise<{ commit: () => Promise<void>; cleanup: () => Promise<void> }> {
+  await mkdir(dirname(absolutePath), { recursive: true });
+  const tempPath = `${absolutePath}.${randomUUID()}.tmp`;
+  await writeFile(tempPath, content, 'utf8');
+  return {
+    commit: () => rename(tempPath, absolutePath),
+    cleanup: () => rm(tempPath, { force: true })
+  };
+}
+
+function requiredLayoutSize(layoutSizes: Map<string, CanvasLayoutSize>, projectRelativePath: string): CanvasLayoutSize {
+  const size = layoutSizes.get(projectRelativePath);
+  if (!size) {
+    throw new Error(`Canvas node layout is missing: ${projectRelativePath}`);
+  }
+  return size;
+}
+
+function canvasPathFor(projectRoot: string, canvasId: string): string {
+  return join(getDebruteProjectPaths(projectRoot).canvasesDir, `${canvasId}.json`);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function canvasHasExactlyDesiredNodes(canvas: CanvasDocument, desired: CanvasDesiredNode[]): boolean {
+  const current = canvas.nodeElements.map(canvasNodeSignature).sort();
+  const expected = desired.map(canvasNodeSignature).sort();
+  return current.length === expected.length
+    && current.every((signature, index) => signature === expected[index]);
+}
+
+function canvasNodeSignature(node: Pick<CanvasDesiredNode, 'projectRelativePath' | 'nodeKind' | 'mediaKind'>): string {
+  return `${node.projectRelativePath}\u0000${node.nodeKind}\u0000${node.mediaKind ?? ''}`;
+}
+
+function throwCanvasMapConflict(): never {
+  throw new CanvasMapError(
+    'Canvas Map changed since the last successful publish. Publish the map, then retry.',
+    'canvas_map_conflict'
+  );
+}

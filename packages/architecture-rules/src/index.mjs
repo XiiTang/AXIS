@@ -43,8 +43,8 @@ export const importMatrix = [
     forbiddenImports: [/^@debrute\/app-protocol$/, /^@debrute\/capability-runtime$/, /^@debrute\/app-server$/, /apps\//, /^electron$/, /^react$/]
   },
   {
-    name: 'flowmap-core stays independent of app and runtime layers',
-    match: (file) => file.startsWith('packages/flowmap-core/src/'),
+    name: 'canvas-map-core stays independent of app and runtime layers',
+    match: (file) => file.startsWith('packages/canvas-map-core/src/'),
     forbiddenImports: [/^@debrute\/app-protocol$/, /^@debrute\/capability-runtime$/, /^@debrute\/app-server$/, /apps\//, /^electron$/, /^react$/]
   },
   {
@@ -86,11 +86,11 @@ export const importMatrix = [
     name: 'cli stays behind app-server and protocol boundaries',
     match: (file) => file.startsWith('apps/debrute-cli/src/'),
     forbiddenImports: [
-      /^@debrute\/flowmap-core$/,
+      /^@debrute\/canvas-map-core$/,
       /^@debrute\/project-core$/,
       /^@debrute\/canvas-core$/,
       /^@debrute\/capability-core$/,
-      /^packages\/flowmap-core\/src\//,
+      /^packages\/canvas-map-core\/src\//,
       /^packages\/project-core\/src\//,
       /^packages\/canvas-core\/src\//,
       /^packages\/capability-core\/src\//
@@ -226,7 +226,7 @@ function packageJsonViolations(file, text) {
   }
   const pkg = JSON.parse(text);
   const dependencies = new Set(Object.keys(pkg.dependencies ?? {}));
-  return ['@debrute/project-core', '@debrute/flowmap-core', '@debrute/canvas-core', '@debrute/capability-core']
+  return ['@debrute/project-core', '@debrute/canvas-map-core', '@debrute/canvas-core', '@debrute/capability-core']
     .filter((dependency) => dependencies.has(dependency))
     .map((dependency) => `cli stays behind app-server and protocol boundaries: ${file} depends on ${dependency}`);
 }
@@ -237,7 +237,7 @@ function tsconfigViolations(file, text) {
   }
   const config = JSON.parse(text);
   const references = (config.references ?? []).map((reference) => reference.path);
-  return ['../../packages/project-core', '../../packages/flowmap-core', '../../packages/canvas-core', '../../packages/capability-core']
+  return ['../../packages/project-core', '../../packages/canvas-map-core', '../../packages/canvas-core', '../../packages/capability-core']
     .filter((reference) => references.includes(reference))
     .map((reference) => `cli stays behind app-server and protocol boundaries: ${file} references ${reference}`);
 }

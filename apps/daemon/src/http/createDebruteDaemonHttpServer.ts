@@ -375,7 +375,7 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
       }
     }
     if (tail.startsWith('/canvases/')) {
-      await handleCanvasRoute(context, tail);
+      await handleCanvasRoute(context, tail, session);
       return;
     }
     if (tail === '/canvas-image-preview') {
@@ -639,10 +639,22 @@ async function handleProjectPathRoute(context: ProjectRequestContext, path: stri
   writeError(context.response, 405, 'method_not_allowed', 'Unsupported project path method.');
 }
 
-async function handleCanvasRoute(context: ProjectRequestContext, tail: string): Promise<void> {
+async function handleCanvasRoute(
+  context: ProjectRequestContext,
+  tail: string,
+  session: ProjectSessionRecord
+): Promise<void> {
   const server = daemonAppServer(context);
   const path = context.url.pathname;
   const canvasId = decodePathSegment(tail.slice('/canvases/'.length).split('/')[0]!);
+  if (path.endsWith('/canvas-map/project-paths') && context.request.method === 'POST') {
+    const body = await readJsonBody<{ projectRelativePath?: unknown }>(context.request);
+    writeJson(context.response, 200, withHttpSnapshot(await server.addProjectPathToCanvasMap({
+      canvasId,
+      projectRelativePath: stringField(body.projectRelativePath, 'projectRelativePath')
+    }), context.runtime.daemonUrl, session));
+    return;
+  }
   if (path.endsWith('/node-layouts') && context.request.method === 'PATCH') {
     writeJson(context.response, 200, await server.updateCanvasNodeLayouts({
       canvasId,
@@ -1184,9 +1196,19 @@ function writeJson(response: ServerResponse, statusCode: number, body: unknown):
   response.end(JSON.stringify(body));
 }
 
-function writeError(response: ServerResponse, statusCode: number, code: string, message: string): void {
+function writeError(
+  response: ServerResponse,
+  statusCode: number,
+  code: string,
+  message: string,
+  details?: Record<string, unknown>
+): void {
   const body: DebruteHttpErrorBody = {
-    error: { code, message }
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {})
+    }
   };
   writeJson(response, statusCode, body);
 }
@@ -1198,6 +1220,10 @@ function writeCaughtError(response: ServerResponse, error: unknown): void {
   }
   if (error instanceof DebruteDaemonHttpError) {
     writeError(response, error.statusCode, error.code, error.message);
+    return;
+  }
+  if (isServiceError(error)) {
+    writeError(response, serviceErrorStatusCode(error.code), error.code, error.message, error.fields);
     return;
   }
   if (isNodeError(error) && error.code === 'ENOENT') {
@@ -1214,6 +1240,23 @@ function writeCaughtError(response: ServerResponse, error: unknown): void {
     return;
   }
   writeError(response, 500, 'internal_error', message);
+}
+
+function isServiceError(error: unknown): error is Error & { code: string; fields: Record<string, unknown> } {
+  return error instanceof Error
+    && typeof (error as { code?: unknown }).code === 'string'
+    && typeof (error as { fields?: unknown }).fields === 'object'
+    && (error as { fields?: unknown }).fields !== null;
+}
+
+function serviceErrorStatusCode(code: string): number {
+  if (code === 'canvas_map_conflict') {
+    return 409;
+  }
+  if (code === 'canvas_map_canvas_missing' || code === 'canvas_map_target_missing') {
+    return 404;
+  }
+  return 400;
 }
 
 function stringField(value: unknown, name: string): string {

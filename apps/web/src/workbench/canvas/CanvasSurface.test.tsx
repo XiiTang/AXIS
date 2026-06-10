@@ -11,6 +11,7 @@ import { areCanvasNodeShellPropsEqual, CanvasNodeShell, type CanvasNodeShellProp
 import {
   CanvasSurface,
   canvasImageResourceZoomPreviewSignature,
+  canvasMapProjectTreeDropEntry,
   createCanvasRenderSnapshotScheduler,
   recordCanvasPerfFrame,
   shouldUseEfficientImageResourceZoom,
@@ -28,7 +29,7 @@ import type { CanvasSelection } from './runtime/canvasSelection';
 import { createCanvasEditorRuntime, type CanvasEditorRuntime } from './runtime/CanvasEditorRuntime';
 
 describe('CanvasSurface', () => {
-  it('renders an empty Flowmap node state', () => {
+  it('renders an empty Canvas Map node state', () => {
     const canvas = createCanvasDocument({ id: 'empty-canvas', title: 'Empty Canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
@@ -40,7 +41,18 @@ describe('CanvasSurface', () => {
     const html = renderToStaticMarkup(surface(canvas, projection));
 
     expect(html).toContain('data-testid="canvas-empty-state"');
-    expect(html).toContain('No Flowmap nodes');
+    expect(html).toContain('No Canvas Map nodes');
+  });
+
+  it('accepts exactly one project tree entry for Canvas Map drops', () => {
+    expect(canvasMapProjectTreeDropEntry(projectTreeDragDataTransfer([
+      { kind: 'file', projectRelativePath: 'outputs/gpt/cover.png' }
+    ]))?.projectRelativePath).toBe('outputs/gpt/cover.png');
+    expect(canvasMapProjectTreeDropEntry(projectTreeDragDataTransfer([]))).toBeUndefined();
+    expect(canvasMapProjectTreeDropEntry(projectTreeDragDataTransfer([
+      { kind: 'file', projectRelativePath: 'outputs/gpt/a.png' },
+      { kind: 'file', projectRelativePath: 'outputs/gpt/b.png' }
+    ]))).toBeUndefined();
   });
 
   it('renders projected nodes without delete controls', () => {
@@ -1177,6 +1189,7 @@ const actions: WorkbenchActions = {
   updateCanvasNodeLayouts: async () => undefined,
   updateCanvasNodeLayers: async () => undefined,
   updateCanvasFeedbackEntry: async () => undefined,
+  addProjectPathToCanvasMap: async () => undefined,
   openProject: async () => undefined
 };
 
@@ -1184,3 +1197,9 @@ const emptyIntegrationsSettings: IntegrationSettingsView = {
   integrations: [],
   backends: []
 };
+
+function projectTreeDragDataTransfer(entries: Array<{ kind: 'file' | 'directory'; projectRelativePath: string }>): Pick<DataTransfer, 'getData'> {
+  return {
+    getData: () => JSON.stringify(entries)
+  };
+}

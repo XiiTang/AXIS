@@ -361,8 +361,11 @@ export function WorkbenchApp(): React.ReactElement {
   const activeProjection = activeCanvas
     ? snapshot?.projections.find((item) => item.canvasId === activeCanvas.id)
     : undefined;
-  const locateProjectFileInCanvas = useCallback((projectRelativePath: string) => {
-    const node = activeProjection?.nodes.find((item) => item.projectRelativePath === projectRelativePath);
+  const centerCanvasProjectionNode = useCallback((
+    projection: WorkbenchProjectSessionSnapshot['projections'][number] | undefined,
+    projectRelativePath: string
+  ) => {
+    const node = projection?.nodes.find((item) => item.projectRelativePath === projectRelativePath);
     const runtimeSnapshot = activeCanvasRuntime?.getSnapshot();
     if (!node || !activeCanvasRuntime || !runtimeSnapshot?.surfaceSize) {
       return;
@@ -373,7 +376,10 @@ export function WorkbenchApp(): React.ReactElement {
       surfaceSize: runtimeSnapshot.surfaceSize,
       camera: runtimeSnapshot.camera
     }));
-  }, [activeCanvasRuntime, activeProjection]);
+  }, [activeCanvasRuntime]);
+  const locateProjectFileInCanvas = useCallback((projectRelativePath: string) => {
+    centerCanvasProjectionNode(activeProjection, projectRelativePath);
+  }, [activeProjection, centerCanvasProjectionNode]);
 
   const state: WorkbenchState = {
     snapshot,
@@ -529,10 +535,22 @@ export function WorkbenchApp(): React.ReactElement {
         ...input
       });
     },
-    updateCanvasFeedbackEntry
+    updateCanvasFeedbackEntry,
+    addProjectPathToCanvasMap: async (input) => {
+      try {
+        const result = await api.addProjectPathToCanvasMap(input);
+        setSnapshot(result.snapshot);
+        setActiveCanvasId(result.canvas.id);
+        setExplorerSelection(projectTreeSelectionFromPaths([result.centerProjectRelativePath]));
+        centerCanvasProjectionNode(result.projection, result.centerProjectRelativePath);
+      } catch (error) {
+        setNotifications((current) => [`Add to Canvas Map failed: ${errorMessage(error)}`, ...current].slice(0, 4));
+      }
+    }
   }), [
     activeCanvasId,
     activeCanvasRuntime,
+    centerCanvasProjectionNode,
     locateProjectFileInCanvas,
     ensureTextFileBuffer,
     lookupGeneratedAssetMetadata,

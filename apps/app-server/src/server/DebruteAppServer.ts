@@ -55,13 +55,18 @@ import {
   type VideoModelRequestInput,
   type VideoModelFetch
 } from '@debrute/capability-runtime';
-import { FlowmapError } from '@debrute/flowmap-core';
+import {
+  CanvasMapError,
+  canvasMapPath
+} from '@debrute/canvas-map-core';
 import type {
+  AddProjectPathToCanvasMapInput,
   AppServerEvent,
   ProjectFileBatchOperationResult,
   GeneratedAssetMetadataLookup,
   GeneratedAssetRecord,
   ProjectFileOperationResult,
+  ProjectAddProjectPathToCanvasMapResult,
   ProjectHealthSummary,
   ProjectSessionSnapshot,
   RunImageModelBatchInput,
@@ -89,7 +94,7 @@ import {
 } from '../canvas/CanvasImagePreviewService.js';
 import { CanvasProjectionService } from '../canvas/CanvasProjectionService.js';
 import { CanvasSessionService } from '../canvas/CanvasSessionService.js';
-import { FlowmapSessionService } from '../flowmap/FlowmapSessionService.js';
+import { CanvasMapSessionService } from '../canvas-map/CanvasMapSessionService.js';
 import { loadProjectSnapshot } from '../project-session/projectSnapshot.js';
 import {
   copyProjectPathsWithSnapshot,
@@ -169,7 +174,7 @@ export class DebruteAppServer {
   private readonly canvasImagePreviewService: CanvasImagePreviewService;
   private readonly canvasProjectionService: CanvasProjectionService;
   private readonly canvasSessionService: CanvasSessionService;
-  private readonly flowmapSessionService: FlowmapSessionService;
+  private readonly canvasMapSessionService: CanvasMapSessionService;
   private snapshot: ProjectSessionSnapshot | undefined;
   private snapshotLoadedAt = 0;
   private fileWatchHandle: ProjectFileWatchHandle | undefined;
@@ -187,8 +192,9 @@ export class DebruteAppServer {
       clearInternalProjectPathEvent: (absolutePath) => this.clearInternalProjectPathEvent(absolutePath),
       projectCanvasWithKnownAvailability: (canvas, projection) => this.canvasProjectionService.projectCanvasWithKnownAvailability(canvas, projection)
     });
-    this.flowmapSessionService = new FlowmapSessionService({
+    this.canvasMapSessionService = new CanvasMapSessionService({
       ensureCanvas: (projectRoot, canvasId) => this.canvasSessionService.ensureCanvas(projectRoot, canvasId, fileExists),
+      loadCanvases: (projectRoot) => this.canvasSessionService.loadCanvases(projectRoot),
       resolveCanvasNodeLayoutSize: (projectRoot, node) => this.resolveCanvasNodeLayoutSize(projectRoot, node),
       writeCanvasJson: (canvasPath, canvas) => this.canvasSessionService.writeCanvasJson(canvasPath, canvas),
       suppressInternalProjectPathEvent: (absolutePath, content) => this.suppressInternalProjectPathEvent(absolutePath, content),
@@ -254,7 +260,7 @@ export class DebruteAppServer {
   }
 
   async projectStatusForCli(projectRoot: string): Promise<ProjectSessionSnapshot> {
-    return this.loadSnapshot(projectRoot, { writeFlowmapCanvasChanges: false });
+    return this.loadSnapshot(projectRoot);
   }
 
   async runtimeStatusForCli(): Promise<CliRuntimeStatus> {
@@ -407,24 +413,42 @@ export class DebruteAppServer {
     });
   }
 
-  async publishFlowmapDraft(input: { sourceDraftPath: string }): Promise<{ ok: true; command: 'flowmap.publish' }> {
-    const current = this.getSnapshot();
-    return this.publishFlowmapDraftForProject(current.projectRoot, input);
-  }
-
-  async publishFlowmapDraftForProject(projectRoot: string, input: { sourceDraftPath: string }): Promise<{ ok: true; command: 'flowmap.publish' }> {
+  async publishCanvasMapForProject(projectRoot: string, input: { canvasId: string }): Promise<{ ok: true; command: 'canvas-map.publish'; canvasId: string }> {
     try {
-      return await this.flowmapSessionService.publishFlowmapDraftForProject(projectRoot, input);
+      return await this.canvasMapSessionService.publishCanvasMapForProject(projectRoot, input);
     } catch (error) {
-      if (error instanceof FlowmapError) {
-        throw serviceError(error.code, error.message, {
-          file_path: input.sourceDraftPath,
-          ...(error.line !== undefined ? { line: error.line } : {}),
-          ...(error.column !== undefined ? { column: error.column } : {})
-        });
+      if (error instanceof CanvasMapError) {
+        throw canvasMapServiceError(error, input.canvasId);
       }
       throw error;
     }
+  }
+
+  async addProjectPathToCanvasMap(input: AddProjectPathToCanvasMapInput): Promise<ProjectAddProjectPathToCanvasMapResult> {
+    return this.enqueueSessionOperation(async () => {
+      const current = this.getSnapshot();
+      let writeback: Awaited<ReturnType<CanvasMapSessionService['addProjectPathToCanvasMap']>>;
+      try {
+        writeback = await this.canvasMapSessionService.addProjectPathToCanvasMap(current.projectRoot, input);
+      } catch (error) {
+        if (error instanceof CanvasMapError) {
+          throw canvasMapServiceError(error, input.canvasId);
+        }
+        throw error;
+      }
+      const snapshot = await this.refreshProjectUnlocked();
+      const canvas = snapshot.canvases.find((item) => item.id === input.canvasId);
+      const projection = snapshot.projections.find((item) => item.canvasId === input.canvasId);
+      if (!canvas || !projection) {
+        throw serviceError('canvas_map_canvas_missing', `Canvas is not loaded: ${input.canvasId}`, { canvas_id: input.canvasId });
+      }
+      return {
+        snapshot,
+        canvas,
+        projection,
+        centerProjectRelativePath: writeback.centerProjectRelativePath
+      };
+    });
   }
 
   async updateCanvasNodeLayouts(input: {
@@ -672,25 +696,14 @@ export class DebruteAppServer {
     this.internalProjectFileWrites.delete(absolutePath);
   }
 
-  private async loadSnapshot(
-    projectRoot: string,
-    options: { writeFlowmapCanvasChanges: boolean } = { writeFlowmapCanvasChanges: true }
-  ): Promise<ProjectSessionSnapshot> {
+  private async loadSnapshot(projectRoot: string): Promise<ProjectSessionSnapshot> {
     return loadProjectSnapshot({
       projectRoot,
-      writeFlowmapCanvasChanges: options.writeFlowmapCanvasChanges,
       loadCanvases: (root) => this.canvasSessionService.loadCanvases(root),
-      synchronizeFlowmaps: (root, canvases, files, flowmapOptions) => this.flowmapSessionService.synchronizeFlowmaps(
-        root,
-        canvases,
-        files,
-        flowmapOptions
-      ),
-      projectCanvasDocument: (root, canvas, diagnostics, structureEdges) => this.canvasProjectionService.projectCanvasDocument(
+      projectCanvasDocument: (root, canvas, diagnostics) => this.canvasProjectionService.projectCanvasDocument(
         root,
         canvas,
-        diagnostics,
-        structureEdges
+        diagnostics
       )
     });
   }
@@ -824,4 +837,13 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function canvasMapServiceError(error: CanvasMapError, canvasId: string): Error {
+  return serviceError(error.code, error.message, {
+    canvas_id: canvasId,
+    file_path: canvasMapPath(canvasId),
+    ...(error.line !== undefined ? { line: error.line } : {}),
+    ...(error.column !== undefined ? { column: error.column } : {})
+  });
 }

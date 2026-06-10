@@ -11,7 +11,6 @@ import {
   type CanvasNodeAvailability,
   type CanvasNodeElement,
   type CanvasProjection,
-  type CanvasStructureEdgeProjection,
   type Diagnostic
 } from '@debrute/canvas-core';
 import { canvasImagePreviewSourceInfo } from './CanvasImagePreviewService.js';
@@ -20,8 +19,7 @@ export class CanvasProjectionService {
   async projectCanvasDocument(
     projectRoot: string,
     canvas: CanvasDocument,
-    diagnostics: Diagnostic[] = [],
-    structureEdges: CanvasStructureEdgeProjection[] = []
+    diagnostics: Diagnostic[] = []
   ): Promise<CanvasProjection> {
     const availabilityByPath = new Map(await Promise.all(canvas.nodeElements.map(async (node) => [
       node.projectRelativePath,
@@ -30,7 +28,6 @@ export class CanvasProjectionService {
     return projectCanvas({
       canvas,
       diagnostics,
-      structureEdges,
       nodeAvailability: (node) => availabilityByPath.get(node.projectRelativePath)!
     });
   }
@@ -40,7 +37,6 @@ export class CanvasProjectionService {
     return projectCanvas({
       canvas,
       diagnostics: projection.diagnostics,
-      structureEdges: projection.edges,
       nodeAvailability: (node) => {
         const availability = availabilityByPath.get(node.projectRelativePath);
         if (!availability) {

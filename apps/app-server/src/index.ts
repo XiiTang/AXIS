@@ -37,6 +37,7 @@ export type {
 } from '@debrute/app-protocol';
 
 export type {
+  AddProjectPathToCanvasMapInput,
   AppServerEvent,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
@@ -47,6 +48,7 @@ export type {
   ImageModelSettingsView,
   LlmProviderSettingRecord,
   LlmProviderSettingsView,
+  ProjectAddProjectPathToCanvasMapResult,
   ProjectFileOperationResult,
   ProjectHealthSummary,
   ProjectSessionSnapshot,

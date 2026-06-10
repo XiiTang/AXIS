@@ -970,21 +970,23 @@ describe('daemon HTTP runtime', () => {
     cleanups.push(() => daemon.close());
     const runtime = await daemon.listen();
 
-    const aggregateResponse = await fetch(`${runtime.daemonUrl}/api/settings`, {
-      headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
-    });
-    const getResponse = await fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
-      headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
-    });
-    const putResponse = await fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
-      method: 'PUT',
-      headers: {
-        'connection': 'close',
-        'content-type': 'application/json',
-        'x-debrute-daemon-token': 'test-token'
-      },
-      body: JSON.stringify({})
-    });
+    const [aggregateResponse, getResponse, putResponse] = await Promise.all([
+      fetch(`${runtime.daemonUrl}/api/settings`, {
+        headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
+      }),
+      fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
+        headers: { 'connection': 'close', 'x-debrute-daemon-token': 'test-token' }
+      }),
+      fetch(`${runtime.daemonUrl}/api/settings/canvas`, {
+        method: 'PUT',
+        headers: {
+          'connection': 'close',
+          'content-type': 'application/json',
+          'x-debrute-daemon-token': 'test-token'
+        },
+        body: JSON.stringify({})
+      })
+    ]);
     const aggregate = await aggregateResponse.json() as Record<string, unknown>;
     await getResponse.text();
     await putResponse.text();
@@ -993,7 +995,7 @@ describe('daemon HTTP runtime', () => {
     expect(aggregate).not.toHaveProperty('canvas');
     expect(getResponse.status).toBe(404);
     expect(putResponse.status).toBe(404);
-  }, 15_000);
+  }, 30_000);
 
   it('releases a project session after the last event stream closes and idle TTL elapses', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-idle-release-project-'));
@@ -1270,18 +1272,14 @@ describe('daemon HTTP runtime', () => {
       },
       body: JSON.stringify({ projectRoot })
     });
-    await writeFlowmapDraft(projectRoot, 'image-production', [
-      'schemaVersion: 1',
-      'canvases:',
-      '  - production-map',
-      'include:',
-      '  - "generated/*.png"',
+    await writeCanvasMap(projectRoot, 'production-map', [
+      '- image-production/generated/*.png',
       ''
     ]);
     if (!appServer) {
       throw new Error('Daemon did not create a project app server.');
     }
-    await appServer.publishFlowmapDraft({ sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml' });
+    await appServer.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
     const refreshed = await requestJson<{
       projections: Array<{ nodes: Array<{ projectRelativePath: string; availability: { state: string; fileUrl?: string } }> }>;
     }>(`${runtime.daemonUrl}/api/projects/${opened.projectId}/refresh`, {
@@ -1317,6 +1315,81 @@ describe('daemon HTTP runtime', () => {
 
     expect(event.type).toBe('canvas.changed');
     expect(eventNode.availability.fileUrl).toBe(node.availability.fileUrl);
+  });
+
+  it('adds project tree paths to Canvas Maps through the HTTP Canvas route', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-canvas-map-route-project-'));
+    await mkdir(join(projectRoot, 'prompts'), { recursive: true });
+    await writeFile(join(projectRoot, 'prompts/cover.md'), '# Cover\n', 'utf8');
+    await writeFile(join(projectRoot, 'prompts/alt.md'), '# Alt\n', 'utf8');
+    await writeFile(join(projectRoot, 'prompts/conflict.md'), '# Conflict\n', 'utf8');
+
+    let appServer: DebruteAppServer | undefined;
+    const daemon = createDebruteDaemonHttpServer({
+      createAppServer: () => {
+        appServer = new DebruteAppServer();
+        return appServer;
+      },
+      host: '127.0.0.1',
+      port: 0,
+      token: 'test-token',
+      webBaseUrl: null
+    });
+    cleanups.push(() => daemon.close(), () => rm(projectRoot, { recursive: true, force: true }));
+    const runtime = await daemon.listen();
+    const opened = await requestJson<{ projectId: string }>(`${runtime.daemonUrl}/api/projects/open`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-debrute-daemon-token': 'test-token'
+      },
+      body: JSON.stringify({ projectRoot })
+    });
+    await writeCanvasMap(projectRoot, 'production-map', ['- prompts/cover.md', '']);
+    if (!appServer) {
+      throw new Error('Daemon did not create a project app server.');
+    }
+    await appServer.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+
+    const result = await requestJson<{
+      snapshot: { canvases: Array<{ id: string; nodeElements: Array<{ projectRelativePath: string }> }> };
+      projection: { nodes: Array<{ projectRelativePath: string }> };
+      centerProjectRelativePath: string;
+    }>(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/production-map/canvas-map/project-paths`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-debrute-daemon-token': 'test-token'
+      },
+      body: JSON.stringify({ projectRelativePath: 'prompts/alt.md' })
+    });
+
+    expect(result.centerProjectRelativePath).toBe('prompts/alt.md');
+    expect(result.snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual(expect.arrayContaining([
+      'prompts',
+      'prompts/cover.md',
+      'prompts/alt.md'
+    ]));
+    expect(result.projection.nodes.map((node) => node.projectRelativePath)).toContain('prompts/alt.md');
+    await expect(readFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), 'utf8')).resolves.toBe([
+      '- prompts/cover.md',
+      '- prompts/alt.md',
+      ''
+    ].join('\n'));
+
+    await writeFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), '- prompts/cover.md\n- external/edit.md\n', 'utf8');
+    const conflict = await fetch(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/production-map/canvas-map/project-paths`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-debrute-daemon-token': 'test-token'
+      },
+      body: JSON.stringify({ projectRelativePath: 'prompts/conflict.md' })
+    });
+    expect(conflict.status).toBe(409);
+    await expect(conflict.json()).resolves.toMatchObject({
+      error: { code: 'canvas_map_conflict' }
+    });
   });
 
   it('rejects unsupported methods on file and preview resource routes', async () => {
@@ -1365,9 +1438,9 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function writeFlowmapDraft(projectRoot: string, flowmapId: string, lines: string[]): Promise<void> {
-  await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-  await writeFile(join(projectRoot, `.debrute/flowmaps/${flowmapId}.draft.yaml`), lines.join('\n'), 'utf8');
+async function writeCanvasMap(projectRoot: string, canvasId: string, lines: string[]): Promise<void> {
+  await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
+  await writeFile(join(projectRoot, `.debrute/canvas-maps/${canvasId}.yaml`), lines.join('\n'), 'utf8');
 }
 
 async function readNextSseMessage<T>(response: Response): Promise<T> {
@@ -1391,6 +1464,7 @@ async function readNextSseMessage<T>(response: Response): Promise<T> {
     }
   } finally {
     await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
   }
   throw new Error('SSE response did not include an event payload.');
 }

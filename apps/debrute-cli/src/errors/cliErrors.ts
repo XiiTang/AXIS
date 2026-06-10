@@ -9,9 +9,14 @@ export type DebruteCliErrorCode =
   | 'project_not_found'
   | 'project_invalid'
   | 'project_validation_failed'
-  | 'flowmap_invalid_draft_path'
-  | 'flowmap_draft_read_failed'
-  | 'flowmap_invalid_yaml'
+  | 'canvas_map_invalid_yaml'
+  | 'canvas_map_invalid_path'
+  | 'canvas_map_invalid_canvas_id'
+  | 'canvas_map_read_failed'
+  | 'canvas_map_write_failed'
+  | 'canvas_map_conflict'
+  | 'canvas_map_canvas_missing'
+  | 'canvas_map_target_missing'
   | 'model_not_configured'
   | 'model_unavailable'
   | 'model_request_failed'
@@ -161,9 +166,14 @@ function isDebruteCliErrorCode(code: string): code is DebruteCliErrorCode {
     'project_not_found',
     'project_invalid',
     'project_validation_failed',
-    'flowmap_invalid_draft_path',
-    'flowmap_draft_read_failed',
-    'flowmap_invalid_yaml',
+    'canvas_map_invalid_yaml',
+    'canvas_map_invalid_path',
+    'canvas_map_invalid_canvas_id',
+    'canvas_map_read_failed',
+    'canvas_map_write_failed',
+    'canvas_map_conflict',
+    'canvas_map_canvas_missing',
+    'canvas_map_target_missing',
     'model_not_configured',
     'model_unavailable',
     'model_request_failed',

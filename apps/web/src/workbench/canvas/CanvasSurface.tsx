@@ -46,6 +46,7 @@ import {
   useCanvasSelection,
   useCanvasSurfaceSize
 } from './runtime/useCanvasRuntimeSnapshot';
+import { readInternalProjectTreeDragEntries } from '../project-explorer/ProjectTree';
 
 interface CanvasSurfaceProps {
   canvas: CanvasDocument;
@@ -776,6 +777,24 @@ function CanvasSurfaceRuntime({
           runtime.setSelection(undefined);
         }
       }}
+      onDragOver={(event) => {
+        if (!canvasMapProjectTreeDropEntry(event.dataTransfer)) {
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }}
+      onDrop={(event) => {
+        const entry = canvasMapProjectTreeDropEntry(event.dataTransfer);
+        if (!entry) {
+          return;
+        }
+        event.preventDefault();
+        void actions.addProjectPathToCanvasMap({
+          canvasId: canvas.id,
+          projectRelativePath: entry.projectRelativePath
+        });
+      }}
     >
       <div
         ref={stageRef}
@@ -827,11 +846,18 @@ function CanvasSurfaceRuntime({
       </div>
       {projectedNodes.length === 0 ? (
         <div className="canvas-empty-state" data-testid="canvas-empty-state">
-          <strong>No Flowmap nodes</strong>
+          <strong>No Canvas Map nodes</strong>
         </div>
       ) : null}
     </div>
   );
+}
+
+export function canvasMapProjectTreeDropEntry(
+  dataTransfer: Pick<DataTransfer, 'getData'>
+): ReturnType<typeof readInternalProjectTreeDragEntries>[number] | undefined {
+  const entries = readInternalProjectTreeDragEntries(dataTransfer);
+  return entries.length === 1 ? entries[0] : undefined;
 }
 
 export function shouldClearFeedbackBarPlacementForFeedbackTarget(input: {

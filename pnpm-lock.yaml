@@ -69,15 +69,15 @@ importers:
       '@debrute/canvas-core':
         specifier: workspace:*
         version: link:../../packages/canvas-core
+      '@debrute/canvas-map-core':
+        specifier: workspace:*
+        version: link:../../packages/canvas-map-core
       '@debrute/capability-core':
         specifier: workspace:*
         version: link:../../packages/capability-core
       '@debrute/capability-runtime':
         specifier: workspace:*
         version: link:../../packages/capability-runtime
-      '@debrute/flowmap-core':
-        specifier: workspace:*
-        version: link:../../packages/flowmap-core
       '@debrute/project-core':
         specifier: workspace:*
         version: link:../../packages/project-core
@@ -212,6 +212,12 @@ importers:
 
   packages/canvas-core: {}
 
+  packages/canvas-map-core:
+    dependencies:
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+
   packages/capability-core: {}
 
   packages/capability-runtime:
@@ -225,12 +231,6 @@ importers:
       '@debrute/project-core':
         specifier: workspace:*
         version: link:../project-core
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
-
-  packages/flowmap-core:
-    dependencies:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0

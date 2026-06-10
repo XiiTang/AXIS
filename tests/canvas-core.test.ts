@@ -31,31 +31,32 @@ describe('canvas-core', () => {
     });
   });
 
-  it('projects nodes and undirected structure edges', () => {
+  it('projects nodes and derives structure edges from Canvas node paths', () => {
     const canvas = createCanvasWithNodes([
       { projectRelativePath: 'image-production', nodeKind: 'directory', x: 0, y: 0, width: 240, height: 96 },
-      { projectRelativePath: 'image-production/cover.md', nodeKind: 'file', mediaKind: 'text', x: 320, y: 0, width: 420, height: 280 }
+      { projectRelativePath: 'image-production/generated', nodeKind: 'directory', x: 320, y: 0, width: 240, height: 96 },
+      { projectRelativePath: 'image-production/generated/cover.md', nodeKind: 'file', mediaKind: 'text', x: 640, y: 0, width: 420, height: 280 }
     ]);
 
-    const projection = projectCanvas({
-      canvas,
-      structureEdges: [{
-        id: 'image-production--image-production/cover.md',
-        sourceProjectRelativePath: 'image-production',
-        targetProjectRelativePath: 'image-production/cover.md'
-      }],
-      nodeAvailability: availableNode
-    });
+    const projection = projectCanvas({ canvas, nodeAvailability: availableNode });
 
     expect(projection.nodes.map((node) => node.projectRelativePath)).toEqual([
       'image-production',
-      'image-production/cover.md'
+      'image-production/generated',
+      'image-production/generated/cover.md'
     ]);
-    expect(projection.edges).toEqual([{
-      id: 'image-production--image-production/cover.md',
-      sourceProjectRelativePath: 'image-production',
-      targetProjectRelativePath: 'image-production/cover.md'
-    }]);
+    expect(projection.edges).toEqual([
+      {
+        id: 'image-production--image-production/generated',
+        sourceProjectRelativePath: 'image-production',
+        targetProjectRelativePath: 'image-production/generated'
+      },
+      {
+        id: 'image-production/generated--image-production/generated/cover.md',
+        sourceProjectRelativePath: 'image-production/generated',
+        targetProjectRelativePath: 'image-production/generated/cover.md'
+      }
+    ]);
   });
 
   it('marks moved and resized nodes manual and uses projectRelativePath identity', () => {

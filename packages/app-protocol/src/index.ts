@@ -557,6 +557,25 @@ export interface GeneratedAssetsView {
   assets: GeneratedAssetView[];
 }
 
+export interface AddProjectPathToCanvasMapInput {
+  canvasId: string;
+  projectRelativePath: string;
+}
+
+export interface ProjectAddProjectPathToCanvasMapResult {
+  snapshot: ProjectSessionSnapshot;
+  canvas: CanvasDocument;
+  projection: CanvasProjection;
+  centerProjectRelativePath: string;
+}
+
+export interface WorkbenchAddProjectPathToCanvasMapResult {
+  snapshot: WorkbenchProjectSessionSnapshot;
+  canvas: CanvasDocument;
+  projection: CanvasProjection;
+  centerProjectRelativePath: string;
+}
+
 export type AppServerEvent =
   | { type: 'project.opened'; snapshot: ProjectSessionSnapshot }
   | { type: 'project.changed'; snapshot: ProjectSessionSnapshot }
@@ -605,6 +624,7 @@ export interface WorkbenchApiClient {
   readCanvasFeedback(): Promise<CanvasFeedbackDocument>;
   updateCanvasFeedbackEntry(input: UpdateCanvasFeedbackEntryInput): Promise<CanvasFeedbackDocument>;
   refreshProject(): Promise<WorkbenchProjectSessionSnapshot>;
+  addProjectPathToCanvasMap(input: AddProjectPathToCanvasMapInput): Promise<WorkbenchAddProjectPathToCanvasMapResult>;
   updateCanvasNodeLayouts(input: {
     canvasId: string;
     nodeLayouts?: Array<{ projectRelativePath: string; x: number; y: number; width?: number; height?: number }>;

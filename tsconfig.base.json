@@ -25,7 +25,7 @@
       "@debrute/capability-runtime": ["packages/capability-runtime/src/index.ts"],
       "@debrute/project-core": ["packages/project-core/src/index.ts"],
       "@debrute/canvas-core": ["packages/canvas-core/src/index.ts"],
-      "@debrute/flowmap-core": ["packages/flowmap-core/src/index.ts"],
+      "@debrute/canvas-map-core": ["packages/canvas-map-core/src/index.ts"],
       "@debrute/workbench-runtime": ["packages/workbench-runtime/src/index.ts"],
       "@debrute/app-server": ["apps/app-server/src/index.ts"],
       "@debrute/daemon": ["apps/daemon/src/index.ts"]

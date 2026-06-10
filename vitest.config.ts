@@ -22,7 +22,7 @@ export default defineConfig({
       { find: '@debrute/capability-runtime', replacement: resolve(workspaceRoot, 'packages/capability-runtime/src/index.ts') },
       { find: '@debrute/project-core', replacement: resolve(workspaceRoot, 'packages/project-core/src/index.ts') },
       { find: '@debrute/canvas-core', replacement: resolve(workspaceRoot, 'packages/canvas-core/src/index.ts') },
-      { find: '@debrute/flowmap-core', replacement: resolve(workspaceRoot, 'packages/flowmap-core/src/index.ts') },
+      { find: '@debrute/canvas-map-core', replacement: resolve(workspaceRoot, 'packages/canvas-map-core/src/index.ts') },
       { find: '@debrute/workbench-runtime', replacement: resolve(workspaceRoot, 'packages/workbench-runtime/src/index.ts') },
       { find: '@debrute/app-server', replacement: resolve(workspaceRoot, 'apps/app-server/src/index.ts') },
       { find: '@debrute/daemon', replacement: resolve(workspaceRoot, 'apps/daemon/src/index.ts') }

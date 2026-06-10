@@ -11,7 +11,7 @@
     { "path": "../../packages/capability-runtime" },
     { "path": "../../packages/project-core" },
     { "path": "../../packages/canvas-core" },
-    { "path": "../../packages/flowmap-core" }
+    { "path": "../../packages/canvas-map-core" }
   ],
   "include": ["src/**/*.ts"]
 }

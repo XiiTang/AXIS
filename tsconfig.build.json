@@ -6,7 +6,7 @@
     { "path": "packages/canvas-core" },
     { "path": "packages/app-protocol" },
     { "path": "packages/capability-runtime" },
-    { "path": "packages/flowmap-core" },
+    { "path": "packages/canvas-map-core" },
     { "path": "packages/workbench-runtime" },
     { "path": "apps/app-server" },
     { "path": "apps/daemon" },

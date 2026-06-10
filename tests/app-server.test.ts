@@ -378,17 +378,6 @@ describe('app-server', () => {
         annotations: [],
         preferences: { showDiagnostics: true }
       }, null, 2), 'utf8');
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/a.md"',
-        ''
-      ]);
-      await server.publishFlowmapDraftForProject(projectRoot, {
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
 
       const snapshot = await server.openProject(projectRoot, {
         initializeIfMissing: false,
@@ -696,49 +685,40 @@ describe('app-server', () => {
     }
   });
 
-  it('reads, writes, and projects Flowmap nodes on Canvas', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-assets-'));
+  it('reads, writes, and projects Canvas Map nodes on Canvas', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-assets-'));
     const server = new DebruteAppServer();
     try {
       await server.openProject(projectRoot, {
         initializeIfMissing: true,
         createDefaultCanvas: true
       });
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-      await mkdir(join(projectRoot, 'image-production/notes'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/notes/brief.md'), '# Brief\n', 'utf8');
+      await mkdir(join(projectRoot, 'notes'), { recursive: true });
+      await writeFile(join(projectRoot, 'notes/brief.md'), '# Brief\n', 'utf8');
 
-      const textFile = await server.readProjectTextFile('image-production/notes/brief.md');
-      const written = await server.writeProjectTextFile('image-production/notes/output.md', 'done\n');
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "notes/*.md"',
+      const textFile = await server.readProjectTextFile('notes/brief.md');
+      const written = await server.writeProjectTextFile('notes/output.md', 'done\n');
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- notes/*.md',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
       const snapshot = await server.refreshProject();
 
       expect(textFile.content).toBe('# Brief\n');
-      expect(written.projectRelativePath).toBe('image-production/notes/output.md');
-      await expect(readFile(join(projectRoot, 'image-production/notes/output.md'), 'utf8')).resolves.toBe('done\n');
+      expect(written.projectRelativePath).toBe('notes/output.md');
+      await expect(readFile(join(projectRoot, 'notes/output.md'), 'utf8')).resolves.toBe('done\n');
       expect(snapshot.canvases[0]?.nodeElements.map((node) => [node.projectRelativePath, node.nodeKind, node.mediaKind])).toEqual([
-        ['image-production', 'directory', undefined],
-        ['image-production/notes', 'directory', undefined],
-        ['image-production/notes/brief.md', 'file', 'text'],
-        ['image-production/notes/output.md', 'file', 'text']
+        ['notes', 'directory', undefined],
+        ['notes/brief.md', 'file', 'text'],
+        ['notes/output.md', 'file', 'text']
       ]);
-      expect(snapshot.projections[0]?.nodes.find((node) => node.projectRelativePath === 'image-production/notes/brief.md')).toMatchObject({
+      expect(snapshot.projections[0]?.nodes.find((node) => node.projectRelativePath === 'notes/brief.md')).toMatchObject({
         availability: { state: 'available', mimeType: 'text/markdown' }
       });
       expect(snapshot.projections[0]?.edges.map((edge) => [edge.sourceProjectRelativePath, edge.targetProjectRelativePath])).toEqual([
-        ['image-production', 'image-production/notes'],
-        ['image-production/notes', 'image-production/notes/brief.md'],
-        ['image-production/notes', 'image-production/notes/output.md']
+        ['notes', 'notes/brief.md'],
+        ['notes', 'notes/output.md']
       ]);
     } finally {
       server.close();
@@ -746,7 +726,7 @@ describe('app-server', () => {
     }
   });
 
-  it('refreshes project-visible ordinary file changes without requiring a Flowmap', async () => {
+  it('refreshes project-visible ordinary file changes without requiring a Canvas Map', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-refresh-'));
     const server = new DebruteAppServer();
     try {
@@ -768,7 +748,7 @@ describe('app-server', () => {
     }
   });
 
-  it('applies visual-only Canvas updates without synchronizing Flowmaps', async () => {
+  it('applies visual-only Canvas updates without synchronizing Canvas Maps', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-visual-canvas-'));
     let layoutReadsAllowed = true;
     let layoutReadCount = 0;
@@ -776,7 +756,7 @@ describe('app-server', () => {
       canvasNodeLayoutSizeReader: async (input) => {
         layoutReadCount += 1;
         if (!layoutReadsAllowed) {
-          throw new Error(`visual Canvas update synchronized Flowmaps for ${input.projectRelativePath}`);
+          throw new Error(`visual Canvas update synchronized Canvas Maps for ${input.projectRelativePath}`);
         }
         if (input.nodeKind === 'directory') {
           return { width: 240, height: 96 };
@@ -788,21 +768,14 @@ describe('app-server', () => {
       }
     });
     try {
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
       await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
       await writeFile(join(projectRoot, 'image-production/generated/a.png'), await largePreviewablePngBuffer());
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true, watchFiles: false });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/*.png"',
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- image-production/generated/*.png',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
       const synced = await server.refreshProject();
       const nodePath = 'image-production/generated/a.png';
       const checkedAt = synced.health.checkedAt;
@@ -846,143 +819,86 @@ describe('app-server', () => {
     }
   });
 
-  it('publishes Flowmap drafts to generated active YAML and leaves draft source editable', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-publish-'));
-    const server = new DebruteAppServer();
-    try {
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: false });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - main',
-        'include:',
-        '  - "generated/**/*.png"',
-        ''
-      ]);
-      const draftBefore = await readFile(join(projectRoot, '.debrute/flowmaps/image-production.draft.yaml'), 'utf8');
-
-      await expect(server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      })).resolves.toEqual({ ok: true, command: 'flowmap.publish' });
-
-      const active = await readFile(join(projectRoot, '.debrute/flowmaps/image-production.yaml'), 'utf8');
-      const draft = await readFile(join(projectRoot, '.debrute/flowmaps/image-production.draft.yaml'), 'utf8');
-      expect(draft).toBe(draftBefore);
-      expect(active).not.toBe(draft);
-      expect(active).toContain('managed: true');
-      expect(active).toContain('sourceDraft: .debrute/flowmaps/image-production.draft.yaml');
-      expect(active).toContain('contentHash: sha256:');
-      expect(draft).not.toContain('contentHash: sha256:');
-      expect(await readJson(join(projectRoot, '.debrute/canvases/main.json'))).toMatchObject({
-        id: 'main',
-        nodeElements: []
-      });
-      await expect(readFile(join(projectRoot, 'image-production/.keep'), 'utf8')).rejects.toThrow();
-    } finally {
-      server.close();
-      await rm(projectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('rejects Flowmap publish when the draft is missing', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-create-default-'));
-    const server = new DebruteAppServer();
-    try {
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: false });
-
-      await expect(server.publishFlowmapDraftForProject(projectRoot, {
-        sourceDraftPath: '.debrute/flowmaps/new-map.draft.yaml'
-      })).rejects.toMatchObject({ code: 'flowmap_draft_read_failed' });
-
-      await expect(readFile(join(projectRoot, '.debrute/flowmaps/new-map.yaml'), 'utf8')).rejects.toThrow();
-      expect(await directoryExists(join(projectRoot, 'new-map'))).toBe(false);
-    } finally {
-      server.close();
-      await rm(projectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('rejects missing Flowmap drafts when active YAML already exists', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-active-without-draft-'));
-    const server = new DebruteAppServer();
-    try {
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: false });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases: []',
-        'include: []',
-        ''
-      ]);
-      await server.publishFlowmapDraftForProject(projectRoot, {
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
-      await rm(join(projectRoot, '.debrute/flowmaps/image-production.draft.yaml'), { force: true });
-      const activeBefore = await readFile(join(projectRoot, '.debrute/flowmaps/image-production.yaml'), 'utf8');
-
-      await expect(server.publishFlowmapDraftForProject(projectRoot, {
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      })).rejects.toMatchObject({ code: 'flowmap_draft_read_failed' });
-      await expect(readFile(join(projectRoot, '.debrute/flowmaps/image-production.yaml'), 'utf8')).resolves.toBe(activeBefore);
-    } finally {
-      server.close();
-      await rm(projectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('rejects Flowmap publish from non-canonical draft paths', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-draft-path-'));
-    const server = new DebruteAppServer();
-    try {
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await mkdir(join(projectRoot, 'drafts'), { recursive: true });
-      await writeFile(join(projectRoot, 'drafts/image-production.draft.yaml'), [
-        'schemaVersion: 1',
-        'canvases: []',
-        'include: []',
-        ''
-      ].join('\n'), 'utf8');
-
-      await expect(server.publishFlowmapDraft({
-        sourceDraftPath: 'drafts/image-production.draft.yaml'
-      })).rejects.toMatchObject({
-        code: 'flowmap_invalid_draft_path'
-      });
-    } finally {
-      server.close();
-      await rm(projectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('syncs active Flowmaps into Canvas JSON when matching files appear', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-sync-'));
+  it('publishes Canvas Map source into Canvas JSON and preserves manual layout', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-publish-'));
     const server = new DebruteAppServer({
       canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
-        'image-production/generated/a.png': { width: 320, height: 180 }
+        'outputs/gpt/a.png': { width: 100, height: 100 },
+        'outputs/gpt/b.png': { width: 200, height: 50 }
       })
     });
     try {
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-      await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/generated/a.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      await mkdir(join(projectRoot, 'outputs/gpt'), { recursive: true });
+      await writeFile(join(projectRoot, 'outputs/gpt/a.png'), 'fake', 'utf8');
+      await writeFile(join(projectRoot, 'outputs/gpt/b.png'), 'fake', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/**/*.png"',
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- outputs/gpt/',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
+
+      await expect(server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' }))
+        .resolves.toEqual({ ok: true, command: 'canvas-map.publish', canvasId: 'production-map' });
+      await server.refreshProject();
+      await server.updateCanvasNodeLayouts({
+        canvasId: 'production-map',
+        nodeLayouts: [{ projectRelativePath: 'outputs/gpt/b.png', x: 999, y: 888, width: 777, height: 666 }]
       });
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- outputs/gpt/b.png',
+        ''
+      ]);
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+
       const snapshot = await server.refreshProject();
 
-      expect(snapshot.canvases[0]!.nodeElements.map((node) => [node.projectRelativePath, node.nodeKind, node.mediaKind])).toEqual([
-        ['image-production', 'directory', undefined],
-        ['image-production/generated', 'directory', undefined],
-        ['image-production/generated/a.png', 'file', 'image']
+      expect(snapshot.canvases[0]?.nodeElements.map((node) => [node.projectRelativePath, node.layoutMode])).toEqual([
+        ['outputs', undefined],
+        ['outputs/gpt', undefined],
+        ['outputs/gpt/b.png', 'manual']
       ]);
+      expect(snapshot.canvases[0]?.nodeElements.find((node) => node.projectRelativePath === 'outputs/gpt/b.png')).toMatchObject({
+        x: 999,
+        y: 888,
+        width: 777,
+        height: 666
+      });
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves Canvas JSON unchanged when Canvas Map publish fails', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-invalid-'));
+    const server = new DebruteAppServer();
+    try {
+      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
+      await writeCanvasMap(projectRoot, 'production-map', ['- missing/file.md', '']);
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+      const before = await readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8');
+      await mkdir(join(projectRoot, 'outputs/gpt'), { recursive: true });
+      await writeCanvasMap(projectRoot, 'production-map', ['- outputs/gpt', '']);
+
+      await expect(server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' }))
+        .rejects.toMatchObject({ code: 'canvas_map_invalid_path' });
+
+      await expect(readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8')).resolves.toBe(before);
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects Canvas Map publish when the source is missing', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-missing-'));
+    const server = new DebruteAppServer();
+    try {
+      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
+
+      await expect(server.publishCanvasMapForProject(projectRoot, { canvasId: 'new-map' }))
+        .rejects.toMatchObject({ code: 'canvas_map_read_failed' });
+      await expect(readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8')).resolves.toContain('"nodeElements": []');
     } finally {
       server.close();
       await rm(projectRoot, { recursive: true, force: true });
@@ -1014,18 +930,12 @@ describe('app-server', () => {
       }).png().toFile(join(projectRoot, 'image-production/generated/small-still.png'));
       await writeFile(join(projectRoot, 'image-production/generated/animated.gif'), 'gif placeholder', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/*.png"',
-        '  - "generated/*.gif"',
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- image-production/generated/*.png',
+        '- image-production/generated/*.gif',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
 
       const nodes = (await server.refreshProject()).projections[0]!.nodes;
 
@@ -1044,7 +954,7 @@ describe('app-server', () => {
     }
   });
 
-  it('surfaces large raster metadata failures instead of falling back to original image mode', async () => {
+  it('surfaces large raster metadata failures after Canvas Map publish', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-image-preview-metadata-error-'));
     const server = new DebruteAppServer({
       canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
@@ -1055,17 +965,11 @@ describe('app-server', () => {
       await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
       await writeFile(join(projectRoot, 'image-production/generated/broken.png'), Buffer.alloc(1_600_000, 1));
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/*.png"',
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- image-production/generated/*.png',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
 
       const nodes = (await server.refreshProject()).projections[0]!.nodes;
 
@@ -1081,55 +985,8 @@ describe('app-server', () => {
     }
   });
 
-  it('syncs Flowmap horizontal layout groups into Canvas JSON', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-horizontal-groups-'));
-    const server = new DebruteAppServer({
-      canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
-        'image-production/outputs/4k/a.png': { width: 100, height: 100 },
-        'image-production/outputs/4k/b.png': { width: 200, height: 50 },
-        'image-production/outputs/4k/c.png': { width: 80, height: 80 }
-      })
-    });
-    try {
-      await mkdir(join(projectRoot, 'image-production/outputs/4k'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/outputs/4k/a.png'), 'fake', 'utf8');
-      await writeFile(join(projectRoot, 'image-production/outputs/4k/b.png'), 'fake', 'utf8');
-      await writeFile(join(projectRoot, 'image-production/outputs/4k/c.png'), 'fake', 'utf8');
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "outputs/**/*.png"',
-        'layout:',
-        '  groups:',
-        '    - directory: outputs/4k',
-        '      include:',
-        '        - "*.png"',
-        ''
-      ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
-
-      const snapshot = await server.refreshProject();
-
-      expect(snapshot.canvases[0]?.nodeElements.find((node) => node.projectRelativePath === 'image-production/outputs/4k/a.png')).toMatchObject({ x: 1020, y: 0 });
-      expect(snapshot.canvases[0]?.nodeElements.find((node) => node.projectRelativePath === 'image-production/outputs/4k/b.png')).toMatchObject({ x: 1200, y: 25 });
-      expect(snapshot.canvases[0]?.nodeElements.find((node) => node.projectRelativePath === 'image-production/outputs/4k/c.png')).toMatchObject({ x: 1480, y: 10 });
-      expect(snapshot.projections[0]?.edges.map((edge) => [edge.sourceProjectRelativePath, edge.targetProjectRelativePath])).toContainEqual([
-        'image-production/outputs/4k',
-        'image-production/outputs/4k/a.png'
-      ]);
-    } finally {
-      server.close();
-      await rm(projectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('preserves manual node layout and removes absent Flowmap nodes', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-manual-'));
+  it('preserves manual node layout and removes absent Canvas Map nodes', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-manual-'));
     const server = new DebruteAppServer({
       canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
         'image-production/generated/a.png': { width: 100, height: 100 },
@@ -1138,22 +995,15 @@ describe('app-server', () => {
       })
     });
     try {
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
       await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
       await writeFile(join(projectRoot, 'image-production/generated/b.png'), 'fake', 'utf8');
       await writeFile(join(projectRoot, 'image-production/generated/c.png'), 'fake', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/*.png"',
+      await writeCanvasMap(projectRoot, 'production-map', [
+        '- image-production/generated/*.png',
         ''
       ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
       await server.refreshProject();
       await server.updateCanvasNodeLayouts({
         canvasId: 'production-map',
@@ -1161,6 +1011,7 @@ describe('app-server', () => {
       });
       await writeFile(join(projectRoot, 'image-production/generated/a.png'), 'fake', 'utf8');
       await rm(join(projectRoot, 'image-production/generated/c.png'), { force: true });
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
 
       const snapshot = await server.refreshProject();
 
@@ -1176,187 +1027,107 @@ describe('app-server', () => {
     }
   });
 
-  it('reports duplicate Flowmap layout group matches and preserves the last valid Canvas state', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-horizontal-duplicate-'));
+  it('writes dragged files and folders into Canvas Map only when the source hash matches', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-drag-'));
     const server = new DebruteAppServer({
       canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
-        'image-production/outputs/a.png': { width: 100, height: 100 }
+        'outputs/gpt/a.png': { width: 100, height: 100 },
+        'prompts/cover.md': { width: 420, height: 280 }
       })
     });
     try {
-      await mkdir(join(projectRoot, 'image-production/outputs'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/outputs/a.png'), 'fake', 'utf8');
+      await mkdir(join(projectRoot, 'outputs/gpt'), { recursive: true });
+      await mkdir(join(projectRoot, 'prompts'), { recursive: true });
+      await writeFile(join(projectRoot, 'outputs/gpt/a.png'), 'fake', 'utf8');
+      await writeFile(join(projectRoot, 'prompts/cover.md'), '# Cover\n', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "outputs/*.png"',
-        'layout:',
-        '  groups:',
-        '    - directory: outputs',
-        '      include:',
-        '        - "*.png"',
-        ''
-      ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
-      const validSnapshot = await server.refreshProject();
-      expect(validSnapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual([
-        'image-production',
-        'image-production/outputs',
-        'image-production/outputs/a.png'
-      ]);
+      await writeCanvasMap(projectRoot, 'production-map', ['- prompts/cover.md', '']);
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
 
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "outputs/*.png"',
-        'layout:',
-        '  groups:',
-        '    - directory: outputs',
-        '      include:',
-        '        - "*.png"',
-        '    - directory: outputs',
-        '      include:',
-        '        - "a.*"',
-        ''
-      ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
+      const result = await server.addProjectPathToCanvasMap({
+        canvasId: 'production-map',
+        projectRelativePath: 'outputs/gpt'
       });
 
-      const snapshot = await server.refreshProject();
+      expect(result.centerProjectRelativePath).toBe('outputs/gpt');
+      await expect(readFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), 'utf8')).resolves.toBe([
+        '- prompts/cover.md',
+        '- outputs/gpt/',
+        ''
+      ].join('\n'));
+      expect(result.snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toContain('outputs/gpt/a.png');
 
-      expect(snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual([
-        'image-production',
-        'image-production/outputs',
-        'image-production/outputs/a.png'
-      ]);
-      expect(snapshot.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          source: 'flowmap',
-          severity: 'error',
-          code: 'flowmap_layout_group_duplicate_match',
-          message: 'Flowmap layout groups match the same file more than once: image-production/outputs/a.png'
-        })
-      ]));
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), '- prompts/cover.md\n- external/edit.md\n', 'utf8');
+      await expect(server.addProjectPathToCanvasMap({
+        canvasId: 'production-map',
+        projectRelativePath: 'outputs/gpt/a.png'
+      })).rejects.toMatchObject({ code: 'canvas_map_conflict' });
     } finally {
       server.close();
       await rm(projectRoot, { recursive: true, force: true });
     }
   });
 
-  it('reports invalid active Flowmaps and skips their nodes', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-invalid-'));
-    const server = new DebruteAppServer();
+  it('allows a fresh app-server session to drag onto an already published Canvas Map', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-fresh-drag-'));
+    const publisher = new DebruteAppServer();
+    const workbench = new DebruteAppServer();
     try {
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-      await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/generated/a.png'), 'fake', 'utf8');
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "generated/*.png"',
-        ''
-      ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
+      await mkdir(join(projectRoot, 'prompts'), { recursive: true });
+      await writeFile(join(projectRoot, 'prompts/cover.md'), '# Cover\n', 'utf8');
+      await writeFile(join(projectRoot, 'prompts/alt.md'), '# Alt\n', 'utf8');
+      await publisher.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
+      await writeCanvasMap(projectRoot, 'production-map', ['- prompts/cover.md', '']);
+      await publisher.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+      publisher.close();
+
+      await workbench.openProject(projectRoot, { initializeIfMissing: false, createDefaultCanvas: false });
+      const result = await workbench.addProjectPathToCanvasMap({
+        canvasId: 'production-map',
+        projectRelativePath: 'prompts/alt.md'
       });
-      await writeFile(join(projectRoot, '.debrute/flowmaps/image-production.yaml'), `${await readFile(join(projectRoot, '.debrute/flowmaps/image-production.yaml'), 'utf8')}unknown: true\n`, 'utf8');
 
-      const snapshot = await server.refreshProject();
-
-      expect(snapshot.canvases[0]?.nodeElements).toEqual([]);
-      expect(snapshot.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          source: 'flowmap',
-          code: 'flowmap_invalid_yaml'
-        })
+      expect(result.centerProjectRelativePath).toBe('prompts/alt.md');
+      expect(result.snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual(expect.arrayContaining([
+        'prompts',
+        'prompts/cover.md',
+        'prompts/alt.md'
       ]));
+      await expect(readFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), 'utf8')).resolves.toBe([
+        '- prompts/cover.md',
+        '- prompts/alt.md',
+        ''
+      ].join('\n'));
     } finally {
-      server.close();
+      publisher.close();
+      workbench.close();
       await rm(projectRoot, { recursive: true, force: true });
     }
   });
 
-  it('reports unreadable media layout diagnostics without dropping valid Flowmap nodes', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-bad-media-'));
-    const server = new DebruteAppServer();
+  it('does not write Canvas Map YAML when drag publish validation fails', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-drag-atomic-'));
+    const server = new DebruteAppServer({
+      canvasNodeLayoutSizeReader: canvasLayoutSizeReader({
+        'prompts/cover.md': { width: 420, height: 280 }
+      })
+    });
     try {
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-      await mkdir(join(projectRoot, 'image-production'), { recursive: true });
-      await writeFile(join(projectRoot, 'image-production/bad.png'), 'not a png', 'utf8');
-      await writeFile(join(projectRoot, 'image-production/notes.txt'), 'usable text\n', 'utf8');
+      await mkdir(join(projectRoot, 'prompts'), { recursive: true });
+      await mkdir(join(projectRoot, 'outputs'), { recursive: true });
+      await writeFile(join(projectRoot, 'prompts/cover.md'), '# Cover\n', 'utf8');
+      await writeFile(join(projectRoot, 'outputs/bad.png'), 'not a png', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - production-map',
-        'include:',
-        '  - "*"',
-        ''
-      ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
+      await writeCanvasMap(projectRoot, 'production-map', ['- prompts/cover.md', '']);
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
 
-      const snapshot = await server.refreshProject();
+      await expect(server.addProjectPathToCanvasMap({
+        canvasId: 'production-map',
+        projectRelativePath: 'outputs/bad.png'
+      })).rejects.toMatchObject({ code: 'canvas_map_invalid_path' });
 
-      expect(snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual([
-        'image-production',
-        'image-production/notes.txt'
-      ]);
-      expect(snapshot.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          source: 'flowmap',
-          code: 'flowmap_node_layout_unreadable',
-          filePath: join(projectRoot, 'image-production/bad.png')
-        })
-      ]));
-    } finally {
-      server.close();
-      await rm(projectRoot, { recursive: true, force: true });
-    }
-  });
-
-  it('reports missing Flowmap roots and missing mounted Canvas JSON', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-flowmap-missing-'));
-    const server = new DebruteAppServer();
-    try {
-      await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
-      await writeFlowmapDraft(projectRoot, 'image-production', [
-        'schemaVersion: 1',
-        'canvases:',
-        '  - missing-canvas',
-        'include:',
-        '  - "generated/*.png"',
-        ''
-      ]);
-      await server.publishFlowmapDraft({
-        sourceDraftPath: '.debrute/flowmaps/image-production.draft.yaml'
-      });
-      await rm(join(projectRoot, 'image-production'), { recursive: true, force: true });
-
-      const missingRoot = await server.refreshProject();
-      expect(missingRoot.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({ code: 'flowmap_root_missing' })
-      ]));
-
-      await mkdir(join(projectRoot, 'image-production'), { recursive: true });
-      await rm(join(projectRoot, '.debrute/canvases/missing-canvas.json'), { force: true });
-      const missingCanvas = await server.refreshProject();
-      expect(missingCanvas.diagnostics).toEqual(expect.arrayContaining([
-        expect.objectContaining({ code: 'flowmap_canvas_missing' })
-      ]));
+      await expect(readFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), 'utf8')).resolves.toBe('- prompts/cover.md\n');
+      expect(server.getSnapshot().canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).not.toContain('outputs/bad.png');
     } finally {
       server.close();
       await rm(projectRoot, { recursive: true, force: true });
@@ -1401,9 +1172,9 @@ describe('app-server', () => {
   });
 });
 
-async function writeFlowmapDraft(projectRoot: string, flowmapId: string, lines: string[]): Promise<void> {
-  await mkdir(join(projectRoot, '.debrute/flowmaps'), { recursive: true });
-  await writeFile(join(projectRoot, `.debrute/flowmaps/${flowmapId}.draft.yaml`), lines.join('\n'), 'utf8');
+async function writeCanvasMap(projectRoot: string, canvasId: string, lines: string[]): Promise<void> {
+  await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
+  await writeFile(join(projectRoot, `.debrute/canvas-maps/${canvasId}.yaml`), lines.join('\n'), 'utf8');
 }
 
 async function readJson(path: string): Promise<unknown> {
@@ -1420,15 +1191,6 @@ async function largePreviewablePngBuffer(): Promise<Buffer> {
       channels: 3
     }
   }).png().toBuffer();
-}
-
-async function directoryExists(path: string): Promise<boolean> {
-  try {
-    const { stat } = await import('node:fs/promises');
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 function canvasLayoutSizeReader(sizes: Record<string, { width: number; height: number }>) {

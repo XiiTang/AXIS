@@ -1,4 +1,5 @@
 import type {
+  AddProjectPathToCanvasMapInput,
   ImageModelSettingsView,
   DiscoverLlmProviderModelsInput,
   DiscoverProviderModelsOutput,
@@ -93,6 +94,7 @@ export interface WorkbenchActions {
     nodeProjectRelativePathsTopFirst?: string[];
   }) => Promise<void>;
   updateCanvasFeedbackEntry: (input: UpdateCanvasFeedbackEntryInput) => Promise<void>;
+  addProjectPathToCanvasMap: (input: AddProjectPathToCanvasMapInput) => Promise<void>;
   openProject: () => Promise<void>;
 }
 

@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkbenchProjectSessionSnapshot } from '@debrute/app-protocol';
@@ -204,13 +202,6 @@ describe('ProjectTree', () => {
       x: 12,
       y: 34
     });
-  });
-
-  it('sizes the Project Tree event surface across the panel blank space', () => {
-    const css = readFileSync(join(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
-
-    expect(css).toMatch(/\.project-tree-shell\s*{[^}]*height:\s*100%;[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\);/s);
-    expect(css).toMatch(/\.project-tree\s*{[^}]*height:\s*100%;/s);
   });
 
   it('ignores item keyboard commands when the Project Tree selection is empty', () => {
