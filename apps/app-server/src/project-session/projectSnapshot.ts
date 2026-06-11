@@ -13,7 +13,10 @@ import { createProjectHealthSummary } from './projectHealth.js';
 
 export interface LoadProjectSnapshotInput {
   projectRoot: string;
-  loadCanvases(projectRoot: string): Promise<CanvasDocument[]>;
+  loadOrderedCanvases(projectRoot: string): Promise<{
+    canvases: CanvasDocument[];
+    registry: ProjectSessionSnapshot['canvasRegistry'];
+  }>;
   projectCanvasDocument(
     projectRoot: string,
     canvas: CanvasDocument,
@@ -25,12 +28,14 @@ export async function loadProjectSnapshot(input: LoadProjectSnapshotInput): Prom
   const paths = getDebruteProjectPaths(input.projectRoot);
   const metadata = await readProjectMetadata(input.projectRoot);
   const files = await listDebruteProjectFiles(input.projectRoot);
-  const canvases = await input.loadCanvases(input.projectRoot);
-  const projections = await Promise.all(canvases.map((canvas) => input.projectCanvasDocument(
-    input.projectRoot,
-    canvas,
-    []
-  )));
+  const { canvases, registry } = await input.loadOrderedCanvases(input.projectRoot);
+  const projections = registry.status === 'ready'
+    ? await Promise.all(canvases.map((canvas) => input.projectCanvasDocument(
+        input.projectRoot,
+        canvas,
+        []
+      )))
+    : [];
   const diagnostics = uniqueDiagnostics(projections.flatMap((projection) => projection.diagnostics));
 
   return {
@@ -40,6 +45,7 @@ export async function loadProjectSnapshot(input: LoadProjectSnapshotInput): Prom
     canvases,
     projections,
     diagnostics,
+    canvasRegistry: registry,
     health: createProjectHealthSummary({
       metadata,
       canvasCount: canvases.length,

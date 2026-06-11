@@ -35,6 +35,7 @@ export interface DebruteProjectPaths {
   projectFile: string;
   canvasesDir: string;
   canvasMapsDir: string;
+  canvasIndexFile: string;
   globalRuntimeDir: string;
 }
 
@@ -62,7 +63,7 @@ export interface NormalizedFileWatchEvent {
   absolutePath: string;
   projectRelativePath: string;
   observedAt?: number;
-  affects: Array<'canvas' | 'canvas-map' | 'project-metadata' | 'generated-asset-metadata' | 'content'>;
+  affects: Array<'canvas' | 'canvas-registry' | 'canvas-map' | 'project-metadata' | 'generated-asset-metadata' | 'content'>;
 }
 
 export function createProjectIdentity(projectRoot: string, name = basenameFromPath(projectRoot)): ProjectIdentity {
@@ -80,6 +81,7 @@ export function getDebruteProjectPaths(projectRoot: string): DebruteProjectPaths
     projectFile: join(debruteDir, 'project.json'),
     canvasesDir: join(debruteDir, 'canvases'),
     canvasMapsDir: join(debruteDir, 'canvas-maps'),
+    canvasIndexFile: join(debruteDir, 'canvases/index.json'),
     globalRuntimeDir: join(debruteHomeDir(), 'runtime')
   };
 }
@@ -287,7 +289,9 @@ export function normalizeFileWatchEvent(projectRoot: string, absolutePath: strin
       affects
     };
   }
-  if (projectRelativePath.startsWith('.debrute/canvases/') && projectRelativePath.endsWith('.json')) {
+  if (projectRelativePath === '.debrute/canvases/index.json') {
+    affects.push('canvas-registry');
+  } else if (projectRelativePath.startsWith('.debrute/canvases/') && projectRelativePath.endsWith('.json')) {
     affects.push('canvas');
   } else if (projectRelativePath.startsWith('.debrute/canvas-maps/') && projectRelativePath.endsWith('.yaml')) {
     affects.push('canvas-map');

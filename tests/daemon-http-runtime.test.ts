@@ -1431,6 +1431,85 @@ describe('daemon HTTP runtime', () => {
     });
   });
 
+  it('manages canvases through project-scoped HTTP routes', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-canvas-management-project-'));
+    const daemon = createDebruteDaemonHttpServer({
+      host: '127.0.0.1',
+      port: 0,
+      token: 'test-token',
+      webBaseUrl: null
+    });
+    cleanups.push(() => daemon.close(), () => rm(projectRoot, { recursive: true, force: true }));
+    const runtime = await daemon.listen();
+    const opened = await requestJson<{ projectId: string }>(`${runtime.daemonUrl}/api/projects/open`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-debrute-daemon-token': 'test-token'
+      },
+      body: JSON.stringify({ projectRoot })
+    });
+
+    const created = await requestJson<{ activeCanvasId: string; snapshot: { canvasRegistry: { status: string; canvasOrder: string[] } } }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases`,
+      {
+        method: 'POST',
+        headers: { 'x-debrute-daemon-token': 'test-token' }
+      }
+    );
+    expect(created.activeCanvasId).toBe('canvas-2');
+    expect(created.snapshot.canvasRegistry).toEqual({ status: 'ready', canvasOrder: ['canvas-1', 'canvas-2'] });
+
+    const renamed = await requestJson<{ activeCanvasId: string; snapshot: { canvasRegistry: { status: string; canvasOrder: string[] } } }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/canvas-2`,
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          'x-debrute-daemon-token': 'test-token'
+        },
+        body: JSON.stringify({ operation: 'rename', nextCanvasId: 'storyboard' })
+      }
+    );
+    expect(renamed.activeCanvasId).toBe('storyboard');
+    expect(renamed.snapshot.canvasRegistry).toEqual({ status: 'ready', canvasOrder: ['canvas-1', 'storyboard'] });
+
+    const reordered = await requestJson<{ snapshot: { canvasRegistry: { status: string; canvasOrder: string[] } } }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/index`,
+      {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          'x-debrute-daemon-token': 'test-token'
+        },
+        body: JSON.stringify({ canvasOrder: ['storyboard', 'canvas-1'] })
+      }
+    );
+    expect(reordered.snapshot.canvasRegistry).toEqual({ status: 'ready', canvasOrder: ['storyboard', 'canvas-1'] });
+
+    const deleted = await requestJson<{ activeCanvasId: string; snapshot: { canvasRegistry: { status: string; canvasOrder: string[] } } }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/storyboard`,
+      {
+        method: 'DELETE',
+        headers: { 'x-debrute-daemon-token': 'test-token' }
+      }
+    );
+    expect(deleted.activeCanvasId).toBe('canvas-1');
+    expect(deleted.snapshot.canvasRegistry).toEqual({ status: 'ready', canvasOrder: ['canvas-1'] });
+
+    await rm(join(projectRoot, '.debrute/canvases/index.json'));
+    const repaired = await requestJson<{ activeCanvasId: string; snapshot: { canvasRegistry: { status: string; canvasOrder: string[] } } }>(
+      `${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/index/repair`,
+      {
+        method: 'POST',
+        headers: { 'x-debrute-daemon-token': 'test-token' }
+      }
+    );
+    expect(repaired.activeCanvasId).toBe('canvas-1');
+    expect(repaired.snapshot.canvasRegistry).toEqual({ status: 'ready', canvasOrder: ['canvas-1'] });
+    await expect(readFile(join(projectRoot, '.debrute/canvases/index.json'), 'utf8')).resolves.toContain('"canvas-1"');
+  });
+
   it('rejects unsupported methods on file and preview resource routes', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-daemon-method-project-'));
     await mkdir(join(projectRoot, 'generated'), { recursive: true });

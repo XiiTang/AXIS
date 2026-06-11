@@ -1,5 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import {
   getDebruteProjectPaths,
   listDebruteProjectFiles,
@@ -7,7 +6,6 @@ import {
   writeJsonAtomic
 } from '@debrute/project-core';
 import {
-  createCanvasDocument,
   updateCanvasNodeLayers,
   updateCanvasNodeLayouts,
   type CanvasDocument,
@@ -16,9 +14,6 @@ import {
 } from '@debrute/canvas-core';
 import type { ProjectSessionSnapshot } from '@debrute/app-protocol';
 import { assertCurrentCanvasDocument } from './CanvasProjectionService.js';
-
-const DEFAULT_CANVAS_ID = 'canvas-1';
-const EMPTY_CANVAS_MAP_SOURCE = 'paths: []\n';
 
 export interface CanvasSessionServiceOptions {
   suppressInternalProjectPathEvent(absolutePath: string, content?: string): void;
@@ -62,39 +57,15 @@ export class CanvasSessionService {
     await writeJsonAtomic(canvasPath, canvas);
   }
 
-  async ensureDefaultCanvas(projectRoot: string): Promise<void> {
-    const paths = getDebruteProjectPaths(projectRoot);
-    await mkdir(paths.canvasesDir, { recursive: true });
-    await mkdir(paths.canvasMapsDir, { recursive: true });
-    const existingCanvasFiles = await this.currentCanvasFiles(projectRoot);
-    if (existingCanvasFiles.length > 0) {
-      return;
-    }
-
-    const canvas = createCanvasDocument({
-      id: DEFAULT_CANVAS_ID
-    });
-    await writeJsonAtomic(join(paths.canvasesDir, `${canvas.id}.json`), canvas);
-    await ensureEmptyCanvasMap(join(paths.canvasMapsDir, `${canvas.id}.yaml`));
-  }
-
-  async ensureCanvas(projectRoot: string, canvasId: string, fileExists: (absolutePath: string) => Promise<boolean>): Promise<void> {
-    const paths = getDebruteProjectPaths(projectRoot);
-    await mkdir(paths.canvasesDir, { recursive: true });
-    await mkdir(paths.canvasMapsDir, { recursive: true });
-    const canvasPath = join(paths.canvasesDir, `${canvasId}.json`);
-    if (await fileExists(canvasPath)) {
-      return;
-    }
-    await writeJsonAtomic(canvasPath, createCanvasDocument({ id: canvasId }));
-    await ensureEmptyCanvasMap(join(paths.canvasMapsDir, `${canvasId}.yaml`));
-  }
-
   async loadCanvases(projectRoot: string): Promise<CanvasDocument[]> {
     const files = await this.currentCanvasFiles(projectRoot);
     const canvases: CanvasDocument[] = [];
     for (const file of files) {
-      canvases.push(assertCurrentCanvasDocument(await readJsonFile<unknown>(file), file));
+      const canvas = assertCurrentCanvasDocument(await readJsonFile<unknown>(file), file);
+      if (canvas.id !== canvasFileId(file)) {
+        throw new Error(`Canvas document id must match file name: ${file}`);
+      }
+      canvases.push(canvas);
     }
     return canvases;
   }
@@ -102,6 +73,7 @@ export class CanvasSessionService {
   async currentCanvasFiles(projectRoot: string): Promise<string[]> {
     return (await listDebruteProjectFiles(projectRoot))
       .filter((file) => file.projectRelativePath.startsWith('.debrute/canvases/') && file.projectRelativePath.endsWith('.json'))
+      .filter((file) => file.projectRelativePath !== '.debrute/canvases/index.json')
       .map((file) => join(projectRoot, file.projectRelativePath));
   }
 
@@ -144,20 +116,6 @@ export class CanvasSessionService {
   }
 }
 
-async function ensureEmptyCanvasMap(canvasMapPath: string): Promise<void> {
-  try {
-    await writeFile(canvasMapPath, EMPTY_CANVAS_MAP_SOURCE, { encoding: 'utf8', flag: 'wx' });
-  } catch (error) {
-    if (isExistingFileError(error)) {
-      return;
-    }
-    throw error;
-  }
-}
-
-function isExistingFileError(error: unknown): boolean {
-  return typeof error === 'object'
-    && error !== null
-    && 'code' in error
-    && error.code === 'EEXIST';
+function canvasFileId(filePath: string): string {
+  return basename(filePath, '.json');
 }

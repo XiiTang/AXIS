@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasFeedbackBarTarget } from './shell/floatingBars';
+import { chooseInitialActiveCanvasId } from './canvas/canvasCardBarState';
 import { sameCanvasFeedbackBarTarget } from './shell/floatingBars';
 
 describe('WorkbenchApp feedback bar target equality', () => {
@@ -25,6 +26,16 @@ describe('WorkbenchApp feedback bar target equality', () => {
       ...target,
       camera: { ...target.camera, z: 0.5 }
     })).toBe(false);
+  });
+});
+
+describe('WorkbenchApp canvas registry integration helpers', () => {
+  it('restores the stored active canvas for the current project when present', () => {
+    expect(chooseInitialActiveCanvasId({
+      projectId: 'project-a',
+      canvasOrder: ['canvas-1', 'canvas-2'],
+      readStoredActiveCanvasId: () => 'canvas-2'
+    })).toBe('canvas-2');
   });
 });
 

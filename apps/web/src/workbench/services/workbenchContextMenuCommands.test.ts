@@ -257,6 +257,10 @@ function snapshotFixture(overrides: Partial<WorkbenchProjectSessionSnapshot> = {
     canvases: [],
     projections: [],
     diagnostics: [],
+    canvasRegistry: {
+      status: 'ready',
+      canvasOrder: []
+    },
     health: {
       projectName: 'Test Project',
       canvasCount: 0,

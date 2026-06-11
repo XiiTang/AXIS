@@ -1138,6 +1138,10 @@ function workbenchStateFixture(
       canvases: [canvas],
       projections: [projection],
       diagnostics: [],
+      canvasRegistry: {
+        status: 'ready',
+        canvasOrder: [canvas.id]
+      },
       health: {
         projectName: 'Project',
         canvasCount: 1,
@@ -1215,6 +1219,21 @@ const actions: WorkbenchActions = {
   updateCanvasNodeLayers: async () => undefined,
   updateCanvasFeedbackEntry: async () => undefined,
   addProjectPathToCanvasMap: async () => undefined,
+  createCanvas: async () => {
+    throw new Error('not used');
+  },
+  renameCanvas: async () => {
+    throw new Error('not used');
+  },
+  deleteCanvas: async () => {
+    throw new Error('not used');
+  },
+  reorderCanvases: async () => {
+    throw new Error('not used');
+  },
+  repairCanvasIndex: async () => {
+    throw new Error('not used');
+  },
   openProject: async () => undefined
 };
 

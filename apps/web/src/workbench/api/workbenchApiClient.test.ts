@@ -92,4 +92,53 @@ describe('workbench API client', () => {
 
     expect(requests[0]!.headers).toMatchObject({ 'x-debrute-daemon-token': 'secret' });
   });
+
+  it('calls project-scoped Canvas management routes', async () => {
+    const requests: Array<{ method: string | undefined; url: string; body?: unknown }> = [];
+    (globalThis as { window?: unknown }).window = {
+      location: {
+        origin: 'http://127.0.0.1:17321',
+        search: '',
+        pathname: `/projects/${projectId}`,
+        hash: ''
+      },
+      localStorage: { getItem: () => undefined, setItem: () => undefined },
+      sessionStorage: { getItem: () => undefined, setItem: () => undefined },
+      history: { state: {}, replaceState: vi.fn() }
+    };
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
+      requests.push({
+        method: init.method,
+        url,
+        body: init.body ? JSON.parse(String(init.body)) : undefined
+      });
+      return new Response(JSON.stringify({
+        projectId,
+        snapshot: {
+          canvases: [],
+          projections: [],
+          canvasRegistry: { status: 'ready', canvasOrder: [] }
+        }
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    });
+
+    const client = createWorkbenchApiClient();
+    await client.openProject({ projectId });
+    await client.createCanvas();
+    await client.renameCanvas({ canvasId: 'canvas-1', nextCanvasId: 'storyboard' });
+    await client.deleteCanvas({ canvasId: 'storyboard' });
+    await client.reorderCanvases({ canvasOrder: ['canvas-2', 'canvas-1'] });
+    await client.repairCanvasIndex();
+
+    expect(requests.slice(1)).toEqual([
+      { method: 'POST', url: `http://127.0.0.1:17321/api/projects/${projectId}/canvases`, body: {} },
+      { method: 'PATCH', url: `http://127.0.0.1:17321/api/projects/${projectId}/canvases/canvas-1`, body: { operation: 'rename', nextCanvasId: 'storyboard' } },
+      { method: 'DELETE', url: `http://127.0.0.1:17321/api/projects/${projectId}/canvases/storyboard`, body: undefined },
+      { method: 'PUT', url: `http://127.0.0.1:17321/api/projects/${projectId}/canvases/index`, body: { canvasOrder: ['canvas-2', 'canvas-1'] } },
+      { method: 'POST', url: `http://127.0.0.1:17321/api/projects/${projectId}/canvases/index/repair`, body: {} }
+    ]);
+  });
 });

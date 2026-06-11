@@ -17,6 +17,11 @@ export type DebruteCliCommand =
   | 'project.validate'
   | 'workbench.url'
   | 'canvas-map.publish'
+  | 'canvas.create'
+  | 'canvas.rename'
+  | 'canvas.delete'
+  | 'canvas.reorder'
+  | 'canvas.repair-index'
   | 'generated-asset.lookup'
   | 'generate.image'
   | 'generate.image-batch'
@@ -48,6 +53,11 @@ const POSITIONAL_COUNTS: Record<DebruteCliCommand, { min: number; max: number }>
   'project.validate': { min: 1, max: 1 },
   'workbench.url': { min: 1, max: 1 },
   'canvas-map.publish': { min: 2, max: 2 },
+  'canvas.create': { min: 1, max: 1 },
+  'canvas.rename': { min: 3, max: 3 },
+  'canvas.delete': { min: 2, max: 2 },
+  'canvas.reorder': { min: 2, max: Number.POSITIVE_INFINITY },
+  'canvas.repair-index': { min: 1, max: 1 },
   'generated-asset.lookup': { min: 1, max: 1 },
   'generate.image': { min: 1, max: 1 },
   'generate.image-batch': { min: 1, max: 1 },
@@ -71,6 +81,11 @@ const ALLOWED_OPTIONS: Record<DebruteCliCommand, Set<string>> = {
   'project.validate': new Set(),
   'workbench.url': new Set(),
   'canvas-map.publish': new Set(),
+  'canvas.create': new Set(),
+  'canvas.rename': new Set(),
+  'canvas.delete': new Set(),
+  'canvas.reorder': new Set(),
+  'canvas.repair-index': new Set(),
   'generated-asset.lookup': new Set(['path']),
   'generate.image': new Set(['input-json']),
   'generate.image-batch': new Set(['manifest', 'input-jsonl', 'log', 'summary', 'concurrency', 'retries', 'timeout-ms']),
@@ -89,6 +104,11 @@ const PROJECT_COMMANDS = new Set<DebruteCliCommand>([
   'project.validate',
   'workbench.url',
   'canvas-map.publish',
+  'canvas.create',
+  'canvas.rename',
+  'canvas.delete',
+  'canvas.reorder',
+  'canvas.repair-index',
   'generated-asset.lookup',
   'generate.image',
   'generate.image-batch',
@@ -231,6 +251,15 @@ function requiredPositionals(command: DebruteCliCommand): string {
   }
   if (command === 'canvas-map.publish') {
     return '<project> <canvas-id>';
+  }
+  if (command === 'canvas.rename') {
+    return '<project> <old-id> <new-id>';
+  }
+  if (command === 'canvas.delete') {
+    return '<project> <canvas-id>';
+  }
+  if (command === 'canvas.reorder') {
+    return '<project> <canvas-id...>';
   }
   return '<project>';
 }

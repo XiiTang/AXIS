@@ -1,7 +1,7 @@
 export type DebruteCommandScope = 'runtime' | 'project' | 'generation';
 export type DebruteCommandRisk = 'read' | 'write' | 'generate' | 'destructive';
 export type DebruteCommandRequirement = 'none' | 'project' | 'project-session' | 'model-config' | 'secrets';
-export type DebruteCommandWrites = 'none' | 'debrute-project' | 'canvas-map' | 'assets' | 'metadata' | 'skills' | 'logs';
+export type DebruteCommandWrites = 'none' | 'debrute-project' | 'canvas-map' | 'canvas-registry' | 'assets' | 'metadata' | 'skills' | 'logs';
 
 export interface DebruteCommandSpec {
   command: string;
@@ -17,6 +17,7 @@ export interface DebruteCommandSpec {
 
 const PARSE_ERRORS = ['invalid_command', 'invalid_argument', 'missing_argument', 'invalid_input', 'internal_error'];
 const PROJECT_LOAD_ERRORS = ['project_not_found', 'project_invalid'];
+const CANVAS_REGISTRY_ERRORS = ['canvas_registry_missing', 'canvas_registry_invalid', 'canvas_registry_conflict', 'canvas_registry_repair_failed', 'canvas_map_conflict'];
 const MODEL_RUNTIME_ERRORS = ['model_not_configured', 'model_unavailable', 'model_request_failed'];
 const WORKBENCH_RUNTIME_ERRORS = [
   'runtime_launch_failed',
@@ -46,6 +47,11 @@ export const commandSpecs: DebruteCommandSpec[] = [
   spec('project.validate', ['project', 'validate'], 'project', 'read', 'project', 'none', '<project>', 'validation problem records', [...PROJECT_LOAD_ERRORS, 'project_validation_failed']),
   spec('workbench.url', ['workbench', 'url'], 'runtime', 'write', 'project', 'debrute-project', '<project>', 'Workbench URL and runtime port fields', [...PROJECT_LOAD_ERRORS, ...WORKBENCH_RUNTIME_ERRORS]),
   spec('canvas-map.publish', ['canvas-map', 'publish'], 'project', 'write', 'project', 'canvas-map', '<project> <canvas-id>', 'Canvas Map publish record', [...PROJECT_LOAD_ERRORS, 'canvas_map_invalid_canvas_id', 'canvas_map_invalid_path', 'canvas_map_layout_conflict', 'canvas_map_read_failed', 'canvas_map_invalid_yaml', 'canvas_map_canvas_missing']),
+  spec('canvas.create', ['canvas', 'create'], 'project', 'write', 'project', 'canvas-registry', '<project>', 'Canvas create record', [...PROJECT_LOAD_ERRORS, ...CANVAS_REGISTRY_ERRORS]),
+  spec('canvas.rename', ['canvas', 'rename'], 'project', 'write', 'project', 'canvas-registry', '<project> <old-id> <new-id>', 'Canvas rename record', [...PROJECT_LOAD_ERRORS, ...CANVAS_REGISTRY_ERRORS]),
+  spec('canvas.delete', ['canvas', 'delete'], 'project', 'destructive', 'project', 'canvas-registry', '<project> <canvas-id>', 'Canvas delete record', [...PROJECT_LOAD_ERRORS, ...CANVAS_REGISTRY_ERRORS]),
+  spec('canvas.reorder', ['canvas', 'reorder'], 'project', 'write', 'project', 'canvas-registry', '<project> <canvas-id...>', 'Canvas reorder record', [...PROJECT_LOAD_ERRORS, ...CANVAS_REGISTRY_ERRORS]),
+  spec('canvas.repair-index', ['canvas', 'repair-index'], 'project', 'write', 'project', 'canvas-registry', '<project>', 'Canvas registry repair record', [...PROJECT_LOAD_ERRORS, ...CANVAS_REGISTRY_ERRORS]),
   spec('generated-asset.lookup', ['generated-asset', 'lookup'], 'project', 'read', 'project', 'none', '<project> --path <project-relative-path>', 'generated asset metadata record', PROJECT_LOAD_ERRORS),
   spec('generate.image', ['generate', 'image'], 'generation', 'generate', 'project-session', 'assets', '<project> --input-json <json>', 'generated image artifact records', [...PROJECT_LOAD_ERRORS, 'invalid_json_input', ...MODEL_RUNTIME_ERRORS]),
   spec('generate.image-batch', ['generate', 'image-batch'], 'generation', 'generate', 'project-session', 'assets', '<project> --manifest <path> --log <path> | <project> --input-jsonl <path> --log <path>', 'batch summary records', [...PROJECT_LOAD_ERRORS, ...MODEL_RUNTIME_ERRORS]),

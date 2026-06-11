@@ -17,6 +17,10 @@ export type DebruteCliErrorCode =
   | 'canvas_map_conflict'
   | 'canvas_map_canvas_missing'
   | 'canvas_map_target_missing'
+  | 'canvas_registry_missing'
+  | 'canvas_registry_invalid'
+  | 'canvas_registry_conflict'
+  | 'canvas_registry_repair_failed'
   | 'model_not_configured'
   | 'model_unavailable'
   | 'model_request_failed'
@@ -174,6 +178,10 @@ function isDebruteCliErrorCode(code: string): code is DebruteCliErrorCode {
     'canvas_map_conflict',
     'canvas_map_canvas_missing',
     'canvas_map_target_missing',
+    'canvas_registry_missing',
+    'canvas_registry_invalid',
+    'canvas_registry_conflict',
+    'canvas_registry_repair_failed',
     'model_not_configured',
     'model_unavailable',
     'model_request_failed',

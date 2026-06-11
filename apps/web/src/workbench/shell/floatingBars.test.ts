@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   CANVAS_FEEDBACK_BAR_SIZE,
+  CANVAS_CARD_BAR_SIZE,
   CANVAS_MINIMAP_BUTTON_SIZE,
   CANVAS_MINIMAP_PANEL_SIZE,
+  canvasCardBarRect,
   canvasMinimapButtonRect,
   canvasNodeToViewportRect,
   placeCanvasFeedbackBar,
@@ -94,6 +96,20 @@ describe('floating bar placement', () => {
       width: CANVAS_MINIMAP_BUTTON_SIZE.width,
       height: CANVAS_MINIMAP_BUTTON_SIZE.height
     });
+  });
+
+  it('places the Canvas card bar beside the minimap button', () => {
+    const viewportRect = { x: 0, y: 0, width: 1000, height: 700 };
+    const minimapButton = canvasMinimapButtonRect(viewportRect);
+    const cardBar = canvasCardBarRect(viewportRect);
+
+    expect(cardBar).toEqual({
+      x: 58,
+      y: 648,
+      width: 580,
+      height: CANVAS_CARD_BAR_SIZE.height
+    });
+    expect(cardBar.x).toBeGreaterThanOrEqual(minimapButton.x + minimapButton.width + 12);
   });
 
   it('places the minimap panel above the lower-left button', () => {

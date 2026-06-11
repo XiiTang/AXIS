@@ -11,6 +11,7 @@ import type {
   SaveVideoModelSettingInput,
   IntegrationSettingsView,
   VideoModelSettingsView,
+  WorkbenchCanvasManagementResult,
   WorkbenchProjectFileBatchOperationResult,
   WorkbenchProjectFileOperationResult,
   WorkbenchProjectPathEntry,
@@ -95,6 +96,11 @@ export interface WorkbenchActions {
   }) => Promise<void>;
   updateCanvasFeedbackEntry: (input: UpdateCanvasFeedbackEntryInput) => Promise<void>;
   addProjectPathToCanvasMap: (input: AddProjectPathToCanvasMapInput) => Promise<void>;
+  createCanvas: () => Promise<WorkbenchCanvasManagementResult>;
+  renameCanvas: (input: { canvasId: string; nextCanvasId: string }) => Promise<WorkbenchCanvasManagementResult>;
+  deleteCanvas: (input: { canvasId: string }) => Promise<WorkbenchCanvasManagementResult>;
+  reorderCanvases: (input: { canvasOrder: string[] }) => Promise<WorkbenchCanvasManagementResult>;
+  repairCanvasIndex: () => Promise<WorkbenchCanvasManagementResult>;
   openProject: () => Promise<void>;
 }
 

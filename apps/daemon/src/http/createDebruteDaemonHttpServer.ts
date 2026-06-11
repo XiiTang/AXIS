@@ -374,7 +374,7 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
         return;
       }
     }
-    if (tail.startsWith('/canvases/')) {
+    if (tail === '/canvases' || tail.startsWith('/canvases/')) {
       await handleCanvasRoute(context, tail, session);
       return;
     }
@@ -646,7 +646,49 @@ async function handleCanvasRoute(
 ): Promise<void> {
   const server = daemonAppServer(context);
   const path = context.url.pathname;
+  if (tail === '/canvases') {
+    if (context.request.method === 'POST') {
+      writeJson(context.response, 200, withHttpSnapshot(await server.createCanvas(), context.runtime.daemonUrl, session, context.runtime.token));
+      return;
+    }
+    writeError(context.response, 405, 'method_not_allowed', 'Unsupported Canvas collection method.');
+    return;
+  }
+  if (tail === '/canvases/index') {
+    if (context.request.method === 'PUT') {
+      const body = await readJsonBody<Record<string, unknown>>(context.request);
+      writeJson(context.response, 200, withHttpSnapshot(await server.reorderCanvases({
+        canvasOrder: stringArrayField(body.canvasOrder, 'canvasOrder')
+      }), context.runtime.daemonUrl, session, context.runtime.token));
+      return;
+    }
+    writeError(context.response, 405, 'method_not_allowed', 'Unsupported Canvas registry method.');
+    return;
+  }
+  if (tail === '/canvases/index/repair') {
+    if (context.request.method === 'POST') {
+      writeJson(context.response, 200, withHttpSnapshot(await server.repairCanvasIndex(), context.runtime.daemonUrl, session, context.runtime.token));
+      return;
+    }
+    writeError(context.response, 405, 'method_not_allowed', 'Unsupported Canvas registry repair method.');
+    return;
+  }
   const canvasId = decodePathSegment(tail.slice('/canvases/'.length).split('/')[0]!);
+  if (tail === `/canvases/${canvasId}` && context.request.method === 'PATCH') {
+    const body = await readJsonBody<Record<string, unknown>>(context.request);
+    const operation = stringField(body.operation, 'operation');
+    if (operation === 'rename') {
+      writeJson(context.response, 200, withHttpSnapshot(await server.renameCanvas({
+        canvasId,
+        nextCanvasId: stringField(body.nextCanvasId, 'nextCanvasId')
+      }), context.runtime.daemonUrl, session, context.runtime.token));
+      return;
+    }
+  }
+  if (tail === `/canvases/${canvasId}` && context.request.method === 'DELETE') {
+    writeJson(context.response, 200, withHttpSnapshot(await server.deleteCanvas({ canvasId }), context.runtime.daemonUrl, session, context.runtime.token));
+    return;
+  }
   if (path.endsWith('/canvas-map/project-paths') && context.request.method === 'POST') {
     const body = await readJsonBody<{ projectRelativePath?: unknown }>(context.request);
     writeJson(context.response, 200, withHttpSnapshot(await server.addProjectPathToCanvasMap({
@@ -1287,7 +1329,7 @@ function isServiceError(error: unknown): error is Error & { code: string; fields
 }
 
 function serviceErrorStatusCode(code: string): number {
-  if (code === 'canvas_map_conflict') {
+  if (code === 'canvas_map_conflict' || code === 'canvas_registry_conflict') {
     return 409;
   }
   if (code === 'canvas_map_canvas_missing' || code === 'canvas_map_target_missing') {

@@ -37,6 +37,171 @@ describe('app-server', () => {
     }
   });
 
+  it('creates the default Canvas registry with the default Canvas', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-default-canvas-registry-'));
+    const server = new DebruteAppServer();
+    try {
+      const snapshot = await server.openProject(projectRoot, {
+        initializeIfMissing: true,
+        createDefaultCanvas: true
+      });
+
+      expect(snapshot.canvasRegistry).toEqual({
+        status: 'ready',
+        canvasOrder: ['canvas-1']
+      });
+      await expect(readFile(join(projectRoot, '.debrute/canvases/index.json'), 'utf8')).resolves.toBe([
+        '{',
+        '  "schemaVersion": 1,',
+        '  "canvasOrder": [',
+        '    "canvas-1"',
+        '  ]',
+        '}',
+        ''
+      ].join('\n'));
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('orders loaded canvases through the Canvas registry and never reads index as a Canvas', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-registry-order-'));
+    const server = new DebruteAppServer();
+    try {
+      await mkdir(join(projectRoot, '.debrute/canvases'), { recursive: true });
+      await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
+      await writeFile(join(projectRoot, '.debrute/project.json'), JSON.stringify({
+        schemaVersion: 1,
+        project: {
+          id: 'registry-order',
+          name: 'Registry Order',
+          createdAt: '2026-06-11T00:00:00.000Z',
+          updatedAt: '2026-06-11T00:00:00.000Z'
+        }
+      }, null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/a.json'), JSON.stringify(emptyCanvasDocument('a'), null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/b.json'), JSON.stringify(emptyCanvasDocument('b'), null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/a.yaml'), 'paths: []\n', 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/b.yaml'), 'paths: []\n', 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/index.json'), JSON.stringify({
+        schemaVersion: 1,
+        canvasOrder: ['b', 'a']
+      }, null, 2), 'utf8');
+
+      const snapshot = await server.openProject(projectRoot, {
+        initializeIfMissing: false,
+        createDefaultCanvas: false
+      });
+
+      expect(snapshot.canvasRegistry).toEqual({
+        status: 'ready',
+        canvasOrder: ['b', 'a']
+      });
+      expect(snapshot.canvases.map((canvas) => canvas.id)).toEqual(['b', 'a']);
+      expect(snapshot.projections.map((projection) => projection.canvasId)).toEqual(['b', 'a']);
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('creates, renames, reorders, and deletes canvases through the registry service', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-management-'));
+    const server = new DebruteAppServer();
+    try {
+      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
+
+      const created = await server.createCanvas();
+      expect(created.activeCanvasId).toBe('canvas-2');
+      expect(created.snapshot.canvases.map((canvas) => canvas.id)).toEqual(['canvas-1', 'canvas-2']);
+      await expect(readFile(join(projectRoot, '.debrute/canvas-maps/canvas-2.yaml'), 'utf8')).resolves.toBe('paths: []\n');
+
+      const renamed = await server.renameCanvas({ canvasId: 'canvas-2', nextCanvasId: 'storyboard' });
+      expect(renamed.activeCanvasId).toBe('storyboard');
+      expect(renamed.snapshot.canvases.map((canvas) => canvas.id)).toEqual(['canvas-1', 'storyboard']);
+      await expect(readFile(join(projectRoot, '.debrute/canvas-maps/storyboard.yaml'), 'utf8')).resolves.toBe('paths: []\n');
+      await expect(readFile(join(projectRoot, '.debrute/canvas-maps/canvas-2.yaml'), 'utf8')).rejects.toThrow();
+      expect(await readJson(join(projectRoot, '.debrute/canvases/storyboard.json'))).toMatchObject({ id: 'storyboard' });
+
+      const reordered = await server.reorderCanvases({ canvasOrder: ['storyboard', 'canvas-1'] });
+      expect(reordered.snapshot.canvases.map((canvas) => canvas.id)).toEqual(['storyboard', 'canvas-1']);
+
+      const deleted = await server.deleteCanvas({ canvasId: 'storyboard' });
+      expect(deleted.activeCanvasId).toBe('canvas-1');
+      expect(deleted.snapshot.canvases.map((canvas) => canvas.id)).toEqual(['canvas-1']);
+      await expect(readFile(join(projectRoot, '.debrute/canvases/storyboard.json'), 'utf8')).rejects.toThrow();
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects canvas management conflicts and invalid operations without rewriting files', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-conflicts-'));
+    const server = new DebruteAppServer();
+    try {
+      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
+      await server.createCanvas();
+      await writeFile(join(projectRoot, '.debrute/canvases/index.json'), JSON.stringify({
+        schemaVersion: 1,
+        canvasOrder: ['canvas-2', 'canvas-1']
+      }, null, 2), 'utf8');
+
+      await expect(server.reorderCanvases({ canvasOrder: ['canvas-1', 'canvas-2'] })).rejects.toMatchObject({
+        code: 'canvas_registry_conflict'
+      });
+
+      await server.refreshProject();
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/canvas-2.yaml'), 'paths:\n  - changed.md\n', 'utf8');
+      await expect(server.renameCanvas({ canvasId: 'canvas-2', nextCanvasId: 'storyboard' })).rejects.toMatchObject({
+        code: 'canvas_map_conflict'
+      });
+
+      await server.refreshProject();
+      await expect(server.deleteCanvas({ canvasId: 'canvas-1' })).resolves.toBeDefined();
+      await expect(server.deleteCanvas({ canvasId: 'canvas-2' })).rejects.toMatchObject({
+        code: 'canvas_registry_invalid'
+      });
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('repairs an invalid Canvas registry only through the explicit repair operation', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-repair-'));
+    const server = new DebruteAppServer();
+    try {
+      await mkdir(join(projectRoot, '.debrute/canvases'), { recursive: true });
+      await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
+      await writeFile(join(projectRoot, '.debrute/project.json'), JSON.stringify({
+        schemaVersion: 1,
+        project: {
+          id: 'repair',
+          name: 'Repair',
+          createdAt: '2026-06-11T00:00:00.000Z',
+          updatedAt: '2026-06-11T00:00:00.000Z'
+        }
+      }, null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/b.json'), JSON.stringify(emptyCanvasDocument('b'), null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/a.json'), JSON.stringify(emptyCanvasDocument('a'), null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/b.yaml'), 'paths: []\n', 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/a.yaml'), 'paths: []\n', 'utf8');
+
+      const opened = await server.openProject(projectRoot, { initializeIfMissing: false, createDefaultCanvas: false });
+      expect(opened.canvasRegistry).toMatchObject({ status: 'invalid', code: 'canvas_registry_missing' });
+      expect(opened.canvases).toEqual([]);
+
+      const repaired = await server.repairCanvasIndex();
+      expect(repaired.snapshot.canvasRegistry).toEqual({ status: 'ready', canvasOrder: ['a', 'b'] });
+      expect(repaired.activeCanvasId).toBe('a');
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it('rejects invalid canvas state without deleting or rewriting it', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-invalid-canvas-'));
     const server = new DebruteAppServer();
@@ -380,6 +545,7 @@ describe('app-server', () => {
     const server = new DebruteAppServer();
     try {
       await mkdir(join(projectRoot, '.debrute/canvases'), { recursive: true });
+      await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
       await mkdir(join(projectRoot, 'image-production/generated'), { recursive: true });
       await writeFile(join(projectRoot, 'image-production/generated/a.md'), 'fake', 'utf8');
       await writeFile(join(projectRoot, '.debrute/project.json'), JSON.stringify({
@@ -404,6 +570,11 @@ describe('app-server', () => {
         }],
         annotations: [],
         preferences: { showDiagnostics: true }
+      }, null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/canvas-1.yaml'), 'paths: []\n', 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/index.json'), JSON.stringify({
+        schemaVersion: 1,
+        canvasOrder: ['canvas-1']
       }, null, 2), 'utf8');
 
       const snapshot = await server.openProject(projectRoot, {
@@ -972,6 +1143,22 @@ describe('app-server', () => {
     }
   });
 
+  it('rejects Canvas Map publish for an unregistered Canvas without creating fallback Canvas files', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-canvas-map-unregistered-'));
+    const server = new DebruteAppServer();
+    try {
+      await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true });
+      await writeCanvasMap(projectRoot, 'canvas-2', 'paths: []\n');
+
+      await expect(server.publishCanvasMapForProject(projectRoot, { canvasId: 'canvas-2' }))
+        .rejects.toMatchObject({ code: 'canvas_map_canvas_missing' });
+      await expect(readFile(join(projectRoot, '.debrute/canvases/canvas-2.json'), 'utf8')).rejects.toThrow();
+    } finally {
+      server.close();
+      await rm(projectRoot, { recursive: true, force: true });
+    }
+  });
+
   it('marks still raster images as Canvas-previewable in node availability', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-image-previewability-'));
     const server = new DebruteAppServer({
@@ -1252,16 +1439,17 @@ describe('app-server', () => {
     }
   });
 
-  it('accepts JSON-only Canvas projects as empty Canvas views', async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-json-only-canvas-'));
+  it('accepts registry-backed empty Canvas views', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'debrute-app-server-empty-canvas-'));
     const server = new DebruteAppServer();
     try {
       await mkdir(join(projectRoot, '.debrute/canvases'), { recursive: true });
+      await mkdir(join(projectRoot, '.debrute/canvas-maps'), { recursive: true });
       await writeFile(join(projectRoot, '.debrute/project.json'), JSON.stringify({
         schemaVersion: 1,
         project: {
-          id: 'project-json-only',
-          name: 'JSON Only Canvas',
+          id: 'project-empty-canvas',
+          name: 'Empty Canvas',
           createdAt: '2026-05-23T10:30:00.000Z',
           updatedAt: '2026-05-23T10:30:00.000Z'
         }
@@ -1272,6 +1460,11 @@ describe('app-server', () => {
         nodeElements: [],
         annotations: [],
         preferences: { showDiagnostics: true }
+      }, null, 2), 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvas-maps/canvas-1.yaml'), 'paths: []\n', 'utf8');
+      await writeFile(join(projectRoot, '.debrute/canvases/index.json'), JSON.stringify({
+        schemaVersion: 1,
+        canvasOrder: ['canvas-1']
       }, null, 2), 'utf8');
 
       const snapshot = await server.openProject(projectRoot, {
@@ -1311,6 +1504,16 @@ function canvasMapSource(paths: string[], layoutRows: string[] = []): string {
 
 async function readJson(path: string): Promise<unknown> {
   return JSON.parse(await readFile(path, 'utf8')) as unknown;
+}
+
+function emptyCanvasDocument(id: string) {
+  return {
+    schemaVersion: CANVAS_DOCUMENT_SCHEMA_VERSION,
+    id,
+    nodeElements: [],
+    annotations: [],
+    preferences: { showDiagnostics: true }
+  };
 }
 
 async function largePreviewablePngBuffer(): Promise<Buffer> {

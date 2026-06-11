@@ -82,6 +82,33 @@ describe('debrute-cli', () => {
     }
   });
 
+  it('manages canvases through canvas CLI commands', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'debrute-cli-canvas-management-'));
+    const originalExitCode = process.exitCode;
+    try {
+      const output: string[] = [];
+      await runCli(['project', 'init', root], () => {});
+      await runCli(['canvas', 'create', root], (text) => output.push(text));
+      await runCli(['canvas', 'rename', root, 'canvas-2', 'storyboard'], (text) => output.push(text));
+      await runCli(['canvas', 'reorder', root, 'storyboard', 'canvas-1'], (text) => output.push(text));
+      await runCli(['canvas', 'delete', root, 'storyboard'], (text) => output.push(text));
+
+      expect(output.map((line) => line.split('\n')[0])).toEqual([
+        'debrute/1 ok cmd=canvas.create',
+        'debrute/1 ok cmd=canvas.rename',
+        'debrute/1 ok cmd=canvas.reorder',
+        'debrute/1 ok cmd=canvas.delete'
+      ]);
+      expect(await readJson(join(root, '.debrute/canvases/index.json'))).toEqual({
+        schemaVersion: 1,
+        canvasOrder: ['canvas-1']
+      });
+    } finally {
+      process.exitCode = originalExitCode;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('returns Canvas Map-specific debrute/1 errors', async () => {
     const root = await mkdtemp(join(tmpdir(), 'debrute-cli-canvas-map-error-'));
     const originalExitCode = process.exitCode;
@@ -104,6 +131,32 @@ describe('debrute-cli', () => {
         'file_path=.debrute/canvas-maps/new-map.yaml'
       ].join('\n')]);
       await expect(readFile(join(root, '.debrute/canvas-maps/new-map.yaml'), 'utf8')).rejects.toThrow();
+    } finally {
+      process.exitCode = originalExitCode;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not create fallback Canvas files when publishing an unregistered Canvas Map', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'debrute-cli-canvas-map-unregistered-'));
+    const originalExitCode = process.exitCode;
+    try {
+      await runCli(['project', 'init', root], () => {});
+      await mkdir(join(root, '.debrute/canvas-maps'), { recursive: true });
+      await writeFile(join(root, '.debrute/canvas-maps/canvas-2.yaml'), 'paths: []\n', 'utf8');
+
+      const output: string[] = [];
+      await runCli([
+        'canvas-map',
+        'publish',
+        root,
+        'canvas-2'
+      ], (text) => output.push(text));
+
+      expect(process.exitCode).toBe(1);
+      expect(output[0]).toContain('debrute/1 error cmd=canvas-map.publish code=canvas_map_canvas_missing');
+      expect(output[0]).toContain('canvas_id=canvas-2');
+      await expect(readFile(join(root, '.debrute/canvases/canvas-2.json'), 'utf8')).rejects.toThrow();
     } finally {
       process.exitCode = originalExitCode;
       await rm(root, { recursive: true, force: true });
@@ -434,3 +487,7 @@ describe('debrute-cli', () => {
     }
   });
 });
+
+async function readJson(path: string): Promise<unknown> {
+  return JSON.parse(await readFile(path, 'utf8')) as unknown;
+}

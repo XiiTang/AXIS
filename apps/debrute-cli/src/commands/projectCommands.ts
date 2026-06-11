@@ -52,6 +52,39 @@ export async function runProjectCommand(args: ParsedDebruteArgs, server: Debrute
     };
   }
 
+  if (args.command === 'canvas.create') {
+    await openCanvasManagementProject(server, args.projectRoot);
+    const result = await canvasManagementOperation(() => server.createCanvas());
+    return canvasManagementResult(args.command, result.activeCanvasId);
+  }
+
+  if (args.command === 'canvas.rename') {
+    await openCanvasManagementProject(server, args.projectRoot);
+    const result = await canvasManagementOperation(() => server.renameCanvas({
+      canvasId: args.positional[1]!,
+      nextCanvasId: args.positional[2]!
+    }));
+    return canvasManagementResult(args.command, result.activeCanvasId);
+  }
+
+  if (args.command === 'canvas.delete') {
+    await openCanvasManagementProject(server, args.projectRoot);
+    const result = await canvasManagementOperation(() => server.deleteCanvas({ canvasId: args.positional[1]! }));
+    return canvasManagementResult(args.command, result.activeCanvasId);
+  }
+
+  if (args.command === 'canvas.reorder') {
+    await openCanvasManagementProject(server, args.projectRoot);
+    await canvasManagementOperation(() => server.reorderCanvases({ canvasOrder: args.positional.slice(1) }));
+    return canvasManagementResult(args.command);
+  }
+
+  if (args.command === 'canvas.repair-index') {
+    await openCanvasManagementProject(server, args.projectRoot);
+    const result = await canvasManagementOperation(() => server.repairCanvasIndex());
+    return canvasManagementResult(args.command, result.activeCanvasId);
+  }
+
   if (args.command === 'generated-asset.lookup') {
     const lookup = await server.lookupGeneratedAssetMetadataForCli(args.projectRoot, { projectRelativePath: args.options.path! });
     return {
@@ -62,6 +95,35 @@ export async function runProjectCommand(args: ParsedDebruteArgs, server: Debrute
   }
 
   throw cliError('invalid_command', `Unknown Debrute CLI command: ${args.command}`);
+}
+
+async function openCanvasManagementProject(server: DebruteAppServer, projectRoot: string): Promise<void> {
+  try {
+    await server.openProject(projectRoot, { initializeIfMissing: false, createDefaultCanvas: false, watchFiles: false });
+  } catch (error) {
+    throw projectLoadCliError(error, projectRoot);
+  }
+}
+
+async function canvasManagementOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isServiceError(error)) {
+      throw cliError(normalizeServiceErrorCode(error.code), error.message, primitiveErrorFields(error.fields));
+    }
+    throw error;
+  }
+}
+
+function canvasManagementResult(command: string, activeCanvasId?: string): DebruteAgentResult {
+  return {
+    status: 'ok',
+    command,
+    fields: {
+      ...(activeCanvasId ? { active_canvas: activeCanvasId } : {})
+    }
+  };
 }
 
 async function projectSnapshot(server: DebruteAppServer, projectRoot: string): Promise<ProjectSessionSnapshot> {

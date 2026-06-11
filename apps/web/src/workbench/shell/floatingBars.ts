@@ -49,6 +49,14 @@ export const CANVAS_MINIMAP_BUTTON_SIZE = {
   height: 28
 } as const;
 
+export const CANVAS_CARD_BAR_SIZE = {
+  left: 58,
+  bottom: 14,
+  height: 38,
+  maxWidth: 720,
+  maxViewportWidthRatio: 0.58
+} as const;
+
 export const CANVAS_MINIMAP_PANEL_SIZE = {
   width: 220,
   height: 150
@@ -109,6 +117,20 @@ export function canvasMinimapButtonRect(viewportRect: FloatingBarRect): Floating
     y: viewportRect.y + viewportRect.height - 18 - CANVAS_MINIMAP_BUTTON_SIZE.height,
     width: CANVAS_MINIMAP_BUTTON_SIZE.width,
     height: CANVAS_MINIMAP_BUTTON_SIZE.height
+  };
+}
+
+export function canvasCardBarRect(viewportRect: FloatingBarRect): FloatingBarRect {
+  const left = viewportRect.x + CANVAS_CARD_BAR_SIZE.left;
+  return {
+    x: left,
+    y: viewportRect.y + viewportRect.height - CANVAS_CARD_BAR_SIZE.bottom - CANVAS_CARD_BAR_SIZE.height,
+    width: Math.round(Math.min(
+      CANVAS_CARD_BAR_SIZE.maxWidth,
+      viewportRect.width * CANVAS_CARD_BAR_SIZE.maxViewportWidthRatio,
+      Math.max(0, viewportRect.x + viewportRect.width - left - VIEWPORT_PADDING_PX)
+    )),
+    height: CANVAS_CARD_BAR_SIZE.height
   };
 }
 

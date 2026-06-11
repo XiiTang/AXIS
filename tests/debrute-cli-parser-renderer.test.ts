@@ -43,6 +43,28 @@ describe('debrute cli parser and renderer', () => {
       projectRoot: '/tmp/project',
       positional: ['/tmp/project', 'canvas-1']
     });
+    expect(parseDebruteArgs(['canvas', 'create', '/tmp/project'])).toMatchObject({
+      command: 'canvas.create',
+      scope: 'project',
+      projectRoot: '/tmp/project',
+      positional: ['/tmp/project']
+    });
+    expect(parseDebruteArgs(['canvas', 'rename', '/tmp/project', 'canvas-1', 'storyboard'])).toMatchObject({
+      command: 'canvas.rename',
+      positional: ['/tmp/project', 'canvas-1', 'storyboard']
+    });
+    expect(parseDebruteArgs(['canvas', 'delete', '/tmp/project', 'storyboard'])).toMatchObject({
+      command: 'canvas.delete',
+      positional: ['/tmp/project', 'storyboard']
+    });
+    expect(parseDebruteArgs(['canvas', 'reorder', '/tmp/project', 'storyboard', 'canvas-1'])).toMatchObject({
+      command: 'canvas.reorder',
+      positional: ['/tmp/project', 'storyboard', 'canvas-1']
+    });
+    expect(parseDebruteArgs(['canvas', 'repair-index', '/tmp/project'])).toMatchObject({
+      command: 'canvas.repair-index',
+      positional: ['/tmp/project']
+    });
     expect(() => parseDebruteArgs(['daemon', 'status', '--daemon-url', 'http://127.0.0.1:17321'])).toThrow(DebruteCliError);
   });
 
@@ -106,6 +128,11 @@ describe('debrute cli parser and renderer', () => {
       'project.validate',
       'workbench.url',
       'canvas-map.publish',
+      'canvas.create',
+      'canvas.rename',
+      'canvas.delete',
+      'canvas.reorder',
+      'canvas.repair-index',
       'generated-asset.lookup',
       'generate.image',
       'generate.image-batch',
@@ -136,6 +163,10 @@ describe('debrute cli parser and renderer', () => {
       'canvas_map_canvas_missing'
     ]));
     expect(specForCommandPath(['canvas-map', 'publish'])?.input).toBe('<project> <canvas-id>');
+    expect(specForCommandPath(['canvas', 'rename'])?.errors).toEqual(expect.arrayContaining([
+      'canvas_registry_conflict',
+      'canvas_map_conflict'
+    ]));
     expect(specForCommandPath(['generate', 'image'])?.errors).toEqual([
       'invalid_command',
       'invalid_argument',

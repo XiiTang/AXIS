@@ -30,6 +30,23 @@ export interface ProjectHealthSummary {
   checkedAt: string;
 }
 
+export type CanvasRegistryErrorCode =
+  | 'canvas_registry_missing'
+  | 'canvas_registry_invalid'
+  | 'canvas_registry_conflict'
+  | 'canvas_registry_repair_failed';
+
+export type CanvasRegistryState =
+  | {
+      status: 'ready';
+      canvasOrder: string[];
+    }
+  | {
+      status: 'invalid';
+      code: CanvasRegistryErrorCode;
+      message: string;
+    };
+
 export interface ProjectSessionSnapshot {
   projectRoot: string;
   metadata: DebruteProjectMetadata;
@@ -37,6 +54,7 @@ export interface ProjectSessionSnapshot {
   canvases: CanvasDocument[];
   projections: CanvasProjection[];
   diagnostics: Diagnostic[];
+  canvasRegistry: CanvasRegistryState;
   health: ProjectHealthSummary;
 }
 
@@ -127,6 +145,16 @@ export interface ProjectFileBatchOperationResult extends ProjectPathBatchOperati
 
 export interface WorkbenchProjectFileBatchOperationResult extends ProjectPathBatchOperationResult {
   snapshot: WorkbenchProjectSessionSnapshot;
+}
+
+export interface ProjectCanvasManagementResult {
+  snapshot: ProjectSessionSnapshot;
+  activeCanvasId?: string;
+}
+
+export interface WorkbenchCanvasManagementResult {
+  snapshot: WorkbenchProjectSessionSnapshot;
+  activeCanvasId?: string;
 }
 
 export interface WorkbenchProjectCopyPathsInput {
@@ -624,6 +652,11 @@ export interface WorkbenchApiClient {
   readCanvasFeedback(): Promise<CanvasFeedbackDocument>;
   updateCanvasFeedbackEntry(input: UpdateCanvasFeedbackEntryInput): Promise<CanvasFeedbackDocument>;
   refreshProject(): Promise<WorkbenchProjectSessionSnapshot>;
+  createCanvas(): Promise<WorkbenchCanvasManagementResult>;
+  renameCanvas(input: { canvasId: string; nextCanvasId: string }): Promise<WorkbenchCanvasManagementResult>;
+  deleteCanvas(input: { canvasId: string }): Promise<WorkbenchCanvasManagementResult>;
+  reorderCanvases(input: { canvasOrder: string[] }): Promise<WorkbenchCanvasManagementResult>;
+  repairCanvasIndex(): Promise<WorkbenchCanvasManagementResult>;
   addProjectPathToCanvasMap(input: AddProjectPathToCanvasMapInput): Promise<WorkbenchAddProjectPathToCanvasMapResult>;
   updateCanvasNodeLayouts(input: {
     canvasId: string;

@@ -17,6 +17,7 @@ import type {
   VideoModelSettingsView,
   WorkbenchEvent,
   WorkbenchApiClient,
+  WorkbenchCanvasManagementResult,
   WorkbenchProjectFileBatchOperationResult,
   WorkbenchProjectFileOperationResult,
   WorkbenchProjectSessionSnapshot,
@@ -184,6 +185,22 @@ export function createHttpWorkbenchApiClient(options: HttpWorkbenchApiClientOpti
     readCanvasFeedback: () => request<CanvasFeedbackDocument>('GET', projectPath('/canvas-feedback')),
     updateCanvasFeedbackEntry: (input) => request<CanvasFeedbackDocument>('PATCH', projectPath('/canvas-feedback'), input),
     refreshProject: () => request<WorkbenchProjectSessionSnapshot>('POST', projectPath('/refresh')),
+    createCanvas: () => request<WorkbenchCanvasManagementResult>('POST', projectPath('/canvases'), {}),
+    renameCanvas: (input) => request<WorkbenchCanvasManagementResult>(
+      'PATCH',
+      projectPath(`/canvases/${encodeURIComponent(input.canvasId)}`),
+      { operation: 'rename', nextCanvasId: input.nextCanvasId }
+    ),
+    deleteCanvas: (input) => request<WorkbenchCanvasManagementResult>(
+      'DELETE',
+      projectPath(`/canvases/${encodeURIComponent(input.canvasId)}`)
+    ),
+    reorderCanvases: (input) => request<WorkbenchCanvasManagementResult>(
+      'PUT',
+      projectPath('/canvases/index'),
+      input
+    ),
+    repairCanvasIndex: () => request<WorkbenchCanvasManagementResult>('POST', projectPath('/canvases/index/repair'), {}),
     addProjectPathToCanvasMap: (input: AddProjectPathToCanvasMapInput) => request<WorkbenchAddProjectPathToCanvasMapResult>(
       'POST',
       projectPath(`/canvases/${encodeURIComponent(input.canvasId)}/canvas-map/project-paths`),

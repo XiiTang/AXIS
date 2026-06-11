@@ -316,6 +316,123 @@ button:disabled {
   padding: 0 8px;
 }
 
+.canvas-card-bar {
+  position: fixed;
+  left: 58px;
+  bottom: 14px;
+  z-index: 150;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(58vw, 720px);
+  height: 38px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--bg-panel) 92%, transparent);
+  box-shadow: 0 14px 34px oklch(0 0 0 / 0.28);
+}
+
+.canvas-card-scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.canvas-card-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.canvas-card,
+.canvas-card-add,
+.canvas-card-menu-button {
+  height: 28px;
+  border: 1px solid var(--border);
+  background: color-mix(in oklch, var(--bg-elevated) 82%, transparent);
+  color: var(--text);
+}
+
+.canvas-card {
+  max-width: 160px;
+  min-width: 68px;
+  padding: 0 10px;
+  border-radius: 6px 0 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-card[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.canvas-card-menu-details {
+  position: relative;
+}
+
+.canvas-card-menu-details summary {
+  list-style: none;
+}
+
+.canvas-card-menu-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.canvas-card-menu-button,
+.canvas-card-add {
+  width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-card-menu-button {
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+}
+
+.canvas-card-add {
+  flex: 0 0 auto;
+  border-radius: 6px;
+}
+
+.canvas-card-menu {
+  position: absolute;
+  left: 0;
+  bottom: 34px;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  box-shadow: 0 14px 34px oklch(0 0 0 / 0.3);
+}
+
+.canvas-card-menu button {
+  display: block;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.canvas-card-menu button:hover {
+  background: color-mix(in oklch, var(--text) 10%, transparent);
+}
+
 .muted,
 small {
   color: var(--muted);

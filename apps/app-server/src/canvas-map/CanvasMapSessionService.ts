@@ -29,7 +29,6 @@ import {
 import { canvasMediaKindFromPath } from '../canvas/CanvasProjectionService.js';
 
 export interface CanvasMapSessionServiceOptions {
-  ensureCanvas(projectRoot: string, canvasId: string): Promise<void>;
   loadCanvases(projectRoot: string): Promise<CanvasDocument[]>;
   resolveCanvasNodeLayoutSize(projectRoot: string, node: CanvasDesiredNode): Promise<CanvasLayoutSize>;
   writeCanvasJson(canvasPath: string, canvas: CanvasDocument): Promise<void>;
@@ -65,8 +64,7 @@ export class CanvasMapSessionService {
     const source = await this.readCanvasMapSource(projectRoot, sourcePath);
     const prepared = await this.prepareCanvasMapPublish(projectRoot, {
       canvasId: input.canvasId,
-      sourceContent: source.content,
-      createCanvasIfMissing: true
+      sourceContent: source.content
     });
     await this.options.writeCanvasJson(canvasPathFor(projectRoot, input.canvasId), prepared.nextCanvas);
     this.sourceHashByCanvasId.set(input.canvasId, prepared.sourceHash);
@@ -97,8 +95,7 @@ export class CanvasMapSessionService {
     const nextContent = serializeCanvasMapWithRule(source.content, rule);
     const prepared = await this.prepareCanvasMapPublish(projectRoot, {
       canvasId: input.canvasId,
-      sourceContent: nextContent,
-      createCanvasIfMissing: false
+      sourceContent: nextContent
     });
     await this.writeInternalCanvasMapTextFile(
       await resolveProjectPathForWrite(projectRoot, sourcePath),
@@ -134,7 +131,7 @@ export class CanvasMapSessionService {
 
   private async prepareCanvasMapPublish(
     projectRoot: string,
-    input: { canvasId: string; sourceContent: string; createCanvasIfMissing: boolean }
+    input: { canvasId: string; sourceContent: string }
   ): Promise<PreparedCanvasMapPublish> {
     const sourcePath = canvasMapPath(input.canvasId);
     const map = parseCanvasMap({
@@ -142,12 +139,9 @@ export class CanvasMapSessionService {
       sourcePath,
       content: input.sourceContent
     });
+    const currentCanvas = await this.readCanvas(projectRoot, input.canvasId);
     const expanded = expandCanvasMap(map, await listDebruteProjectFiles(projectRoot));
     const prepared = await this.prepareExpandedCanvasMapProjection(projectRoot, expanded);
-    if (input.createCanvasIfMissing) {
-      await this.options.ensureCanvas(projectRoot, input.canvasId);
-    }
-    const currentCanvas = await this.readCanvas(projectRoot, input.canvasId);
     return {
       sourceHash: canvasMapSourceHash(input.sourceContent),
       currentCanvas,
@@ -178,8 +172,7 @@ export class CanvasMapSessionService {
     }
     const prepared = await this.prepareCanvasMapPublish(projectRoot, {
       canvasId,
-      sourceContent,
-      createCanvasIfMissing: false
+      sourceContent
     });
     if (!canvasHasExactlyPublishedNodeElements(prepared.currentCanvas, prepared.nextCanvas.nodeElements)) {
       throwCanvasMapConflict();

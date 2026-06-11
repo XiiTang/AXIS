@@ -8,6 +8,7 @@ import type {
 import { createWorkbenchApiClient } from './api/workbenchApiClient';
 import { getDebruteShellApi } from '../api/shellApi';
 import { CanvasEditor } from './canvas/CanvasEditor';
+import { CanvasCardBar } from './canvas/CanvasCardBar';
 import { CanvasFeedbackBar } from './canvas/CanvasFeedbackBar';
 import { CanvasMinimapBar } from './canvas/CanvasMinimapBar';
 import { createCanvasOverlayRuntime } from './canvas/CanvasOverlayRuntime';
@@ -16,6 +17,7 @@ import type { CanvasEditorRuntime, CanvasRuntimeSnapshot } from './canvas/runtim
 import { createCanvasFeedbackEntryUpdater } from './services/canvasFeedbackUpdates';
 import { nextSnapshotFromAppServerEvent } from './services/appServerEvents';
 import { getCanvasById } from './services/canvasState';
+import { activeCanvasStorageKey, chooseInitialActiveCanvasId } from './canvas/canvasCardBarState';
 import { loadCanvasFeedback, openInitialProject, replaceWorkbenchProjectRoute } from './services/projectSessionState';
 import {
   closeTextEditorWindowState,
@@ -51,6 +53,7 @@ import {
 } from './project-explorer/projectTreeInteraction';
 import { createProjectTreeExternalDropPlan } from './project-explorer/projectTreeExternalDrop';
 import {
+  canvasCardBarRect,
   canvasMinimapButtonRect,
   placeCanvasMinimapPanel,
   sameCanvasFeedbackBarTarget,
@@ -89,6 +92,7 @@ const api = createWorkbenchApiClient();
 
 export function WorkbenchApp(): React.ReactElement {
   const [snapshot, setSnapshot] = useState<WorkbenchProjectSessionSnapshot>();
+  const [projectId, setProjectId] = useState<string>();
   const [activeCanvasId, setActiveCanvasId] = useState<string>();
   const [activeCanvasRuntime, setActiveCanvasRuntime] = useState<CanvasEditorRuntime>();
   const [activeCanvasRuntimeSnapshot, setActiveCanvasRuntimeSnapshot] = useState<CanvasRuntimeSnapshot>();
@@ -171,13 +175,18 @@ export function WorkbenchApp(): React.ReactElement {
       }
     });
     openInitialProject(api)
-      .then(({ snapshot: opened }) => {
+      .then(({ projectId: _routeProjectId, snapshot: opened }) => {
         if (!opened || disposed) {
           return;
         }
         setSnapshot(opened);
+        setProjectId(opened.metadata.project.id);
         void loadCanvasFeedback(api, setCanvasFeedback, setNotifications);
-        setActiveCanvasId(opened.canvases[0]?.id);
+        setActiveCanvasId(chooseInitialActiveCanvasId({
+          projectId: opened.metadata.project.id,
+          canvasOrder: opened.canvasRegistry.status === 'ready' ? opened.canvasRegistry.canvasOrder : [],
+          readStoredActiveCanvasId: (key) => globalThis.localStorage?.getItem(key)
+        }));
         void api.llmGetSettings().then(setLlmSettings);
         void api.imageModelGetSettings().then(setImageModelSettings);
         void api.videoModelGetSettings().then(setVideoModelSettings);
@@ -200,6 +209,13 @@ export function WorkbenchApp(): React.ReactElement {
   useEffect(() => {
     globalThis.localStorage?.setItem(FLOATING_PANEL_STORAGE_KEY, serializeFloatingPanelState(floatingPanels));
   }, [floatingPanels]);
+
+  useEffect(() => {
+    if (!projectId || !activeCanvasId) {
+      return;
+    }
+    globalThis.localStorage?.setItem(activeCanvasStorageKey(projectId), activeCanvasId);
+  }, [activeCanvasId, projectId]);
 
   const readProjectTextFile = useCallback((projectRelativePath: string) => api.readProjectTextFile(projectRelativePath), []);
   const writeProjectTextFile = useCallback((projectRelativePath: string, content: string) => api.writeProjectTextFile(projectRelativePath, content), []);
@@ -224,7 +240,12 @@ export function WorkbenchApp(): React.ReactElement {
     return api.onEvent((event) => {
       setSnapshot((current) => nextSnapshotFromAppServerEvent(event, current));
       if (event.type === 'project.opened') {
-        setActiveCanvasId(event.snapshot.canvases[0]?.id);
+        setProjectId(event.snapshot.metadata.project.id);
+        setActiveCanvasId(chooseInitialActiveCanvasId({
+          projectId: event.snapshot.metadata.project.id,
+          canvasOrder: event.snapshot.canvasRegistry.status === 'ready' ? event.snapshot.canvasRegistry.canvasOrder : [],
+          readStoredActiveCanvasId: (key) => globalThis.localStorage?.getItem(key)
+        }));
         setExplorerSelection(createEmptyProjectTreeSelection());
         setContextMenu(undefined);
         setFileClipboard(undefined);
@@ -254,6 +275,15 @@ export function WorkbenchApp(): React.ReactElement {
       }
     });
   }, [refreshTextFileBuffer]);
+
+  useEffect(() => {
+    if (!snapshot || snapshot.canvasRegistry.status !== 'ready') {
+      return;
+    }
+    if (!activeCanvasId || !snapshot.canvasRegistry.canvasOrder.includes(activeCanvasId)) {
+      setActiveCanvasId(snapshot.canvasRegistry.canvasOrder[0]);
+    }
+  }, [activeCanvasId, snapshot]);
 
   const toggleTextFileWordWrap = useCallback((projectRelativePath: string) => {
     setTextFileBuffers((buffers) => {
@@ -409,7 +439,12 @@ export function WorkbenchApp(): React.ReactElement {
       }
       replaceWorkbenchProjectRoute(opened.projectId);
       setSnapshot(opened.snapshot);
-      setActiveCanvasId(opened.snapshot.canvases[0]?.id);
+      setProjectId(opened.snapshot.metadata.project.id);
+      setActiveCanvasId(chooseInitialActiveCanvasId({
+        projectId: opened.snapshot.metadata.project.id,
+        canvasOrder: opened.snapshot.canvasRegistry.status === 'ready' ? opened.snapshot.canvasRegistry.canvasOrder : [],
+        readStoredActiveCanvasId: (key) => globalThis.localStorage?.getItem(key)
+      }));
       setActiveCanvasRuntime(undefined);
       setCanvasRuntimeScopeKey((current) => current + 1);
       setExplorerSelection(createEmptyProjectTreeSelection());
@@ -546,6 +581,43 @@ export function WorkbenchApp(): React.ReactElement {
       } catch (error) {
         setNotifications((current) => [`Add to Canvas Map failed: ${errorMessage(error)}`, ...current].slice(0, 4));
       }
+    },
+    createCanvas: async () => {
+      const result = await api.createCanvas();
+      setSnapshot(result.snapshot);
+      setActiveCanvasId(result.activeCanvasId);
+      return result;
+    },
+    renameCanvas: async (input) => {
+      const result = await api.renameCanvas(input);
+      setSnapshot(result.snapshot);
+      setActiveCanvasId(result.activeCanvasId ?? input.nextCanvasId);
+      return result;
+    },
+    deleteCanvas: async (input) => {
+      const result = await api.deleteCanvas(input);
+      setSnapshot(result.snapshot);
+      if (activeCanvasId === input.canvasId) {
+        setActiveCanvasId(result.activeCanvasId);
+      }
+      return result;
+    },
+    reorderCanvases: async (input) => {
+      const result = await api.reorderCanvases(input);
+      setSnapshot(result.snapshot);
+      return result;
+    },
+    repairCanvasIndex: async () => {
+      const result = await api.repairCanvasIndex();
+      setSnapshot(result.snapshot);
+      const repairedOrder = result.snapshot.canvasRegistry.status === 'ready'
+        ? result.snapshot.canvasRegistry.canvasOrder
+        : [];
+      const repairedActiveCanvasId = activeCanvasId && repairedOrder.includes(activeCanvasId)
+        ? activeCanvasId
+        : result.activeCanvasId ?? repairedOrder[0];
+      setActiveCanvasId(repairedActiveCanvasId);
+      return result;
     }
   }), [
     activeCanvasId,
@@ -630,10 +702,14 @@ export function WorkbenchApp(): React.ReactElement {
     buttonRect: minimapButtonRect,
     viewportRect: workbenchViewportRect
   });
+  const cardBarRect = snapshot?.canvasRegistry.status === 'ready'
+    ? canvasCardBarRect(workbenchViewportRect)
+    : undefined;
   const floatingBarReservedRects = [
     ...FIXED_TOP_FLOATING_BAR_RECTS,
     minimapButtonRect,
-    ...(canvasMinimapOpen ? [minimapPanelPlacement] : [])
+    ...(canvasMinimapOpen ? [minimapPanelPlacement] : []),
+    ...(cardBarRect ? [cardBarRect] : [])
   ];
   const canRevealInCanvas = Boolean(activeCanvasRuntime && activeCanvasRuntimeSnapshot?.surfaceSize);
   const contextMenuItems = useMemo(() => contextMenu
@@ -648,6 +724,12 @@ export function WorkbenchApp(): React.ReactElement {
   const notify = useCallback((message: string) => {
     setNotifications((current) => [message, ...current].slice(0, 4));
   }, []);
+  const canvasOrder = snapshot?.canvasRegistry.status === 'ready'
+    ? snapshot.canvasRegistry.canvasOrder
+    : [];
+  const registryInvalid = snapshot?.canvasRegistry.status === 'invalid'
+    ? snapshot.canvasRegistry
+    : undefined;
   const confirmPermanentDelete = useCallback((input: { entries: Array<{ projectRelativePath: string; kind: 'file' | 'directory' }> }) => (
     window.confirm(permanentDeleteConfirmationMessageForEntries(input))
   ), []);
@@ -815,21 +897,35 @@ export function WorkbenchApp(): React.ReactElement {
   return (
     <div className="workbench-shell" data-theme="dark" data-testid="workbench-shell">
       <div className="canvas-layer" data-testid="canvas-layer">
-        <CanvasEditor
-          canvasId={activeCanvasId}
-          state={state}
-          actions={actions}
-          runtimeScopeKey={canvasRuntimeScopeKey}
-          overlayRuntime={canvasOverlayRuntime}
-          minimapOpen={canvasMinimapOpen}
-          feedbackPlacementContext={{
-            viewportRect: workbenchViewportRect,
-            reservedRects: floatingBarReservedRects
-          }}
-          onFeedbackBarTargetChange={handleFeedbackBarTargetChange}
-          onRuntimeChange={setActiveCanvasRuntime}
-          onOpenContextMenu={openWorkbenchContextMenu}
-        />
+        {registryInvalid ? (
+          <div className="empty-editor empty-project">
+            <strong>Canvas registry needs repair</strong>
+            <span>{registryInvalid.message}</span>
+            <button
+              type="button"
+              className="empty-action"
+              onClick={() => { void actions.repairCanvasIndex().catch((error) => notify(`Canvas registry repair failed: ${errorMessage(error)}`)); }}
+            >
+              Auto Repair
+            </button>
+          </div>
+        ) : (
+          <CanvasEditor
+            canvasId={activeCanvasId}
+            state={state}
+            actions={actions}
+            runtimeScopeKey={canvasRuntimeScopeKey}
+            overlayRuntime={canvasOverlayRuntime}
+            minimapOpen={canvasMinimapOpen}
+            feedbackPlacementContext={{
+              viewportRect: workbenchViewportRect,
+              reservedRects: floatingBarReservedRects
+            }}
+            onFeedbackBarTargetChange={handleFeedbackBarTargetChange}
+            onRuntimeChange={setActiveCanvasRuntime}
+            onOpenContextMenu={openWorkbenchContextMenu}
+          />
+        )}
       </div>
       <div className="floating-bar-layer" data-testid="floating-bar-layer">
         <CanvasToolbar
@@ -867,6 +963,17 @@ export function WorkbenchApp(): React.ReactElement {
             overlayRuntime={canvasOverlayRuntime}
             onPointerEnter={handleFeedbackBarPointerEnter}
             onPointerLeave={handleFeedbackBarPointerLeave}
+          />
+        ) : null}
+        {snapshot?.canvasRegistry.status === 'ready' ? (
+          <CanvasCardBar
+            canvasOrder={canvasOrder}
+            activeCanvasId={activeCanvasId}
+            onActiveCanvasChange={setActiveCanvasId}
+            onCreateCanvas={() => actions.createCanvas().then(() => undefined).catch((error) => notify(`Create canvas failed: ${errorMessage(error)}`))}
+            onRenameCanvas={(input) => actions.renameCanvas(input).then(() => undefined).catch((error) => notify(`Rename canvas failed: ${errorMessage(error)}`))}
+            onDeleteCanvas={(input) => actions.deleteCanvas(input).then(() => undefined).catch((error) => notify(`Delete canvas failed: ${errorMessage(error)}`))}
+            onReorderCanvases={(input) => actions.reorderCanvases(input).then(() => undefined).catch((error) => notify(`Reorder canvases failed: ${errorMessage(error)}`))}
           />
         ) : null}
       </div>

@@ -63,6 +63,7 @@ import type {
   AddProjectPathToCanvasMapInput,
   AppServerEvent,
   ProjectFileBatchOperationResult,
+  ProjectCanvasManagementResult,
   GeneratedAssetMetadataLookup,
   GeneratedAssetRecord,
   ProjectFileOperationResult,
@@ -94,6 +95,7 @@ import {
 } from '../canvas/CanvasImagePreviewService.js';
 import { CanvasProjectionService } from '../canvas/CanvasProjectionService.js';
 import { CanvasSessionService } from '../canvas/CanvasSessionService.js';
+import { CanvasRegistryService } from '../canvas/CanvasRegistryService.js';
 import { CanvasMapSessionService } from '../canvas-map/CanvasMapSessionService.js';
 import { loadProjectSnapshot } from '../project-session/projectSnapshot.js';
 import {
@@ -174,6 +176,7 @@ export class DebruteAppServer {
   private readonly canvasImagePreviewService: CanvasImagePreviewService;
   private readonly canvasProjectionService: CanvasProjectionService;
   private readonly canvasSessionService: CanvasSessionService;
+  private readonly canvasRegistryService: CanvasRegistryService;
   private readonly canvasMapSessionService: CanvasMapSessionService;
   private snapshot: ProjectSessionSnapshot | undefined;
   private snapshotLoadedAt = 0;
@@ -192,8 +195,12 @@ export class DebruteAppServer {
       clearInternalProjectPathEvent: (absolutePath) => this.clearInternalProjectPathEvent(absolutePath),
       projectCanvasWithKnownAvailability: (canvas, projection) => this.canvasProjectionService.projectCanvasWithKnownAvailability(canvas, projection)
     });
+    this.canvasRegistryService = new CanvasRegistryService({
+      loadCanvases: (projectRoot) => this.canvasSessionService.loadCanvases(projectRoot),
+      writeCanvasJson: (canvasPath, canvas) => this.canvasSessionService.writeCanvasJson(canvasPath, canvas),
+      suppressInternalProjectPathEvent: (absolutePath, content) => this.suppressInternalProjectPathEvent(absolutePath, content)
+    });
     this.canvasMapSessionService = new CanvasMapSessionService({
-      ensureCanvas: (projectRoot, canvasId) => this.canvasSessionService.ensureCanvas(projectRoot, canvasId, fileExists),
       loadCanvases: (projectRoot) => this.canvasSessionService.loadCanvases(projectRoot),
       resolveCanvasNodeLayoutSize: (projectRoot, node) => this.resolveCanvasNodeLayoutSize(projectRoot, node),
       writeCanvasJson: (canvasPath, canvas) => this.canvasSessionService.writeCanvasJson(canvasPath, canvas),
@@ -230,7 +237,7 @@ export class DebruteAppServer {
       }
 
       if (options.createDefaultCanvas) {
-        await this.canvasSessionService.ensureDefaultCanvas(projectRoot);
+        await this.canvasRegistryService.ensureDefaultCanvas(projectRoot);
       }
 
       const snapshot = await this.loadSnapshot(projectRoot);
@@ -448,6 +455,51 @@ export class DebruteAppServer {
         projection,
         centerProjectRelativePath: writeback.centerProjectRelativePath
       };
+    });
+  }
+
+  async createCanvas(): Promise<ProjectCanvasManagementResult> {
+    return this.enqueueSessionOperation(async () => {
+      const current = this.getSnapshot();
+      const { canvasId } = await this.canvasRegistryService.createCanvas(current.projectRoot);
+      const snapshot = await this.refreshProjectUnlocked();
+      return { snapshot, activeCanvasId: canvasId };
+    });
+  }
+
+  async renameCanvas(input: { canvasId: string; nextCanvasId: string }): Promise<ProjectCanvasManagementResult> {
+    return this.enqueueSessionOperation(async () => {
+      const current = this.getSnapshot();
+      const { canvasId } = await this.canvasRegistryService.renameCanvas(current.projectRoot, input);
+      const snapshot = await this.refreshProjectUnlocked();
+      return { snapshot, activeCanvasId: canvasId };
+    });
+  }
+
+  async deleteCanvas(input: { canvasId: string }): Promise<ProjectCanvasManagementResult> {
+    return this.enqueueSessionOperation(async () => {
+      const current = this.getSnapshot();
+      const { activeCanvasId } = await this.canvasRegistryService.deleteCanvas(current.projectRoot, input);
+      const snapshot = await this.refreshProjectUnlocked();
+      return { snapshot, activeCanvasId };
+    });
+  }
+
+  async reorderCanvases(input: { canvasOrder: string[] }): Promise<ProjectCanvasManagementResult> {
+    return this.enqueueSessionOperation(async () => {
+      const current = this.getSnapshot();
+      await this.canvasRegistryService.reorderCanvases(current.projectRoot, input);
+      const snapshot = await this.refreshProjectUnlocked();
+      return { snapshot };
+    });
+  }
+
+  async repairCanvasIndex(): Promise<ProjectCanvasManagementResult> {
+    return this.enqueueSessionOperation(async () => {
+      const current = this.getSnapshot();
+      const { activeCanvasId } = await this.canvasRegistryService.repairCanvasIndex(current.projectRoot);
+      const snapshot = await this.refreshProjectUnlocked();
+      return { snapshot, activeCanvasId };
     });
   }
 
@@ -699,7 +751,7 @@ export class DebruteAppServer {
   private async loadSnapshot(projectRoot: string): Promise<ProjectSessionSnapshot> {
     return loadProjectSnapshot({
       projectRoot,
-      loadCanvases: (root) => this.canvasSessionService.loadCanvases(root),
+      loadOrderedCanvases: (root) => this.canvasRegistryService.orderedCanvases(root),
       projectCanvasDocument: (root, canvas, diagnostics) => this.canvasProjectionService.projectCanvasDocument(
         root,
         canvas,
