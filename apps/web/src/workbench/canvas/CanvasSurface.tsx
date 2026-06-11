@@ -467,7 +467,7 @@ function CanvasSurfaceRuntime({
         renderSnapshot: renderSnapshotRef.current ?? renderSnapshot
       })
     });
-    stageRuntime.applyDragPreview(canvasStagePreviewDragState(initialSnapshot.dragState));
+    stageRuntime.applyResizePreview(canvasResizePreviewDragState(initialSnapshot.dragState));
     if (initialSnapshot.dragState) {
       recordCanvasPerfFrame({
         enabled: perfMonitorEnabled,
@@ -497,7 +497,7 @@ function CanvasSurfaceRuntime({
           renderSnapshot: renderSnapshotRef.current ?? renderSnapshot
         })
       });
-      stageRuntime.applyDragPreview(canvasStagePreviewDragState(nextDragState));
+      stageRuntime.applyResizePreview(canvasResizePreviewDragState(nextDragState));
       if (nextDragState) {
         recordCanvasPerfFrame({
           enabled: perfMonitorEnabled,
@@ -973,12 +973,20 @@ export function canvasSurfaceShouldClearPendingLayoutDraft(input: {
   pending: CanvasLocalLayoutDraft | undefined;
   projection: CanvasProjection;
 }): boolean {
-  return input.pending
-    ? canvasLocalLayoutDraftMatchesProjection(input.pending, input.projection)
-    : false;
+  if (!input.pending) {
+    return false;
+  }
+  if (input.pending.canvasId !== input.projection.canvasId) {
+    return true;
+  }
+  if (canvasLocalLayoutDraftMatchesProjection(input.pending, input.projection)) {
+    return true;
+  }
+  const nodePaths = new Set(input.projection.nodes.map((node) => node.projectRelativePath));
+  return input.pending.nodeLayouts.some((layout) => !nodePaths.has(layout.projectRelativePath));
 }
 
-function canvasStagePreviewDragState(
+function canvasResizePreviewDragState(
   state: CanvasRuntimeDragState | undefined
 ): Extract<CanvasRuntimeDragState, { kind: 'resize-node' }> | undefined {
   return state?.kind === 'resize-node' ? state : undefined;
@@ -1017,7 +1025,7 @@ const STAGE_WRITE_COUNTERS = [
   'stage-camera-write',
   'stage-node-layout-write',
   'stage-node-visibility-write',
-  'stage-drag-preview-write'
+  'stage-resize-preview-write'
 ] as const satisfies readonly CanvasPerfCounterName[];
 
 const IMAGE_NODE_WORK_COUNTERS = [

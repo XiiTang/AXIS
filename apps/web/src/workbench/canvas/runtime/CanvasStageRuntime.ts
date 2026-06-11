@@ -4,6 +4,8 @@ import { canvasCameraTransform, canvasChromeScale, type CanvasCamera } from './c
 import type { CanvasRect } from './canvasGeometry';
 import type { CanvasRuntimeDragState } from './CanvasEditorRuntime';
 
+type CanvasRuntimeResizeDragState = Extract<CanvasRuntimeDragState, { kind: 'resize-node' }>;
+
 export interface CanvasNodeLayout {
   x: number;
   y: number;
@@ -30,8 +32,7 @@ export interface CanvasStageRuntime {
   registerNodeShell(path: string, element: HTMLElement): () => void;
   setNodeLayout(path: string, layout: CanvasNodeLayout): void;
   setNodeVisible(path: string, visible: boolean): void;
-  applyDragPreview(state: CanvasRuntimeDragState | undefined): void;
-  clearDragPreview(): void;
+  applyResizePreview(state: CanvasRuntimeResizeDragState | undefined): void;
   dispose(): void;
 }
 
@@ -161,16 +162,10 @@ export function createCanvasStageRuntime(input: CanvasStageRuntimeInput = {}): C
       node.visible = visible;
       recordCounter(writeNodeDisplay(node, visible) ? 'stage-node-visibility-write' : 'stage-node-visibility-noop');
     },
-    applyDragPreview: (state) => {
+    applyResizePreview: (state) => {
       const previousPreviewPaths = activePreviewPaths;
       activePreviewPaths = new Set();
       if (!state) {
-        for (const path of previousPreviewPaths) {
-          clearPreviewPath(path);
-        }
-        return;
-      }
-      if (state.kind === 'move-node') {
         for (const path of previousPreviewPaths) {
           clearPreviewPath(path);
         }
@@ -193,7 +188,7 @@ export function createCanvasStageRuntime(input: CanvasStageRuntimeInput = {}): C
           writeStyleProperty(node, 'height', `${next.height}px`, 'lastHeight')
         ].some(Boolean);
         if (wrote) {
-          recordCounter('stage-drag-preview-write');
+          recordCounter('stage-resize-preview-write');
         }
       }
       for (const path of previousPreviewPaths) {
@@ -201,12 +196,6 @@ export function createCanvasStageRuntime(input: CanvasStageRuntimeInput = {}): C
           clearPreviewPath(path);
         }
       }
-    },
-    clearDragPreview: () => {
-      for (const path of activePreviewPaths) {
-        clearPreviewPath(path);
-      }
-      activePreviewPaths = new Set();
     },
     dispose: () => {
       nodes.clear();

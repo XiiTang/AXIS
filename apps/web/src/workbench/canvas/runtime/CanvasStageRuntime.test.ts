@@ -51,25 +51,32 @@ describe('CanvasStageRuntime', () => {
     expect(element.style.properties.get('display')).toBe('block');
   });
 
-  it('ignores move-node drag previews because move layout comes from render snapshots', () => {
+  it('applies resize previews through the resize-only preview API', () => {
     const runtime = createCanvasStageRuntime();
     const element = fakeElement();
 
     runtime.registerNodeShell('flow/a.png', element as unknown as HTMLElement);
     runtime.setNodeLayout('flow/a.png', { x: 10, y: 20, width: 320, height: 180, z: 7 });
-    runtime.applyDragPreview({
-      kind: 'move-node',
+    runtime.applyResizePreview({
+      kind: 'resize-node',
       pointerId: 1,
       start: { x: 0, y: 0 },
       current: { x: 15, y: 25 },
-      origins: [{ projectRelativePath: 'flow/a.png', x: 10, y: 20, width: 320, height: 180, locked: false }]
+      handle: 'se',
+      node: { projectRelativePath: 'flow/a.png' },
+      origin: { x: 10, y: 20, width: 320, height: 180 },
+      preserveAspect: false
     });
 
     expect(element.style.transform).toBe('translate(10px, 20px)');
+    expect(element.style.properties.get('width')).toBe('335px');
+    expect(element.style.properties.get('height')).toBe('205px');
 
-    runtime.clearDragPreview();
+    runtime.applyResizePreview(undefined);
 
     expect(element.style.transform).toBe('translate(10px, 20px)');
+    expect(element.style.properties.get('width')).toBe('320px');
+    expect(element.style.properties.get('height')).toBe('180px');
   });
 
   it('records camera write and no-op counters', () => {
@@ -97,7 +104,7 @@ describe('CanvasStageRuntime', () => {
     });
   });
 
-  it('records layout and visibility counters without move preview writes', () => {
+  it('records layout and visibility counters without resize preview writes', () => {
     const monitor = createCanvasPerfMonitor({ enabled: true });
     const sessionId = monitor.startSession({ type: 'drag-move-node', timestamp: 0, source: 'CanvasSurface' });
     if (!sessionId) {
@@ -111,14 +118,6 @@ describe('CanvasStageRuntime', () => {
     runtime.setNodeLayout('flow/a.png', { x: 10, y: 20, width: 320, height: 180, z: 7 });
     runtime.setNodeVisible('flow/a.png', false);
     runtime.setNodeVisible('flow/a.png', false);
-    runtime.applyDragPreview({
-      kind: 'move-node',
-      pointerId: 1,
-      start: { x: 0, y: 0 },
-      current: { x: 15, y: 25 },
-      origins: [{ projectRelativePath: 'flow/a.png', x: 10, y: 20, width: 320, height: 180, locked: false }]
-    });
-
     monitor.endSession({ sessionId, timestamp: 20, source: 'CanvasSurface' });
 
     expect(monitor.getLastSession()?.counters).toMatchObject({
@@ -127,7 +126,7 @@ describe('CanvasStageRuntime', () => {
       'stage-node-visibility-write': 1,
       'stage-node-visibility-noop': 1
     });
-    expect(monitor.getLastSession()?.counters).not.toHaveProperty('stage-drag-preview-write');
+    expect(monitor.getLastSession()?.counters).not.toHaveProperty('stage-resize-preview-write');
   });
 
   it('records resize preview writes for transform and size updates', () => {
@@ -141,7 +140,7 @@ describe('CanvasStageRuntime', () => {
 
     runtime.registerNodeShell('flow/a.png', element as unknown as HTMLElement);
     runtime.setNodeLayout('flow/a.png', { x: 10, y: 20, width: 320, height: 180, z: 7 });
-    runtime.applyDragPreview({
+    runtime.applyResizePreview({
       kind: 'resize-node',
       pointerId: 1,
       handle: 'se',
@@ -158,7 +157,7 @@ describe('CanvasStageRuntime', () => {
     expect(element.style.properties.get('width')).toBe('340px');
     expect(element.style.properties.get('height')).toBe('190px');
     expect(monitor.getLastSession()?.counters).toMatchObject({
-      'stage-drag-preview-write': 1
+      'stage-resize-preview-write': 1
     });
   });
 });

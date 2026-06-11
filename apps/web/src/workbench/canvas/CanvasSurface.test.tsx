@@ -142,6 +142,15 @@ describe('CanvasSurface', () => {
         diagnostics: []
       }
     })).toBe(false);
+    expect(canvasSurfaceShouldClearPendingLayoutDraft({
+      pending,
+      projection: {
+        canvasId: 'canvas-1',
+        nodes: [],
+        edges: [],
+        diagnostics: []
+      }
+    })).toBe(true);
   });
 
   it('renders projected nodes without delete controls', () => {
