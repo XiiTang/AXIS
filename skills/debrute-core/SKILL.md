@@ -29,7 +29,7 @@ debrute project init /path/to/project
 debrute project status /path/to/project
 debrute project validate /path/to/project
 debrute workbench url /path/to/project
-debrute canvas-map publish /path/to/project production-map
+debrute canvas-map publish /path/to/project canvas-1
 debrute generated-asset lookup /path/to/project --path generated/example.png
 debrute llm request --input-json '{"prompt":"Summarize this project."}'
 debrute models image list

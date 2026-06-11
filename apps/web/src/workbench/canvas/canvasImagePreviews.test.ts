@@ -143,6 +143,20 @@ describe('canvas image preview URLs', () => {
     });
   });
 
+  it('preserves the daemon token from raw file URLs for browser image preview requests', () => {
+    const path = '阿咕/阿咕-形象总览.png';
+    const node = nodeFixture(path, 5120, 'image/png', true, 5120, rawUrl(path, 'test-token'));
+
+    expect(canvasImageSource({
+      node,
+      cameraZoom: 0.1,
+      devicePixelRatio: 1
+    })).toEqual({
+      src: previewUrl(path, 640, 'test-token'),
+      previewWidth: 640
+    });
+  });
+
 });
 
 function nodeFixture(
@@ -150,7 +164,8 @@ function nodeFixture(
   width: number,
   mimeType: string,
   canvasImagePreviewable = isStillRasterMimeType(mimeType),
-  canvasImagePreviewSourceWidth = width
+  canvasImagePreviewSourceWidth = width,
+  fileUrl = rawUrl(path)
 ): ProjectedCanvasNode {
   return {
     projectRelativePath: path,
@@ -169,21 +184,29 @@ function nodeFixture(
       mimeType,
       canvasImagePreviewable,
       canvasImagePreviewSourceWidth,
-      fileUrl: rawUrl(path),
+      fileUrl,
       revision: 'rev'
     }
   };
 }
 
-function rawUrl(path: string): string {
-  return `http://127.0.0.1:17321/api/projects/123e4567-e89b-42d3-a456-426614174000/files/raw/${path.split('/').map(encodeURIComponent).join('/')}?v=rev`;
+function rawUrl(path: string, daemonToken?: string): string {
+  const url = new URL(`http://127.0.0.1:17321/api/projects/123e4567-e89b-42d3-a456-426614174000/files/raw/${path.split('/').map(encodeURIComponent).join('/')}`);
+  url.searchParams.set('v', 'rev');
+  if (daemonToken) {
+    url.searchParams.set('debrute-token', daemonToken);
+  }
+  return url.toString();
 }
 
-function previewUrl(path: string, width: number): string {
+function previewUrl(path: string, width: number, daemonToken?: string): string {
   const url = new URL('http://127.0.0.1:17321/api/projects/123e4567-e89b-42d3-a456-426614174000/canvas-image-preview');
   url.searchParams.set('path', path);
   url.searchParams.set('v', 'rev');
   url.searchParams.set('w', String(width));
+  if (daemonToken) {
+    url.searchParams.set('debrute-token', daemonToken);
+  }
   return url.toString();
 }
 

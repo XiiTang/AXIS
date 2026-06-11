@@ -19,12 +19,11 @@ import {
 
 describe('canvas-core', () => {
   it('creates Canvas documents with nodeElements', () => {
-    const canvas = createCanvasDocument({ id: 'main', title: 'Main' });
+    const canvas = createCanvasDocument({ id: 'main' });
 
-    expect(canvas).toMatchObject({
+    expect(canvas).toEqual({
       schemaVersion: CANVAS_DOCUMENT_SCHEMA_VERSION,
       id: 'main',
-      title: 'Main',
       nodeElements: [],
       annotations: [],
       preferences: { showDiagnostics: true }
@@ -560,7 +559,7 @@ describe('canvas-core', () => {
 
 function createCanvasWithNodes(nodes: Array<Partial<CanvasNodeElement> & Pick<CanvasNodeElement, 'projectRelativePath' | 'nodeKind' | 'x' | 'y' | 'width' | 'height'>>): CanvasDocument {
   return {
-    ...createCanvasDocument({ id: 'main', title: 'Main' }),
+    ...createCanvasDocument({ id: 'main' }),
     nodeElements: nodes.map((item, index) => ({
       z: index,
       visible: true,

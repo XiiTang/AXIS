@@ -60,7 +60,7 @@ describe('debrute-cli', () => {
       await mkdir(join(root, '.debrute/canvas-maps'), { recursive: true });
       await mkdir(join(root, 'prompts'), { recursive: true });
       await writeFile(join(root, 'prompts/cover.md'), '# Cover\n', 'utf8');
-      await writeFile(join(root, '.debrute/canvas-maps/production-map.yaml'), [
+      await writeFile(join(root, '.debrute/canvas-maps/canvas-1.yaml'), [
         'paths:',
         '  - prompts/cover.md',
         ''
@@ -71,11 +71,11 @@ describe('debrute-cli', () => {
         'canvas-map',
         'publish',
         root,
-        'production-map'
+        'canvas-1'
       ], (text) => output.push(text));
 
-      expect(output).toEqual(['debrute/1 ok cmd=canvas-map.publish\ncanvas=production-map']);
-      await expect(readFile(join(root, '.debrute/canvases/production-map.json'), 'utf8')).resolves.toContain('"projectRelativePath": "prompts/cover.md"');
+      expect(output).toEqual(['debrute/1 ok cmd=canvas-map.publish\ncanvas=canvas-1']);
+      await expect(readFile(join(root, '.debrute/canvases/canvas-1.json'), 'utf8')).resolves.toContain('"projectRelativePath": "prompts/cover.md"');
     } finally {
       process.exitCode = originalExitCode;
       await rm(root, { recursive: true, force: true });

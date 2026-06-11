@@ -90,14 +90,19 @@ export function canvasImagePreviewWidthForNode(
 }
 
 function canvasImagePreviewUrl(fileUrl: string, projectRelativePath: string, revision: string, width: number): URL {
-  const projectMatch = new URL(fileUrl).pathname.match(/^\/api\/projects\/([^/]+)\//);
+  const sourceUrl = new URL(fileUrl);
+  const projectMatch = sourceUrl.pathname.match(/^\/api\/projects\/([^/]+)\//);
   if (!projectMatch?.[1]) {
     throw new Error('Canvas preview file URL must include a project id.');
   }
-  const url = new URL(`/api/projects/${projectMatch[1]}/canvas-image-preview`, fileUrl);
+  const url = new URL(`/api/projects/${projectMatch[1]}/canvas-image-preview`, sourceUrl);
   url.searchParams.set('path', projectRelativePath);
   url.searchParams.set('v', revision);
   url.searchParams.set('w', String(width));
+  const daemonToken = sourceUrl.searchParams.get('debrute-token');
+  if (daemonToken) {
+    url.searchParams.set('debrute-token', daemonToken);
+  }
   return url;
 }
 

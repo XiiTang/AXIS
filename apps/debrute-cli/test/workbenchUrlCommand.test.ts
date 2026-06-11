@@ -172,7 +172,7 @@ describe('runWorkbenchCommand', () => {
       project?: { name?: string };
     };
     expect(metadata.project?.name).toBe(projectRoot.slice(projectRoot.lastIndexOf('/') + 1));
-    expect(await readdir(join(projectRoot, '.debrute/canvases'))).toContain('production-map.json');
+    expect(await readdir(join(projectRoot, '.debrute/canvases'))).toContain('canvas-1.json');
   });
 
   it('returns project_not_found for missing directories without launching runtime', async () => {

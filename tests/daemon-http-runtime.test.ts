@@ -1312,11 +1312,11 @@ describe('daemon HTTP runtime', () => {
       },
       body: JSON.stringify({ projectRoot })
     });
-    await writeCanvasMap(projectRoot, 'production-map', canvasMapSource(['image-production/generated/*.png']));
+    await writeCanvasMap(projectRoot, 'canvas-1', canvasMapSource(['image-production/generated/*.png']));
     if (!appServer) {
       throw new Error('Daemon did not create a project app server.');
     }
-    await appServer.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+    await appServer.publishCanvasMapForProject(projectRoot, { canvasId: 'canvas-1' });
     const refreshed = await requestJson<{
       projections: Array<{ nodes: Array<{ projectRelativePath: string; availability: { state: string; fileUrl?: string } }> }>;
     }>(`${runtime.daemonUrl}/api/projects/${opened.projectId}/refresh`, {
@@ -1335,7 +1335,7 @@ describe('daemon HTTP runtime', () => {
     expect(Buffer.from(await rawFileResponse.arrayBuffer()).length).toBeGreaterThan(0);
 
     const response = await fetch(`${runtime.daemonUrl}/api/projects/${opened.projectId}/events?debrute-token=test-token`);
-    await requestJson(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/production-map/node-layers`, {
+    await requestJson(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/canvas-1/node-layers`, {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
@@ -1382,17 +1382,17 @@ describe('daemon HTTP runtime', () => {
       },
       body: JSON.stringify({ projectRoot })
     });
-    await writeCanvasMap(projectRoot, 'production-map', canvasMapSource(['prompts/cover.md']));
+    await writeCanvasMap(projectRoot, 'canvas-1', canvasMapSource(['prompts/cover.md']));
     if (!appServer) {
       throw new Error('Daemon did not create a project app server.');
     }
-    await appServer.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
+    await appServer.publishCanvasMapForProject(projectRoot, { canvasId: 'canvas-1' });
 
     const result = await requestJson<{
       snapshot: { canvases: Array<{ id: string; nodeElements: Array<{ projectRelativePath: string }> }> };
       projection: { nodes: Array<{ projectRelativePath: string }> };
       centerProjectRelativePath: string;
-    }>(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/production-map/canvas-map/project-paths`, {
+    }>(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/canvas-1/canvas-map/project-paths`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -1408,16 +1408,16 @@ describe('daemon HTTP runtime', () => {
       'prompts/alt.md'
     ]));
     expect(result.projection.nodes.map((node) => node.projectRelativePath)).toContain('prompts/alt.md');
-    await expect(readFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), 'utf8')).resolves.toBe(canvasMapSource([
+    await expect(readFile(join(projectRoot, '.debrute/canvas-maps/canvas-1.yaml'), 'utf8')).resolves.toBe(canvasMapSource([
       'prompts/cover.md',
       'prompts/alt.md'
     ]));
 
-    await writeFile(join(projectRoot, '.debrute/canvas-maps/production-map.yaml'), canvasMapSource([
+    await writeFile(join(projectRoot, '.debrute/canvas-maps/canvas-1.yaml'), canvasMapSource([
       'prompts/cover.md',
       'external/edit.md'
     ]), 'utf8');
-    const conflict = await fetch(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/production-map/canvas-map/project-paths`, {
+    const conflict = await fetch(`${runtime.daemonUrl}/api/projects/${opened.projectId}/canvases/canvas-1/canvas-map/project-paths`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

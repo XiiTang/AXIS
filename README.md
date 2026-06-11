@@ -136,7 +136,7 @@ pnpm exec tsx apps/debrute-cli/src/index.ts skills sync
 pnpm exec tsx apps/debrute-cli/src/index.ts project init path/to/project
 pnpm exec tsx apps/debrute-cli/src/index.ts project validate path/to/project
 pnpm exec tsx apps/debrute-cli/src/index.ts workbench url path/to/project
-pnpm exec tsx apps/debrute-cli/src/index.ts canvas-map publish path/to/project production-map
+pnpm exec tsx apps/debrute-cli/src/index.ts canvas-map publish path/to/project canvas-1
 pnpm exec tsx apps/debrute-cli/src/index.ts generated-asset lookup path/to/project --path generated/example.png
 pnpm exec tsx apps/debrute-cli/src/index.ts llm request --input-json '{"prompt":"Summarize this project."}'
 pnpm exec tsx apps/debrute-cli/src/index.ts models image list

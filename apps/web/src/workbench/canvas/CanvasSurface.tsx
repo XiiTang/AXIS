@@ -46,7 +46,7 @@ import {
   useCanvasSelection,
   useCanvasSurfaceSize
 } from './runtime/useCanvasRuntimeSnapshot';
-import { readInternalProjectTreeDragEntries } from '../project-explorer/ProjectTree';
+import { hasInternalProjectTreeDrag, readInternalProjectTreeDragEntries } from '../project-explorer/ProjectTree';
 
 interface CanvasSurfaceProps {
   canvas: CanvasDocument;
@@ -778,7 +778,7 @@ function CanvasSurfaceRuntime({
         }
       }}
       onDragOver={(event) => {
-        if (!canvasMapProjectTreeDropInput(canvas.id, event.dataTransfer)) {
+        if (!isCanvasMapProjectTreeDragOver(event.dataTransfer)) {
           return;
         }
         event.preventDefault();
@@ -868,6 +868,10 @@ export function canvasMapProjectTreeDropInput(
         projectRelativePath: entry.projectRelativePath
       }
     : undefined;
+}
+
+export function isCanvasMapProjectTreeDragOver(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
+  return hasInternalProjectTreeDrag(dataTransfer);
 }
 
 export function shouldClearFeedbackBarPlacementForFeedbackTarget(input: {

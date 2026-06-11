@@ -6,7 +6,7 @@ import { createCanvasEditorRuntime } from './runtime/CanvasEditorRuntime';
 
 describe('CanvasToolbar', () => {
   it('routes Fit through the active Canvas runtime camera', () => {
-    const canvas = createCanvasDocument({ id: 'canvas', title: 'Canvas' });
+    const canvas = createCanvasDocument({ id: 'canvas' });
     const runtime = createCanvasEditorRuntime({ camera: { x: 120, y: 80, z: 0.5 } });
     runtime.bindSurface({
       surface: fakeElement({ width: 1000, height: 600 }) as unknown as HTMLElement
@@ -39,7 +39,7 @@ describe('CanvasToolbar', () => {
   });
 
   it('disables Fit until the active Canvas runtime is available', () => {
-    const canvas = createCanvasDocument({ id: 'canvas', title: 'Canvas' });
+    const canvas = createCanvasDocument({ id: 'canvas' });
 
     const button = toolbarButton(CanvasToolbar({
       canvas,

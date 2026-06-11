@@ -31,7 +31,7 @@ describe('CanvasMinimapBar', () => {
   });
 
   it('renders simplified nodes, selected nodes, and the camera when open', () => {
-    const canvas = createCanvasDocument({ id: 'minimap-canvas', title: 'Minimap Canvas' });
+    const canvas = createCanvasDocument({ id: 'minimap-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [

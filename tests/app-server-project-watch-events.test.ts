@@ -38,26 +38,27 @@ describe('App Server project watch events', () => {
       await writeFile(join(projectRoot, 'outputs/a.png'), 'fake', 'utf8');
       await writeFile(join(projectRoot, 'outputs/b.png'), 'fake', 'utf8');
       await server.openProject(projectRoot, { initializeIfMissing: true, createDefaultCanvas: true, watchFiles: false });
-      await writeCanvasMap(projectRoot, 'production-map', [
-        '- outputs/a.png',
+      await writeCanvasMap(projectRoot, 'canvas-1', [
+        'paths:',
+        '  - outputs/a.png',
         ''
       ]);
-      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'production-map' });
-      const canvasBefore = await readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8');
+      await server.publishCanvasMapForProject(projectRoot, { canvasId: 'canvas-1' });
+      const canvasBefore = await readFile(join(projectRoot, '.debrute/canvases/canvas-1.json'), 'utf8');
 
-      const mapPath = join(projectRoot, '.debrute/canvas-maps/production-map.yaml');
-      await writeFile(mapPath, '- outputs/b.png\n', 'utf8');
+      const mapPath = join(projectRoot, '.debrute/canvas-maps/canvas-1.yaml');
+      await writeFile(mapPath, 'paths:\n  - outputs/b.png\n', 'utf8');
       await callWatchedFileEvent(server, {
         type: 'changed',
         absolutePath: mapPath,
-        projectRelativePath: '.debrute/canvas-maps/production-map.yaml',
+        projectRelativePath: '.debrute/canvas-maps/canvas-1.yaml',
         observedAt: Date.now() + 1000,
         affects: ['canvas-map']
       });
 
       const snapshot = server.getSnapshot();
-      expect(snapshot.files.map((file) => file.projectRelativePath)).toContain('.debrute/canvas-maps/production-map.yaml');
-      await expect(readFile(join(projectRoot, '.debrute/canvases/production-map.json'), 'utf8')).resolves.toBe(canvasBefore);
+      expect(snapshot.files.map((file) => file.projectRelativePath)).toContain('.debrute/canvas-maps/canvas-1.yaml');
+      await expect(readFile(join(projectRoot, '.debrute/canvases/canvas-1.json'), 'utf8')).resolves.toBe(canvasBefore);
       expect(snapshot.canvases[0]?.nodeElements.map((node) => node.projectRelativePath)).toEqual(['outputs', 'outputs/a.png']);
     } finally {
       server.close();

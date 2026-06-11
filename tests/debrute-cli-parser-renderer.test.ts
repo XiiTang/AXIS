@@ -37,11 +37,11 @@ describe('debrute cli parser and renderer', () => {
         log: 'results.jsonl'
       }
     });
-    expect(parseDebruteArgs(['canvas-map', 'publish', '/tmp/project', 'production-map'])).toMatchObject({
+    expect(parseDebruteArgs(['canvas-map', 'publish', '/tmp/project', 'canvas-1'])).toMatchObject({
       command: 'canvas-map.publish',
       scope: 'project',
       projectRoot: '/tmp/project',
-      positional: ['/tmp/project', 'production-map']
+      positional: ['/tmp/project', 'canvas-1']
     });
     expect(() => parseDebruteArgs(['daemon', 'status', '--daemon-url', 'http://127.0.0.1:17321'])).toThrow(DebruteCliError);
   });

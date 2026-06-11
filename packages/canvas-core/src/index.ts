@@ -69,7 +69,6 @@ export type CanvasNodeAvailability =
 export interface CanvasDocument {
   schemaVersion: typeof CANVAS_DOCUMENT_SCHEMA_VERSION;
   id: string;
-  title: string;
   nodeElements: CanvasNodeElement[];
   annotations: CanvasAnnotation[];
   preferences: {
@@ -264,12 +263,11 @@ export function normalizeCanvasFeedbackProjectRelativePath(projectRelativePath: 
   return normalized;
 }
 
-export function createCanvasDocument(input: { id: string; title: string }): CanvasDocument {
+export function createCanvasDocument(input: { id: string }): CanvasDocument {
   const id = assertCanvasDocumentId(input.id);
   return {
     schemaVersion: CANVAS_DOCUMENT_SCHEMA_VERSION,
     id,
-    title: input.title,
     nodeElements: [],
     annotations: [],
     preferences: {

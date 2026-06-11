@@ -11,8 +11,8 @@ import {
 describe('canvas-map core', () => {
   it('parses top-level object paths and layout rows', () => {
     const map = parseCanvasMap({
-      canvasId: 'production-map',
-      sourcePath: '.debrute/canvas-maps/production-map.yaml',
+      canvasId: 'canvas-1',
+      sourcePath: '.debrute/canvas-maps/canvas-1.yaml',
       content: [
         'paths:',
         '  - prompts/cover.md',
@@ -26,8 +26,8 @@ describe('canvas-map core', () => {
     });
 
     expect(map).toEqual({
-      canvasId: 'production-map',
-      sourcePath: '.debrute/canvas-maps/production-map.yaml',
+      canvasId: 'canvas-1',
+      sourcePath: '.debrute/canvas-maps/canvas-1.yaml',
       paths: [
         { raw: 'prompts/cover.md', pattern: 'prompts/cover.md', kind: 'exact-file' },
         { raw: 'outputs/gpt/', pattern: 'outputs/gpt', kind: 'recursive-directory' },
@@ -37,7 +37,7 @@ describe('canvas-map core', () => {
         { raw: 'outputs/**/high/*.png', pattern: 'outputs/**/high/*.png' }
       ]
     });
-    expect(canvasMapPath('production-map')).toBe('.debrute/canvas-maps/production-map.yaml');
+    expect(canvasMapPath('canvas-1')).toBe('.debrute/canvas-maps/canvas-1.yaml');
   });
 
   it('rejects non-object YAML, unknown fields, invalid paths, and invalid rows', () => {

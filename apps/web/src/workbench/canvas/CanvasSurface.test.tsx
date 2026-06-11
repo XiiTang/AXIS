@@ -11,6 +11,7 @@ import { areCanvasNodeShellPropsEqual, CanvasNodeShell, type CanvasNodeShellProp
 import {
   CanvasSurface,
   canvasImageResourceZoomPreviewSignature,
+  isCanvasMapProjectTreeDragOver,
   canvasMapProjectTreeDropEntry,
   canvasMapProjectTreeDropInput,
   createCanvasRenderSnapshotScheduler,
@@ -31,7 +32,7 @@ import { createCanvasEditorRuntime, type CanvasEditorRuntime } from './runtime/C
 
 describe('CanvasSurface', () => {
   it('renders an empty Canvas Map node state', () => {
-    const canvas = createCanvasDocument({ id: 'empty-canvas', title: 'Empty Canvas' });
+    const canvas = createCanvasDocument({ id: 'empty-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [],
@@ -57,20 +58,30 @@ describe('CanvasSurface', () => {
   });
 
   it('builds Canvas Map drop input without drop coordinates', () => {
-    expect(canvasMapProjectTreeDropInput('production-map', projectTreeDragDataTransfer([
+    expect(canvasMapProjectTreeDropInput('canvas-1', projectTreeDragDataTransfer([
       { kind: 'file', projectRelativePath: 'outputs/gpt/cover.png' }
     ]))).toEqual({
-      canvasId: 'production-map',
+      canvasId: 'canvas-1',
       projectRelativePath: 'outputs/gpt/cover.png'
     });
-    expect(canvasMapProjectTreeDropInput('production-map', projectTreeDragDataTransfer([
+    expect(canvasMapProjectTreeDropInput('canvas-1', projectTreeDragDataTransfer([
       { kind: 'file', projectRelativePath: 'outputs/gpt/a.png' },
       { kind: 'file', projectRelativePath: 'outputs/gpt/b.png' }
     ]))).toBeUndefined();
   });
 
+  it('accepts Canvas Map dragover from project tree MIME without reading drag payload', () => {
+    const dataTransfer = {
+      types: ['application/x-debrute-project-tree-paths'],
+      getData: vi.fn(() => '')
+    };
+
+    expect(isCanvasMapProjectTreeDragOver(dataTransfer)).toBe(true);
+    expect(dataTransfer.getData).not.toHaveBeenCalled();
+  });
+
   it('renders projected nodes without delete controls', () => {
-    const canvas = createCanvasDocument({ id: 'node-canvas', title: 'Node Canvas' });
+    const canvas = createCanvasDocument({ id: 'node-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [nodeFixture('image-production/cover.png', 120, 80)],
@@ -89,7 +100,7 @@ describe('CanvasSurface', () => {
   });
 
   it('keeps image nodes mounted while still virtualizing offscreen non-image nodes', () => {
-    const canvas = createCanvasDocument({ id: 'virtual-nodes', title: 'Virtual Nodes' });
+    const canvas = createCanvasDocument({ id: 'virtual-nodes' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [
@@ -123,7 +134,7 @@ describe('CanvasSurface', () => {
   });
 
   it('keeps camera transforms out of React stage markup', () => {
-    const canvas = createCanvasDocument({ id: 'viewport-canvas', title: 'Viewport Canvas' });
+    const canvas = createCanvasDocument({ id: 'viewport-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [nodeFixture('flow/visible.png', 0, 0)],
@@ -141,7 +152,7 @@ describe('CanvasSurface', () => {
   });
 
   it('does not render offscreen text node content', () => {
-    const canvas = createCanvasDocument({ id: 'virtual-text', title: 'Virtual Text' });
+    const canvas = createCanvasDocument({ id: 'virtual-text' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [
@@ -184,7 +195,7 @@ describe('CanvasSurface', () => {
   });
 
   it('renders structure edges when their segments intersect the virtual viewport', () => {
-    const canvas = createCanvasDocument({ id: 'edge-canvas', title: 'Edge Canvas' });
+    const canvas = createCanvasDocument({ id: 'edge-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [
@@ -229,7 +240,7 @@ describe('CanvasSurface', () => {
   });
 
   it('does not render feedback bars inside Canvas node markup', () => {
-    const canvas = createCanvasDocument({ id: 'feedback-canvas', title: 'Feedback Canvas' });
+    const canvas = createCanvasDocument({ id: 'feedback-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [nodeFixture('image-production/cover.png', 120, 80)],
@@ -254,7 +265,7 @@ describe('CanvasSurface', () => {
   });
 
   it('does not render minimap UI inside the Canvas surface layer', () => {
-    const canvas = createCanvasDocument({ id: 'minimap-layer-canvas', title: 'Minimap Layer Canvas' });
+    const canvas = createCanvasDocument({ id: 'minimap-layer-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [nodeFixture('flow/visible.png', 0, 0)],
@@ -270,7 +281,7 @@ describe('CanvasSurface', () => {
   });
 
   it('does not render feedback bars for directory or hidden nodes', () => {
-    const canvas = createCanvasDocument({ id: 'feedback-exclusions', title: 'Feedback Exclusions' });
+    const canvas = createCanvasDocument({ id: 'feedback-exclusions' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [
@@ -289,7 +300,7 @@ describe('CanvasSurface', () => {
   });
 
   it('does not eagerly render image src attributes before node-local image state publishes image state', () => {
-    const canvas = createCanvasDocument({ id: 'resource-previews', title: 'Resource Previews' });
+    const canvas = createCanvasDocument({ id: 'resource-previews' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: Array.from({ length: 16 }, (_item, index) => ({
@@ -347,7 +358,7 @@ describe('CanvasSurface', () => {
   });
 
   it('does not wait for Canvas settings before rendering the Canvas shell', () => {
-    const canvas = createCanvasDocument({ id: 'settings-loading-canvas', title: 'Settings Loading Canvas' });
+    const canvas = createCanvasDocument({ id: 'settings-loading-canvas' });
     const projection: CanvasProjection = {
       canvasId: canvas.id,
       nodes: [{ ...nodeFixture('flow/cover.png', 0, 0), width: 2400, height: 1200 }],

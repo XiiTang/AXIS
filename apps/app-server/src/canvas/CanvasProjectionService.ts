@@ -147,10 +147,9 @@ function isCurrentCanvasDocument(value: unknown): value is CanvasDocument {
   if (!isRecord(value) || value.schemaVersion !== CANVAS_DOCUMENT_SCHEMA_VERSION) {
     return false;
   }
-  return hasOnlyKeys(value, ['schemaVersion', 'id', 'title', 'nodeElements', 'annotations', 'preferences'])
+  return hasOnlyKeys(value, ['schemaVersion', 'id', 'nodeElements', 'annotations', 'preferences'])
     && typeof value.id === 'string'
     && isCanvasDocumentId(value.id)
-    && typeof value.title === 'string'
     && Array.isArray(value.nodeElements)
     && value.nodeElements.every(isCurrentCanvasNodeElement)
     && Array.isArray(value.annotations)
