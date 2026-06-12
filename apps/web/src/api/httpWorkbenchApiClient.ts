@@ -15,6 +15,10 @@ import type {
   SaveImageModelSettingInput,
   SaveLlmProviderSettingInput,
   SaveVideoModelSettingInput,
+  TerminalEvent,
+  TerminalEventSubscription,
+  TerminalSessionList,
+  TerminalSessionResult,
   VideoModelSettingsView,
   WorkbenchEvent,
   WorkbenchApiClient,
@@ -214,6 +218,56 @@ export function createHttpWorkbenchApiClient(options: HttpWorkbenchApiClientOpti
       return result;
     },
     getProjectHealth: () => request<ProjectHealthSummary>('GET', projectPath('/health')),
+    listTerminalSessions: () => request<TerminalSessionList>('GET', projectPath('/terminals')),
+    createTerminalSession: (input = {}) => request<TerminalSessionResult>('POST', projectPath('/terminals'), input),
+    writeTerminalInput: (input) => request<{ ok: true }>(
+      'POST',
+      projectPath(`/terminals/${encodeURIComponent(input.terminalId)}/input`),
+      { data: input.data }
+    ),
+    resizeTerminal: (input) => request<TerminalSessionResult>(
+      'POST',
+      projectPath(`/terminals/${encodeURIComponent(input.terminalId)}/resize`),
+      { cols: input.cols, rows: input.rows }
+    ),
+    restartTerminalSession: (input) => request<TerminalSessionResult>(
+      'POST',
+      projectPath(`/terminals/${encodeURIComponent(input.terminalId)}/restart`)
+    ),
+    closeTerminalSession: (input) => request<{ ok: true }>(
+      'DELETE',
+      projectPath(`/terminals/${encodeURIComponent(input.terminalId)}`)
+    ),
+    subscribeTerminalEvents: (terminalId, listener, onError): TerminalEventSubscription => {
+      const eventUrl = new URL(`${daemonUrl}${projectPath(`/terminals/${encodeURIComponent(terminalId)}/events`)}`);
+      if (token) {
+        eventUrl.searchParams.set('debrute-token', token);
+      }
+      const source = new EventSource(eventUrl.toString());
+      let streamClosed = false;
+      source.addEventListener('terminal', (event) => {
+        const terminalEvent = JSON.parse((event as MessageEvent).data) as TerminalEvent;
+        if (terminalEvent.type === 'closed') {
+          streamClosed = true;
+        }
+        listener(terminalEvent);
+        if (terminalEvent.type === 'closed') {
+          source.close();
+        }
+      });
+      source.onerror = () => {
+        if (streamClosed) {
+          return;
+        }
+        onError?.(new Error('Terminal event stream failed.'));
+      };
+      return {
+        close: () => {
+          streamClosed = true;
+          source.close();
+        }
+      };
+    },
     readProjectTextFile: (projectRelativePath) => request<WorkbenchProjectTextFile>('GET', projectPath(`/files/text/${encodeProjectPath(projectRelativePath)}`)),
     writeProjectTextFile: (projectRelativePath, content) => requestRevisioned<WorkbenchProjectTextFileWriteResult>('PUT', projectPath(`/files/text/${encodeProjectPath(projectRelativePath)}`), { content }),
     getDesktopPlatform: async () => (

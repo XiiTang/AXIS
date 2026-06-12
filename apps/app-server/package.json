@@ -12,10 +12,11 @@
   "dependencies": {
     "@debrute/app-protocol": "workspace:*",
     "@debrute/canvas-core": "workspace:*",
+    "@debrute/canvas-map-core": "workspace:*",
     "@debrute/capability-core": "workspace:*",
     "@debrute/capability-runtime": "workspace:*",
-    "@debrute/canvas-map-core": "workspace:*",
     "@debrute/project-core": "workspace:*",
+    "node-pty": "^1.1.0",
     "sharp": "^0.34.5"
   }
 }

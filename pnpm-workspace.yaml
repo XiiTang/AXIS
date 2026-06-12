@@ -18,6 +18,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+  node-pty: true
   sharp: true
 
 onlyBuiltDependencies:
@@ -26,6 +27,7 @@ onlyBuiltDependencies:
   - electron-builder
   - electron-winstaller
   - esbuild
+  - node-pty
   - sharp
 
 minimumReleaseAgeExclude:

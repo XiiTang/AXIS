@@ -1301,7 +1301,8 @@ const actions: WorkbenchActions = {
   repairCanvasIndex: async () => {
     throw new Error('not used');
   },
-  openProject: async () => undefined
+  openProject: async () => undefined,
+  openTerminalPanel: () => undefined
 };
 
 const emptyIntegrationsSettings: IntegrationSettingsView = {

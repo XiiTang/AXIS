@@ -17,7 +17,7 @@ describe('projectViewState', () => {
     });
 
     expect(storage.setItem).toHaveBeenCalledWith(
-      'debrute:project-view:project-a:web%3Atab-a',
+      'debrute:project-view:terminal-v1:project-a:web%3Atab-a',
       JSON.stringify({ activeCanvasId: 'canvas-2', floatingPanels: DEFAULT_FLOATING_PANEL_STATE })
     );
     expect(loadProjectViewState({
@@ -31,7 +31,7 @@ describe('projectViewState', () => {
     const storage = storageFixture();
     storage.getItem.mockReturnValue(null);
 
-    expect(projectViewStateStorageKey('project-a', 'web:tab-a')).toBe('debrute:project-view:project-a:web%3Atab-a');
+    expect(projectViewStateStorageKey('project-a', 'web:tab-a')).toBe('debrute:project-view:terminal-v1:project-a:web%3Atab-a');
     expect(loadProjectViewState({ storage, projectId: 'project-a', clientId: 'web:tab-a' })).toEqual({});
   });
 });

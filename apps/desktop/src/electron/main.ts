@@ -48,8 +48,8 @@ const applicationMenu = createApplicationMenuController({
   },
   openProject: async (projectRoot, sourceWindow, options) => {
     await openProjectFromShell(projectRoot, {
-      sourceWindow,
-      forceNewWindow: options.forceNewWindow
+      forceNewWindow: options.forceNewWindow,
+      ...(sourceWindow ? { sourceWindow } : {})
     });
   },
   clearRecentProjectRoots: async () => {
@@ -146,8 +146,8 @@ function registerShellIpc(): void {
       return { opened: false };
     }
     await openProjectFromShell(selectedRoot, {
-      sourceWindow,
-      forceNewWindow: input.forceNewWindow === true
+      forceNewWindow: input.forceNewWindow === true,
+      ...(sourceWindow ? { sourceWindow } : {})
     });
     return { opened: true };
   });
@@ -239,10 +239,10 @@ async function openProjectInWindow(
   );
   const target = selectProjectWindowOpenTarget({
     projectId: opened.projectId,
-    sourceWindowId: options.sourceWindow?.id,
     forceNewWindow: options.forceNewWindow === true,
     windowIdByProjectId,
-    liveWindowIds
+    liveWindowIds,
+    ...(options.sourceWindow ? { sourceWindowId: options.sourceWindow.id } : {})
   });
   if (target.kind === 'focus') {
     BrowserWindow.fromId(target.windowId)?.focus();

@@ -3,6 +3,8 @@ import {
   DEFAULT_FLOATING_PANEL_STATE,
   closeFloatingPanel,
   dragFloatingPanel,
+  openFloatingPanel,
+  resizeFloatingPanel,
   toggleFloatingPanel
 } from './floatingPanels';
 
@@ -11,9 +13,18 @@ describe('floating panel state', () => {
     expect(DEFAULT_FLOATING_PANEL_STATE.panels.explorer).toEqual({
       open: true,
       x: 18,
-      y: 72
+      y: 72,
+      width: 320,
+      height: 620
     });
     expect(DEFAULT_FLOATING_PANEL_STATE.panels.inspector.open).toBe(false);
+    expect(DEFAULT_FLOATING_PANEL_STATE.panels.terminal).toEqual({
+      open: false,
+      x: 96,
+      y: 420,
+      width: 920,
+      height: 320
+    });
   });
 
   it('opens a closed panel from the dock without assigning z-index', () => {
@@ -22,8 +33,18 @@ describe('floating panel state', () => {
     expect(next.panels.problems).toEqual({
       open: true,
       x: DEFAULT_FLOATING_PANEL_STATE.panels.problems.x,
-      y: DEFAULT_FLOATING_PANEL_STATE.panels.problems.y
+      y: DEFAULT_FLOATING_PANEL_STATE.panels.problems.y,
+      width: DEFAULT_FLOATING_PANEL_STATE.panels.problems.width,
+      height: DEFAULT_FLOATING_PANEL_STATE.panels.problems.height
     });
+  });
+
+  it('opens a panel directly for commands', () => {
+    const next = openFloatingPanel(DEFAULT_FLOATING_PANEL_STATE, 'terminal');
+
+    expect(next.panels.terminal.open).toBe(true);
+    expect(next.panels.terminal.width).toBe(920);
+    expect(next.panels.terminal.height).toBe(320);
   });
 
   it('closes an open panel from the dock', () => {
@@ -47,4 +68,13 @@ describe('floating panel state', () => {
     expect(next.panels.settings.y).toBe(DEFAULT_FLOATING_PANEL_STATE.panels.settings.y + 18);
   });
 
+  it('updates panel size after resize and clamps to definition limits', () => {
+    const small = resizeFloatingPanel(DEFAULT_FLOATING_PANEL_STATE, 'terminal', { width: 10, height: 10 });
+    expect(small.panels.terminal.width).toBe(520);
+    expect(small.panels.terminal.height).toBe(220);
+
+    const large = resizeFloatingPanel(DEFAULT_FLOATING_PANEL_STATE, 'terminal', { width: 2000, height: 1200 });
+    expect(large.panels.terminal.width).toBe(1440);
+    expect(large.panels.terminal.height).toBe(900);
+  });
 });

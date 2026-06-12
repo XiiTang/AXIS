@@ -1,4 +1,4 @@
-import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
+import type { BaseWindow, BrowserWindow, MenuItem, MenuItemConstructorOptions } from 'electron';
 
 export interface ProjectOpenMenuOptions {
   forceNewWindow: boolean;
@@ -26,7 +26,7 @@ export function buildApplicationMenuTemplate({
     ? [
         ...recentProjectRoots.map((projectRoot) => ({
           label: projectRoot,
-          click: (_item, browserWindow) => onOpenRecentProject(projectRoot, browserWindow ?? undefined, { forceNewWindow: false })
+          click: (_item: MenuItem, browserWindow: BaseWindow | undefined) => onOpenRecentProject(projectRoot, menuBrowserWindow(browserWindow), { forceNewWindow: false })
         })),
         { type: 'separator' },
         { label: 'Clear Recent', click: () => onClearRecentProjects() }
@@ -64,12 +64,12 @@ export function buildApplicationMenuTemplate({
         {
           label: 'Open Project...',
           accelerator: 'CmdOrCtrl+O',
-          click: (_item, browserWindow) => onOpenProject(browserWindow ?? undefined, { forceNewWindow: false })
+          click: (_item: MenuItem, browserWindow: BaseWindow | undefined) => onOpenProject(menuBrowserWindow(browserWindow), { forceNewWindow: false })
         },
         {
           label: 'Open Project in New Window...',
           accelerator: 'CmdOrCtrl+Shift+O',
-          click: (_item, browserWindow) => onOpenProject(browserWindow ?? undefined, { forceNewWindow: true })
+          click: (_item: MenuItem, browserWindow: BaseWindow | undefined) => onOpenProject(menuBrowserWindow(browserWindow), { forceNewWindow: true })
         },
         {
           label: 'Open Recent',
@@ -109,4 +109,8 @@ export function buildApplicationMenuTemplate({
       ]
     }
   ];
+}
+
+function menuBrowserWindow(window: BaseWindow | undefined): BrowserWindow | undefined {
+  return window as BrowserWindow | undefined;
 }

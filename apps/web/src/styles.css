@@ -234,6 +234,140 @@ button:disabled {
   overflow: auto;
 }
 
+.floating-panel-terminal .floating-panel-body {
+  overflow: hidden;
+}
+
+.floating-panel-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+}
+
+.floating-panel-resize-handle::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid color-mix(in oklch, var(--muted) 75%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--muted) 75%, transparent);
+}
+
+.terminal-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #0b0d12;
+}
+
+.terminal-panel__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 8px;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
+  background: color-mix(in oklch, var(--bg-panel) 84%, #0b0d12);
+}
+
+.terminal-panel__tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: auto hidden;
+}
+
+.terminal-panel__tab,
+.terminal-panel__actions button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.terminal-panel__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  height: 24px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.terminal-panel__tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-panel__tab small {
+  color: var(--subtle);
+  font-size: 10px;
+}
+
+.terminal-panel__tab--active,
+.terminal-panel__tab:hover,
+.terminal-panel__actions button:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in oklch, var(--bg-elevated) 86%, transparent);
+  border-color: color-mix(in oklch, var(--border) 78%, transparent);
+}
+
+.terminal-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.terminal-panel__actions button {
+  width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.terminal-panel__actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.terminal-panel__status {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: var(--muted);
+  background: #10141c;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 65%, transparent);
+  font-size: 12px;
+}
+
+.terminal-panel__surface {
+  flex: 1;
+  min-height: 0;
+  padding: 6px;
+  background: #0b0d12;
+  overflow: hidden;
+}
+
+.terminal-panel__empty {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: #0b0d12;
+  font-size: 12px;
+}
+
 .floating-text-editor-window {
   position: absolute;
   display: grid;

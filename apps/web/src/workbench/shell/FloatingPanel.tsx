@@ -30,7 +30,8 @@ export function FloatingPanel({
   children,
   onClose,
   onBringToFront,
-  onDrag
+  onDrag,
+  onResize
 }: {
   panelId: FloatingPanelId;
   state: FloatingPanelState;
@@ -39,14 +40,22 @@ export function FloatingPanel({
   onClose: () => void;
   onBringToFront: () => void;
   onDrag: (dx: number, dy: number) => void;
+  onResize: (width: number, height: number) => void;
 }): React.ReactElement {
   const definition = FLOATING_PANEL_DEFINITIONS[panelId];
   const layout = state.panels[panelId];
   const dragStart = React.useRef<{ x: number; y: number } | undefined>(undefined);
+  const resizeStart = React.useRef<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
   const dragHandleProps = floatingPanelDragHandleProps({
     dragStart,
     onBringToFront,
     onDrag
+  });
+  const resizeHandleProps = floatingPanelResizeHandleProps({
+    resizeStart,
+    layout,
+    onBringToFront,
+    onResize
   });
   return (
     <section
@@ -55,8 +64,8 @@ export function FloatingPanel({
       style={{
         left: layout.x,
         top: layout.y,
-        width: definition.width,
-        height: definition.height,
+        width: layout.width,
+        height: layout.height,
         zIndex: workbenchWindowZIndex(orderState, panelWindowIdentity(panelId))
       }}
       onPointerDown={onBringToFront}
@@ -78,6 +87,11 @@ export function FloatingPanel({
       <div className="floating-panel-body">
         {children}
       </div>
+      <div
+        className="floating-panel-resize-handle"
+        role="presentation"
+        {...resizeHandleProps}
+      />
     </section>
   );
 }
@@ -101,7 +115,8 @@ export function FloatingPanelContent({
   onProjectTreeExternalDrop,
   onCreateRootFile,
   desktopPlatform,
-  onKeyboardFileCommand
+  onKeyboardFileCommand,
+  terminalPanel
 }: {
   panelId: FloatingPanelId;
   state: WorkbenchState;
@@ -129,6 +144,7 @@ export function FloatingPanelContent({
   onCreateRootFile?: (() => void) | undefined;
   desktopPlatform?: NodeJS.Platform | undefined;
   onKeyboardFileCommand?: ((command: ProjectTreeFileKeyboardCommand, target: WorkbenchContextMenuTarget) => void) | undefined;
+  terminalPanel: React.ReactElement;
 }): React.ReactElement {
   if (panelId === 'explorer') {
     return (
@@ -158,6 +174,9 @@ export function FloatingPanelContent({
   if (panelId === 'problems') {
     return <DiagnosticList diagnostics={state.snapshot?.diagnostics ?? []} onSelect={(diagnostic) => activeCanvasRuntime?.setSelection({ kind: 'diagnostic', id: diagnostic.id })} />;
   }
+  if (panelId === 'terminal') {
+    return terminalPanel;
+  }
   return <SettingsPanel state={state} actions={actions} />;
 }
 
@@ -186,6 +205,45 @@ export function floatingPanelDragHandleProps({
     },
     onPointerUp: (event) => {
       dragStart.current = undefined;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+}
+
+export function floatingPanelResizeHandleProps({
+  resizeStart,
+  layout,
+  onBringToFront,
+  onResize
+}: {
+  resizeStart: React.MutableRefObject<{ x: number; y: number; width: number; height: number } | undefined>;
+  layout: { width: number; height: number };
+  onBringToFront: () => void;
+  onResize: (width: number, height: number) => void;
+}): React.HTMLAttributes<HTMLElement> {
+  return {
+    onPointerDown: (event) => {
+      event.stopPropagation();
+      resizeStart.current = {
+        x: event.clientX,
+        y: event.clientY,
+        width: layout.width,
+        height: layout.height
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      onBringToFront();
+    },
+    onPointerMove: (event) => {
+      if (!resizeStart.current) {
+        return;
+      }
+      onResize(
+        resizeStart.current.width + event.clientX - resizeStart.current.x,
+        resizeStart.current.height + event.clientY - resizeStart.current.y
+      );
+    },
+    onPointerUp: (event) => {
+      resizeStart.current = undefined;
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   };

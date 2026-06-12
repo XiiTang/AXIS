@@ -605,6 +605,99 @@ export interface GeneratedAssetsView {
   assets: GeneratedAssetView[];
 }
 
+export type TerminalSessionStatus = 'starting' | 'running' | 'exited' | 'failed';
+
+export interface TerminalSessionView {
+  id: string;
+  title: string;
+  cwdProjectRelativePath: string;
+  cols: number;
+  rows: number;
+  status: TerminalSessionStatus;
+  exitCode: number | null;
+  signal: string | null;
+  createdAt: string;
+  updatedAt: string;
+  restartCount: number;
+}
+
+export interface CreateTerminalSessionInput {
+  cwdProjectRelativePath?: string;
+  cols?: number;
+  rows?: number;
+}
+
+export interface TerminalSessionList {
+  sessions: TerminalSessionView[];
+}
+
+export interface TerminalSessionResult {
+  session: TerminalSessionView;
+}
+
+export interface TerminalInputWrite {
+  terminalId: string;
+  data: string;
+}
+
+export interface TerminalResize {
+  terminalId: string;
+  cols: number;
+  rows: number;
+}
+
+export interface RestartTerminalSessionInput {
+  terminalId: string;
+}
+
+export interface CloseTerminalSessionInput {
+  terminalId: string;
+}
+
+export interface TerminalDataChunk {
+  sequence: number;
+  data: string;
+}
+
+export type TerminalEvent =
+  | {
+      type: 'replay';
+      terminalId: string;
+      chunks: TerminalDataChunk[];
+      lastSequence: number;
+    }
+  | {
+      type: 'data';
+      terminalId: string;
+      sequence: number;
+      data: string;
+    }
+  | {
+      type: 'status';
+      terminalId: string;
+      session: TerminalSessionView;
+    }
+  | {
+      type: 'exit';
+      terminalId: string;
+      exitCode: number | null;
+      signal: string | null;
+    }
+  | {
+      type: 'closed';
+      terminalId: string;
+    }
+  | {
+      type: 'error';
+      terminalId: string;
+      code: string;
+      message: string;
+    };
+
+export interface TerminalEventSubscription {
+  close(): void;
+}
+
 export interface AddProjectPathToCanvasMapInput {
   canvasId: string;
   projectRelativePath: string;
@@ -667,6 +760,17 @@ export interface WorkbenchApiClient {
   openProject(input: { projectRoot: string } | { projectId: string }): Promise<WorkbenchProjectOpenResult>;
   getSnapshot(): Promise<WorkbenchProjectRefreshResult>;
   getProjectHealth(): Promise<ProjectHealthSummary>;
+  listTerminalSessions(): Promise<TerminalSessionList>;
+  createTerminalSession(input?: CreateTerminalSessionInput): Promise<TerminalSessionResult>;
+  writeTerminalInput(input: TerminalInputWrite): Promise<{ ok: true }>;
+  resizeTerminal(input: TerminalResize): Promise<TerminalSessionResult>;
+  restartTerminalSession(input: RestartTerminalSessionInput): Promise<TerminalSessionResult>;
+  closeTerminalSession(input: CloseTerminalSessionInput): Promise<{ ok: true }>;
+  subscribeTerminalEvents(
+    terminalId: string,
+    listener: (event: TerminalEvent) => void,
+    onError?: (error: Error) => void
+  ): TerminalEventSubscription;
   readProjectTextFile(projectRelativePath: string): Promise<WorkbenchProjectTextFile>;
   writeProjectTextFile(projectRelativePath: string, content: string): Promise<WorkbenchProjectTextFileWriteResult>;
   getDesktopPlatform(): Promise<NodeJS.Platform>;

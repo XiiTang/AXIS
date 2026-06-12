@@ -1,7 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 interface PackageJson {
@@ -32,10 +34,61 @@ describe('Electron development scripts', () => {
     expect(script).not.toContain('pid ?? process.pid');
   });
 
-  it('keeps sharp external so its native optional packages resolve from pnpm', () => {
+  it('keeps native Electron runtime modules external so their native packages resolve from pnpm', () => {
     const script = readFileSync(join(process.cwd(), 'apps/desktop/scripts/bundle-electron.mjs'), 'utf8');
 
-    expect(script).toContain("external: ['electron', 'sharp']");
+    expect(script).toContain("external: ['electron', 'node-pty', 'sharp']");
+  });
+
+  it('packages only the target node-pty runtime payload for Electron', () => {
+    const script = readFileSync(join(process.cwd(), 'apps/desktop/scripts/package-sharp-runtime.mjs'), 'utf8');
+
+    expect(script).toContain('nodePtyRuntimePayloadEntries');
+    expect(script).not.toContain("await cp(packageRoot, destination, { recursive: true, dereference: true });");
+  });
+
+  it('filters node-pty lib payload to runtime JavaScript files', async () => {
+    const root = join(tmpdir(), `debrute-node-pty-payload-${process.pid}-${Date.now()}`);
+    const packageRoot = join(root, 'node_modules', 'node-pty');
+    mkdirSync(join(packageRoot, 'lib', 'shared'), { recursive: true });
+    mkdirSync(join(packageRoot, 'prebuilds', 'darwin-arm64'), { recursive: true });
+    writeFileSync(join(packageRoot, 'package.json'), '{}');
+    writeFileSync(join(packageRoot, 'lib', 'index.js'), '');
+    writeFileSync(join(packageRoot, 'lib', 'index.js.map'), '');
+    writeFileSync(join(packageRoot, 'lib', 'terminal.test.js'), '');
+    writeFileSync(join(packageRoot, 'lib', 'shared', 'conout.js'), '');
+    writeFileSync(join(packageRoot, 'lib', 'windowsTerminal.js'), '');
+    writeFileSync(join(packageRoot, 'prebuilds', 'darwin-arm64', 'pty.node'), '');
+    writeFileSync(join(packageRoot, 'prebuilds', 'darwin-arm64', 'spawn-helper'), '');
+    writeFileSync(join(packageRoot, 'prebuilds', 'darwin-arm64', 'pty.pdb'), '');
+    try {
+      const hook = await import(pathToFileURL(join(process.cwd(), 'apps/desktop/scripts/package-sharp-runtime.mjs')).href) as {
+        nodePtyRuntimePayloadEntries: (root: string, context: { electronPlatformName: string; arch: number }) => Array<{
+          from: string;
+          to: string;
+          filter?: (source: string) => boolean;
+        }>;
+      };
+
+      const entries = hook.nodePtyRuntimePayloadEntries(root, {
+        electronPlatformName: 'darwin',
+        arch: 3
+      });
+      const libEntry = entries.find((entry) => entry.to === 'node_modules/node-pty/lib');
+      const prebuildEntry = entries.find((entry) => entry.to === 'node_modules/node-pty/prebuilds/darwin-arm64');
+
+      expect(libEntry?.filter?.(join(packageRoot, 'lib'))).toBe(true);
+      expect(libEntry?.filter?.(join(packageRoot, 'lib', 'index.js'))).toBe(true);
+      expect(libEntry?.filter?.(join(packageRoot, 'lib', 'shared', 'conout.js'))).toBe(false);
+      expect(libEntry?.filter?.(join(packageRoot, 'lib', 'terminal.test.js'))).toBe(false);
+      expect(libEntry?.filter?.(join(packageRoot, 'lib', 'index.js.map'))).toBe(false);
+      expect(libEntry?.filter?.(join(packageRoot, 'lib', 'windowsTerminal.js'))).toBe(false);
+      expect(prebuildEntry?.filter?.(join(packageRoot, 'prebuilds', 'darwin-arm64', 'pty.node'))).toBe(true);
+      expect(prebuildEntry?.filter?.(join(packageRoot, 'prebuilds', 'darwin-arm64', 'spawn-helper'))).toBe(true);
+      expect(prebuildEntry?.filter?.(join(packageRoot, 'prebuilds', 'darwin-arm64', 'pty.pdb'))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('targets Node.js 24 for Electron main and preload bundles', () => {

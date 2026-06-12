@@ -65,7 +65,7 @@ async function canReachDebruteShellUrl(
   try {
     const response = await fetchImpl(url, {
       method: 'GET',
-      signal: timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs)
+      ...(timeoutMs === undefined ? {} : { signal: AbortSignal.timeout(timeoutMs) })
     });
     return response.ok;
   } catch {

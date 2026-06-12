@@ -3,7 +3,8 @@ import {
   AlertTriangle,
   CircleDot,
   FolderTree,
-  Settings
+  Settings,
+  Terminal
 } from 'lucide-react';
 import {
   FLOATING_PANEL_DEFINITIONS,
@@ -23,7 +24,8 @@ export function FloatingDock({
     explorer: <FolderTree size={18} />,
     inspector: <CircleDot size={18} />,
     problems: <AlertTriangle size={18} />,
-    settings: <Settings size={18} />
+    settings: <Settings size={18} />,
+    terminal: <Terminal size={18} />
   };
 
   return (

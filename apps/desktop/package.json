@@ -54,7 +54,8 @@
     "@debrute/app-server": "workspace:*",
     "@debrute/daemon": "workspace:*",
     "@debrute/project-core": "workspace:*",
-    "@debrute/workbench-runtime": "workspace:*"
+    "@debrute/workbench-runtime": "workspace:*",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "electron": "42.4.0",

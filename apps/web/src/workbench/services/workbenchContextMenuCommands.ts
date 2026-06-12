@@ -102,8 +102,14 @@ function runExplorerCommand(
     && input.command !== 'create-file'
     && input.command !== 'create-directory'
     && input.command !== 'paste'
+    && input.command !== 'open-terminal'
   ) {
     return false;
+  }
+  if (input.command === 'open-terminal') {
+    input.actions.openTerminalPanel(terminalCwdForExplorerTarget(target));
+    input.closeContextMenu();
+    return true;
   }
   if (input.command === 'create-file') {
     input.setInlineProjectTreeEdit(createInlineEditState('creating-file', projectTreePasteTargetDirectory(target)));
@@ -174,6 +180,21 @@ function runExplorerCommand(
     return true;
   }
   return false;
+}
+
+function terminalCwdForExplorerTarget(target: Extract<WorkbenchContextMenuTarget, { source: 'explorer' }>): string {
+  if (target.targetKind === 'root') {
+    return '';
+  }
+  const entry = explorerContextMenuPrimaryEntry(target);
+  if (!entry) {
+    return '';
+  }
+  if (entry.kind === 'directory') {
+    return entry.projectRelativePath;
+  }
+  const slashIndex = entry.projectRelativePath.lastIndexOf('/');
+  return slashIndex < 0 ? '' : entry.projectRelativePath.slice(0, slashIndex);
 }
 
 function runPasteCommand(

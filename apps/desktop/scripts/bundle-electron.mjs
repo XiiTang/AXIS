@@ -14,7 +14,7 @@ const common = {
   logOverride: {
     'empty-import-meta': 'silent'
   },
-  external: ['electron', 'sharp']
+  external: ['electron', 'node-pty', 'sharp']
 };
 
 await Promise.all([

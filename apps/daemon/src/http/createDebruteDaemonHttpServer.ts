@@ -18,6 +18,7 @@ import {
   type GeneratedAssetView,
   type GeneratedAssetsView,
   type ProjectSessionSnapshot,
+  type TerminalEvent,
   type WorkbenchEvent,
   type WorkbenchFileWatchEvent,
   type WorkbenchProjectPathEntry,
@@ -300,6 +301,10 @@ export function createDebruteDaemonHttpServer(options: DebruteDaemonHttpServerOp
     }
     if (method === 'GET' && tail === '/health') {
       writeJson(context.response, 200, context.appServer.getProjectHealth());
+      return;
+    }
+    if (tail === '/terminals' || tail.startsWith('/terminals/')) {
+      await handleTerminalRoute(context, tail);
       return;
     }
     if (method === 'POST' && tail === '/refresh') {
@@ -844,6 +849,160 @@ async function handleCanvasImagePreviewRoute(context: ProjectRequestContext): Pr
     absolutePath: preview.absolutePath,
     contentType: contentTypeFromPath(preview.absolutePath)
   });
+}
+
+async function handleTerminalRoute(context: ProjectRequestContext, tail: string): Promise<void> {
+  const method = context.request.method ?? 'GET';
+  if (tail === '/terminals') {
+    if (method === 'GET') {
+      writeJson(context.response, 200, daemonAppServer(context).listTerminalSessions());
+      return;
+    }
+    if (method === 'POST') {
+      const body = await readJsonBody<Record<string, unknown>>(context.request);
+      writeJson(context.response, 201, await daemonAppServer(context).createTerminalSession({
+        ...optionalStringBodyField(body, 'cwdProjectRelativePath'),
+        ...optionalTerminalDimensionBodyField(body, 'cols'),
+        ...optionalTerminalDimensionBodyField(body, 'rows')
+      }));
+      return;
+    }
+    writeError(context.response, 405, 'method_not_allowed', 'Unsupported terminal collection method.');
+    return;
+  }
+
+  const route = parseTerminalRoute(tail);
+  if (!route) {
+    writeError(context.response, 404, 'not_found', `Unknown terminal route: ${tail}`);
+    return;
+  }
+
+  if (route.operation === 'events') {
+    if (method !== 'GET') {
+      writeError(context.response, 405, 'method_not_allowed', 'Unsupported terminal event stream method.');
+      return;
+    }
+    writeTerminalEventStream(context, route.terminalId);
+    return;
+  }
+
+  if (route.operation === 'input') {
+    if (method !== 'POST') {
+      writeError(context.response, 405, 'method_not_allowed', 'Unsupported terminal input method.');
+      return;
+    }
+    const body = await readJsonBody<Record<string, unknown>>(context.request);
+    writeJson(context.response, 200, daemonAppServer(context).writeTerminalInput({
+      terminalId: route.terminalId,
+      data: stringField(body.data, 'data')
+    }));
+    return;
+  }
+
+  if (route.operation === 'resize') {
+    if (method !== 'POST') {
+      writeError(context.response, 405, 'method_not_allowed', 'Unsupported terminal resize method.');
+      return;
+    }
+    const body = await readJsonBody<Record<string, unknown>>(context.request);
+    writeJson(context.response, 200, daemonAppServer(context).resizeTerminal({
+      terminalId: route.terminalId,
+      cols: terminalDimensionField(body.cols, 'cols'),
+      rows: terminalDimensionField(body.rows, 'rows')
+    }));
+    return;
+  }
+
+  if (route.operation === 'restart') {
+    if (method !== 'POST') {
+      writeError(context.response, 405, 'method_not_allowed', 'Unsupported terminal restart method.');
+      return;
+    }
+    writeJson(context.response, 200, await daemonAppServer(context).restartTerminalSession({
+      terminalId: route.terminalId
+    }));
+    return;
+  }
+
+  if (route.operation === 'session') {
+    if (method !== 'DELETE') {
+      writeError(context.response, 405, 'method_not_allowed', 'Unsupported terminal session method.');
+      return;
+    }
+    writeJson(context.response, 200, daemonAppServer(context).closeTerminalSession({
+      terminalId: route.terminalId
+    }));
+    return;
+  }
+}
+
+interface TerminalRoute {
+  terminalId: string;
+  operation: 'session' | 'events' | 'input' | 'resize' | 'restart';
+}
+
+function parseTerminalRoute(tail: string): TerminalRoute | undefined {
+  const segments = tail.split('/').filter(Boolean);
+  if (segments[0] !== 'terminals' || !segments[1]) {
+    return undefined;
+  }
+  const terminalId = decodePathSegment(segments[1]);
+  if (segments.length === 2) {
+    return { terminalId, operation: 'session' };
+  }
+  if (
+    segments.length === 3
+    && (segments[2] === 'events' || segments[2] === 'input' || segments[2] === 'resize' || segments[2] === 'restart')
+  ) {
+    return { terminalId, operation: segments[2] };
+  }
+  return undefined;
+}
+
+function writeTerminalEventStream(context: ProjectRequestContext, terminalId: string): void {
+  const bufferedEvents: TerminalEvent[] = [];
+  let streamOpen = false;
+  let closeStream = (): void => {};
+  const writeEvent = (event: TerminalEvent): void => {
+    if (!streamOpen) {
+      bufferedEvents.push(event);
+      return;
+    }
+    context.response.write(`event: terminal\ndata: ${JSON.stringify(event)}\n\n`);
+    if (event.type === 'closed') {
+      closeStream();
+    }
+  };
+  const subscription = daemonAppServer(context).subscribeTerminalEvents(terminalId, writeEvent);
+  context.response.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive'
+  });
+  streamOpen = true;
+  context.response.write('\n');
+  for (const event of bufferedEvents) {
+    writeEvent(event);
+  }
+  const keepalive = setInterval(() => {
+    context.response.write(': keepalive\n\n');
+  }, 15_000);
+  let cleaned = false;
+  const cleanup = (): void => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    clearInterval(keepalive);
+    subscription.close();
+  };
+  closeStream = (): void => {
+    cleanup();
+    if (!context.response.writableEnded) {
+      context.response.end();
+    }
+  };
+  context.request.once('close', cleanup);
 }
 
 function requestAbortSignal(request: IncomingMessage, response: ServerResponse, timeoutMs: number): AbortSignal {
@@ -1456,10 +1615,18 @@ function serviceErrorStatusCode(code: string): number {
   if (code === 'canvas_map_conflict' || code === 'canvas_registry_conflict') {
     return 409;
   }
-  if (code === 'canvas_map_canvas_missing' || code === 'canvas_map_target_missing') {
+  if (code === 'canvas_map_canvas_missing' || code === 'canvas_map_target_missing' || code === 'terminal_not_found') {
     return 404;
   }
   return 400;
+}
+
+function optionalStringBodyField(body: Record<string, unknown>, name: string): Record<string, string> {
+  return body[name] === undefined ? {} : { [name]: stringField(body[name], name) };
+}
+
+function optionalTerminalDimensionBodyField(body: Record<string, unknown>, name: string): Record<string, number> {
+  return body[name] === undefined ? {} : { [name]: terminalDimensionField(body[name], name) };
 }
 
 function stringField(value: unknown, name: string): string {
@@ -1472,6 +1639,13 @@ function stringField(value: unknown, name: string): string {
 function numberField(value: unknown, name: string): number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
     throw new DebruteDaemonHttpError(400, 'invalid_input', `${name} must be a positive integer.`);
+  }
+  return value;
+}
+
+function terminalDimensionField(value: unknown, name: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new DebruteDaemonHttpError(400, 'invalid_input', `${name} must be a finite number.`);
   }
   return value;
 }

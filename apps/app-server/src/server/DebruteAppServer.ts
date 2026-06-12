@@ -63,16 +63,25 @@ import {
 import type {
   AddProjectPathToCanvasMapInput,
   AppServerEvent,
-  ProjectFileBatchOperationResult,
-  ProjectCanvasManagementResult,
+  CloseTerminalSessionInput,
+  CreateTerminalSessionInput,
   GeneratedAssetMetadataLookup,
   GeneratedAssetRecord,
-  ProjectFileOperationResult,
+  ImageModelBatchSummary,
+  ProjectCanvasManagementResult,
   ProjectAddProjectPathToCanvasMapResult,
+  ProjectFileBatchOperationResult,
+  ProjectFileOperationResult,
   ProjectHealthSummary,
   ProjectSessionSnapshot,
+  RestartTerminalSessionInput,
   RunImageModelBatchInput,
-  ImageModelBatchSummary
+  TerminalEvent,
+  TerminalEventSubscription,
+  TerminalInputWrite,
+  TerminalResize,
+  TerminalSessionList,
+  TerminalSessionResult
 } from '@debrute/app-protocol';
 import { GlobalConfigStore } from '../config/GlobalConfigStore.js';
 import {
@@ -136,6 +145,8 @@ import {
   type CliRuntimeDiagnostic,
   type CliRuntimeStatus
 } from '../models/AppServerModelHelpers.js';
+import { TerminalService } from '../terminal/TerminalService.js';
+import type { TerminalPtyFactory } from '../terminal/TerminalPty.js';
 
 export interface OpenProjectOptions {
   initializeIfMissing?: boolean;
@@ -151,6 +162,7 @@ export interface DebruteAppServerOptions {
   integrationPathExt?: string;
   integrationPlatform?: NodeJS.Platform;
   canvasNodeLayoutSizeReader?: (input: ReadCanvasNodeLayoutSizeInput) => Promise<CanvasLayoutSize>;
+  terminalPtyFactory?: TerminalPtyFactory;
 }
 
 export type { CliImageModelDetail, CliImageModelListEntry, CliModelDetail, CliModelSummary, CliRuntimeDiagnostic, CliRuntimeStatus, CliVideoModelDetail, CliVideoModelListEntry };
@@ -185,6 +197,7 @@ export class DebruteAppServer {
   private fileWatchHandle: ProjectFileWatchHandle | undefined;
   private readonly internalProjectFileWrites = new Map<string, { content?: string; expiresAt: number }>();
   private sessionOperation: Promise<void> = Promise.resolve();
+  private terminalService: TerminalService | undefined;
 
   constructor(private readonly options: DebruteAppServerOptions = {}) {
     this.configStore = options.globalConfigStore ?? new GlobalConfigStore();
@@ -251,6 +264,11 @@ export class DebruteAppServer {
       const snapshot = await this.loadSnapshot(projectRoot);
       this.snapshot = snapshot;
       this.snapshotLoadedAt = Date.now();
+      this.terminalService?.closeAll();
+      this.terminalService = new TerminalService({
+        projectRoot: snapshot.projectRoot,
+        ...(this.options.terminalPtyFactory ? { ptyFactory: this.options.terminalPtyFactory } : {})
+      });
       this.emit({ type: 'project.opened', snapshot });
       await mkdir(paths.globalRuntimeDir, { recursive: true });
       if (options.watchFiles ?? true) {
@@ -268,6 +286,39 @@ export class DebruteAppServer {
 
   getProjectHealth(): ProjectHealthSummary {
     return this.getSnapshot().health;
+  }
+
+  listTerminalSessions(): TerminalSessionList {
+    return { sessions: this.getTerminalService().listSessions() };
+  }
+
+  async createTerminalSession(input?: CreateTerminalSessionInput): Promise<TerminalSessionResult> {
+    return { session: await this.getTerminalService().createSession(input) };
+  }
+
+  writeTerminalInput(input: TerminalInputWrite): { ok: true } {
+    this.getTerminalService().writeInput(input);
+    return { ok: true };
+  }
+
+  resizeTerminal(input: TerminalResize): TerminalSessionResult {
+    return { session: this.getTerminalService().resize(input) };
+  }
+
+  async restartTerminalSession(input: RestartTerminalSessionInput): Promise<TerminalSessionResult> {
+    return { session: await this.getTerminalService().restart(input) };
+  }
+
+  closeTerminalSession(input: CloseTerminalSessionInput): { ok: true } {
+    this.getTerminalService().close(input);
+    return { ok: true };
+  }
+
+  subscribeTerminalEvents(
+    terminalId: string,
+    listener: (event: TerminalEvent) => void
+  ): TerminalEventSubscription {
+    return this.getTerminalService().subscribe(terminalId, listener);
   }
 
   async initProjectForCli(projectRoot: string): Promise<ProjectSessionSnapshot> {
@@ -679,6 +730,8 @@ export class DebruteAppServer {
   }
 
   close(): void {
+    this.terminalService?.closeAll();
+    this.terminalService = undefined;
     this.stopWatchingProject();
   }
 
@@ -843,6 +896,13 @@ export class DebruteAppServer {
 
   private emit(event: AppServerEvent): void {
     this.events.emit('event', event);
+  }
+
+  private getTerminalService(): TerminalService {
+    if (!this.terminalService) {
+      throw serviceError('terminal_project_not_open', 'Terminal service is unavailable because no project session is open.');
+    }
+    return this.terminalService;
   }
 
   private async recordGeneratedAssetMetadataUnlocked(input: RecordGeneratedAssetInput): Promise<GeneratedAssetRecord> {

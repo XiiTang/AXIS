@@ -173,6 +173,141 @@ describe('HTTP workbench API client', () => {
     });
   });
 
+  it('uses daemon terminal routes and subscribes to per-terminal events', async () => {
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
+    const eventSourceUrls: string[] = [];
+    let terminalListener: ((event: MessageEvent) => void) | undefined;
+    const originalEventSource = globalThis.EventSource;
+    globalThis.EventSource = class extends EventTarget {
+      closed = false;
+      constructor(url: string | URL) {
+        super();
+        eventSourceUrls.push(String(url));
+      }
+
+      addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+        if (type === 'terminal') {
+          terminalListener = listener as (event: MessageEvent) => void;
+        }
+      }
+
+      close(): void {
+        this.closed = true;
+      }
+    } as typeof EventSource;
+    try {
+      const terminalEvents: unknown[] = [];
+      const client = createHttpWorkbenchApiClient({
+        daemonUrl: 'http://127.0.0.1:17456/',
+        token: 'secret',
+        fetch: async (url, init) => {
+          const parsed = new URL(String(url));
+          requests.push({
+            method: init?.method ?? 'GET',
+            path: parsed.pathname,
+            body: init?.body ? JSON.parse(String(init.body)) : undefined
+          });
+          return jsonResponse(routeResponse(String(url), init));
+        }
+      });
+
+      await client.openProject({ projectRoot: '/tmp/project' });
+      await expect(client.createTerminalSession({
+        cwdProjectRelativePath: 'src',
+        cols: 100,
+        rows: 32
+      })).resolves.toMatchObject({
+        session: {
+          id: 'terminal-1',
+          cwdProjectRelativePath: 'src'
+        }
+      });
+      await client.listTerminalSessions();
+      await client.writeTerminalInput({ terminalId: 'terminal-1', data: 'pwd\r' });
+      await client.resizeTerminal({ terminalId: 'terminal-1', cols: 120, rows: 40 });
+      await client.restartTerminalSession({ terminalId: 'terminal-1' });
+      await client.closeTerminalSession({ terminalId: 'terminal-1' });
+      const subscription = client.subscribeTerminalEvents('terminal-1', (event) => terminalEvents.push(event));
+
+      terminalListener?.(new MessageEvent('terminal', {
+        data: JSON.stringify({ type: 'data', terminalId: 'terminal-1', sequence: 1, data: 'ok\r\n' })
+      }));
+      subscription.close();
+
+      expect(requests).toEqual(expect.arrayContaining([
+        {
+          method: 'POST',
+          path: `/api/projects/${projectId}/terminals`,
+          body: { cwdProjectRelativePath: 'src', cols: 100, rows: 32 }
+        },
+        { method: 'GET', path: `/api/projects/${projectId}/terminals`, body: undefined },
+        { method: 'POST', path: `/api/projects/${projectId}/terminals/terminal-1/input`, body: { data: 'pwd\r' } },
+        { method: 'POST', path: `/api/projects/${projectId}/terminals/terminal-1/resize`, body: { cols: 120, rows: 40 } },
+        { method: 'POST', path: `/api/projects/${projectId}/terminals/terminal-1/restart`, body: undefined },
+        { method: 'DELETE', path: `/api/projects/${projectId}/terminals/terminal-1`, body: undefined }
+      ]));
+      expect(eventSourceUrls).toHaveLength(1);
+      const eventUrl = new URL(eventSourceUrls[0]!);
+      expect(eventUrl.origin + eventUrl.pathname).toBe(`http://127.0.0.1:17456/api/projects/${projectId}/terminals/terminal-1/events`);
+      expect(eventUrl.searchParams.get('debrute-token')).toBe('secret');
+      expect(terminalEvents).toEqual([{ type: 'data', terminalId: 'terminal-1', sequence: 1, data: 'ok\r\n' }]);
+    } finally {
+      globalThis.EventSource = originalEventSource;
+    }
+  });
+
+  it('does not report terminal event stream errors after a terminal closed event', async () => {
+    let terminalListener: ((event: MessageEvent) => void) | undefined;
+    let eventSource: EventSource | undefined;
+    let sourceClosed = false;
+    const originalEventSource = globalThis.EventSource;
+    globalThis.EventSource = class extends EventTarget {
+      onerror: ((event: Event) => void) | null = null;
+
+      constructor(_url: string | URL) {
+        super();
+        eventSource = this as EventSource;
+      }
+
+      addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+        if (type === 'terminal') {
+          terminalListener = listener as (event: MessageEvent) => void;
+        }
+      }
+
+      close(): void {
+        sourceClosed = true;
+      }
+    } as typeof EventSource;
+    try {
+      const client = createHttpWorkbenchApiClient({
+        daemonUrl: 'http://127.0.0.1:17456/',
+        fetch: async (url, init) => jsonResponse(routeResponse(String(url), init))
+      });
+      await client.openProject({ projectRoot: '/tmp/project' });
+      const terminalEvents: unknown[] = [];
+      const errors: string[] = [];
+      const subscription = client.subscribeTerminalEvents(
+        'terminal-1',
+        (event) => terminalEvents.push(event),
+        (error) => errors.push(error.message)
+      );
+
+      terminalListener?.(new MessageEvent('terminal', {
+        data: JSON.stringify({ type: 'closed', terminalId: 'terminal-1' })
+      }));
+      eventSource?.onerror?.(new Event('error'));
+
+      subscription.close();
+
+      expect(terminalEvents).toEqual([{ type: 'closed', terminalId: 'terminal-1' }]);
+      expect(sourceClosed).toBe(true);
+      expect(errors).toEqual([]);
+    } finally {
+      globalThis.EventSource = originalEventSource;
+    }
+  });
+
   it('uses daemon import routes for external local paths and browser uploads', async () => {
     const requests: Array<{ method: string; path: string; body?: unknown }> = [];
     const uploadBody = new File(['page'], 'page.png');
@@ -506,6 +641,41 @@ function routeResponse(url: string, init?: RequestInit): unknown {
   }
   if (path === `/api/projects/${projectId}/refresh`) {
     return { projectId, projectRevision: 2, snapshot: workbenchSnapshot() };
+  }
+  if (path === `/api/projects/${projectId}/terminals`) {
+    const session = {
+      id: 'terminal-1',
+      title: 'src',
+      cwdProjectRelativePath: 'src',
+      cols: 100,
+      rows: 32,
+      status: 'running',
+      exitCode: null,
+      signal: null,
+      createdAt: '2026-06-12T00:00:00.000Z',
+      updatedAt: '2026-06-12T00:00:00.000Z',
+      restartCount: 0
+    };
+    return init?.method === 'POST' ? { session } : { sessions: [session] };
+  }
+  if (path.startsWith(`/api/projects/${projectId}/terminals/`)) {
+    return path.endsWith('/resize') || path.endsWith('/restart')
+      ? {
+          session: {
+            id: 'terminal-1',
+            title: 'src',
+            cwdProjectRelativePath: 'src',
+            cols: 120,
+            rows: 40,
+            status: 'running',
+            exitCode: null,
+            signal: null,
+            createdAt: '2026-06-12T00:00:00.000Z',
+            updatedAt: '2026-06-12T00:00:00.000Z',
+            restartCount: path.endsWith('/restart') ? 1 : 0
+          }
+        }
+      : { ok: true };
   }
   if (path === `/api/projects/${projectId}/files`) {
     return {

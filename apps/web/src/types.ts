@@ -103,6 +103,7 @@ export interface WorkbenchActions {
   reorderCanvases: (input: { canvasOrder: string[] }) => Promise<WorkbenchCanvasManagementResult>;
   repairCanvasIndex: () => Promise<WorkbenchCanvasManagementResult>;
   openProject: () => Promise<void>;
+  openTerminalPanel: (cwdProjectRelativePath?: string) => void;
 }
 
 export type {

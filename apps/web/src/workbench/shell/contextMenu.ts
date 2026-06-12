@@ -19,6 +19,7 @@ export type WorkbenchContextMenuCommand =
   | 'rename'
   | 'delete'
   | 'delete-permanently'
+  | 'open-terminal'
   | 'copy-relative-path';
 
 export interface WorkbenchProjectPathEntry {
@@ -92,7 +93,8 @@ export function buildWorkbenchContextMenuItems(input: {
     return [
       action('create-file', 'New File'),
       action('create-directory', 'New Folder'),
-      action('paste', 'Paste', { disabled: !input.fileClipboard?.entries.length })
+      action('paste', 'Paste', { disabled: !input.fileClipboard?.entries.length }),
+      action('open-terminal', 'Open in Terminal')
     ];
   }
 
@@ -100,6 +102,7 @@ export function buildWorkbenchContextMenuItems(input: {
     return [
       action('cut', 'Cut'),
       action('copy', 'Copy'),
+      action('open-terminal', 'Open in Terminal'),
       action('copy-path', 'Copy Path'),
       action('copy-relative-path', 'Copy Relative Path'),
       action('delete', 'Delete')
@@ -118,6 +121,7 @@ export function buildWorkbenchContextMenuItems(input: {
     ...(targetEntry?.kind === 'directory' ? [
       action('paste', 'Paste', { disabled: !input.fileClipboard?.entries.length })
     ] : []),
+    action('open-terminal', 'Open in Terminal'),
     separator('path-actions'),
     action('copy-path', 'Copy Path'),
     action('copy-relative-path', 'Copy Relative Path'),

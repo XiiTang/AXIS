@@ -67,6 +67,8 @@ import {
   FLOATING_PANEL_IDS,
   closeFloatingPanel,
   dragFloatingPanel,
+  openFloatingPanel,
+  resizeFloatingPanel,
   toggleFloatingPanel,
   type FloatingPanelState
 } from './shell/floatingPanels';
@@ -74,6 +76,7 @@ import { FloatingDock } from './shell/FloatingDock';
 import { FloatingPanel, FloatingPanelContent } from './shell/FloatingPanel';
 import { FloatingTextEditorWindow } from './shell/FloatingTextEditorWindow';
 import { NotificationStack } from './shell/NotificationStack';
+import { TerminalPanel } from './terminal/TerminalPanel';
 import { FIXED_TOP_FLOATING_BAR_RECTS } from './shell/workbenchLayers';
 import {
   DEFAULT_WORKBENCH_WINDOW_ORDER,
@@ -98,6 +101,7 @@ export function WorkbenchApp(): React.ReactElement {
   const [canvasRuntimeScopeKey, setCanvasRuntimeScopeKey] = useState(0);
   const [explorerSelection, setExplorerSelection] = useState<ProjectTreeSelectionState>(() => createEmptyProjectTreeSelection());
   const [floatingPanels, setFloatingPanels] = useState<FloatingPanelState>(DEFAULT_FLOATING_PANEL_STATE);
+  const [requestedTerminalCwd, setRequestedTerminalCwd] = useState<string | null>(null);
   const [llmSettings, setLlmSettings] = useState<WorkbenchState['llmSettings']>();
   const [imageModelSettings, setImageModelSettings] = useState<WorkbenchState['imageModelSettings']>();
   const [videoModelSettings, setVideoModelSettings] = useState<WorkbenchState['videoModelSettings']>();
@@ -479,6 +483,12 @@ export function WorkbenchApp(): React.ReactElement {
     notifications
   };
 
+  const openTerminalPanel = useCallback((cwdProjectRelativePath = '') => {
+    setRequestedTerminalCwd(cwdProjectRelativePath);
+    setFloatingPanels((current) => openFloatingPanel(current, 'terminal'));
+    setWindowOrder((current) => focusWorkbenchWindow(current, panelWindowIdentity('terminal')));
+  }, []);
+
   const actions: WorkbenchActions = useMemo(() => ({
     openProject: async () => {
       let opened: Awaited<ReturnType<typeof api.openProject>>;
@@ -693,7 +703,8 @@ export function WorkbenchApp(): React.ReactElement {
         : result.activeCanvasId ?? repairedOrder[0];
       setActiveCanvasId(repairedActiveCanvasId);
       return result;
-    }
+    },
+    openTerminalPanel
   }), [
     activeCanvasId,
     activeCanvasRuntime,
@@ -703,6 +714,7 @@ export function WorkbenchApp(): React.ReactElement {
     ensureTextFileBuffer,
     loadFloatingPanelsForProject,
     lookupGeneratedAssetMetadata,
+    openTerminalPanel,
     openTextEditorWindow,
     readGeneratedAsset,
     readProjectTextFile,
@@ -1068,6 +1080,7 @@ export function WorkbenchApp(): React.ReactElement {
               }}
               onBringToFront={() => setWindowOrder((current) => focusWorkbenchWindow(current, panelWindowIdentity(panelId)))}
               onDrag={(dx, dy) => setFloatingPanels((current) => dragFloatingPanel(current, panelId, { dx, dy }))}
+              onResize={(width, height) => setFloatingPanels((current) => resizeFloatingPanel(current, panelId, { width, height }))}
             >
               <FloatingPanelContent
                 panelId={panelId}
@@ -1089,6 +1102,13 @@ export function WorkbenchApp(): React.ReactElement {
                 onCreateRootFile={() => setInlineProjectTreeEdit(createInlineEditState('creating-file', ''))}
                 desktopPlatform={desktopPlatform}
                 onKeyboardFileCommand={handleProjectTreeKeyboardFileCommand}
+                terminalPanel={(
+                  <TerminalPanel
+                    api={api}
+                    requestedCwdProjectRelativePath={requestedTerminalCwd}
+                    onRequestedCwdConsumed={() => setRequestedTerminalCwd(null)}
+                  />
+                )}
               />
             </FloatingPanel>
           ) : null

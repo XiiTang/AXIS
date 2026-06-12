@@ -66,6 +66,7 @@ describe('workbench context menu', () => {
       'cut:enabled',
       'copy:enabled',
       'paste:disabled',
+      'open-terminal:enabled',
       '---',
       'copy-path:enabled',
       'copy-relative-path:enabled',
@@ -166,7 +167,7 @@ describe('workbench context menu', () => {
       desktopPlatform: 'linux'
     });
 
-    expect(actionCommands(items)).toEqual(['create-file', 'create-directory', 'paste']);
+    expect(actionCommands(items)).toEqual(['create-file', 'create-directory', 'paste', 'open-terminal']);
     expect(items.find((item) => item.kind === 'action' && item.command === 'paste')).toMatchObject({ disabled: true });
   });
 
@@ -191,6 +192,7 @@ describe('workbench context menu', () => {
     expect(actionCommands(items)).toEqual([
       'cut',
       'copy',
+      'open-terminal',
       'copy-path',
       'copy-relative-path',
       'delete'

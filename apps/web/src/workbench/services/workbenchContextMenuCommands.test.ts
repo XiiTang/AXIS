@@ -107,6 +107,60 @@ describe('workbench context menu commands', () => {
     expect(copiedText).toEqual(['/tmp/debrute-project/briefs/concept.md\n/tmp/debrute-project/assets']);
   });
 
+  it('opens terminal in a directory from the Explorer context menu', () => {
+    const openTerminalPanel = vi.fn();
+
+    runWorkbenchContextMenuCommand(commandInput({
+      command: 'open-terminal',
+      actions: {
+        openTerminalPanel
+      },
+      target: {
+        source: 'explorer',
+        targetKind: 'item',
+        paths: [{ projectRelativePath: 'assets', kind: 'directory' }],
+        primaryPath: 'assets',
+        targetDirectoryPath: ''
+      }
+    }));
+
+    expect(openTerminalPanel).toHaveBeenCalledWith('assets');
+  });
+
+  it('opens terminal in a file parent directory from the Explorer context menu', () => {
+    const openTerminalPanel = vi.fn();
+
+    runWorkbenchContextMenuCommand(commandInput({
+      command: 'open-terminal',
+      actions: {
+        openTerminalPanel
+      },
+      target: {
+        source: 'explorer',
+        targetKind: 'item',
+        paths: [{ projectRelativePath: 'briefs/concept.md', kind: 'file' }],
+        primaryPath: 'briefs/concept.md',
+        targetDirectoryPath: 'briefs'
+      }
+    }));
+
+    expect(openTerminalPanel).toHaveBeenCalledWith('briefs');
+  });
+
+  it('opens terminal in the project root from the Explorer root context menu', () => {
+    const openTerminalPanel = vi.fn();
+
+    runWorkbenchContextMenuCommand(commandInput({
+      command: 'open-terminal',
+      actions: {
+        openTerminalPanel
+      },
+      target: rootTarget()
+    }));
+
+    expect(openTerminalPanel).toHaveBeenCalledWith('');
+  });
+
   it('does not paste when the internal clipboard has no entries', async () => {
     const copyProjectPaths = vi.fn(async () => ({
       ...batchResult(),
@@ -218,6 +272,7 @@ function commandInput(overrides: {
       trashProjectPaths: async () => batchResult(),
       deleteProjectPathsPermanently: async () => batchResult(),
       moveProjectPaths: async () => batchResult(),
+      openTerminalPanel: () => undefined,
       ...overrides.actions
     } as Parameters<typeof runWorkbenchContextMenuCommand>[0]['actions'],
     setInlineProjectTreeEdit: () => undefined,
