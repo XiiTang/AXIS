@@ -8,6 +8,7 @@ export interface TrayControllerInput {
   app: Electron.App;
   Tray: typeof electron.Tray;
   Menu: typeof electron.Menu;
+  nativeImage: typeof electron.nativeImage;
   runtimeSupervisor: RuntimeSupervisor;
   readRecentProjectRoots(): Promise<string[]>;
   actions: RuntimeTrayActions;
@@ -19,7 +20,7 @@ export class TrayController {
   constructor(private readonly input: TrayControllerInput) {}
 
   async start(): Promise<void> {
-    this.tray = new this.input.Tray(this.iconPath(this.input.runtimeSupervisor.snapshot().status));
+    this.tray = new this.input.Tray(this.trayImage(this.input.runtimeSupervisor.snapshot().status));
     this.input.runtimeSupervisor.on('change', () => {
       void this.refresh();
     });
@@ -31,10 +32,10 @@ export class TrayController {
       return;
     }
     const snapshot = this.input.runtimeSupervisor.snapshot();
-    this.tray.setImage(this.iconPath(snapshot.status));
+    this.tray.setImage(this.trayImage(snapshot.status));
     this.tray.setToolTip(`Debrute Runtime: ${snapshot.status}`);
     if (process.platform === 'darwin') {
-      this.tray.setTitle(snapshot.status);
+      this.tray.setTitle('');
     }
     const template = buildRuntimeTrayMenuTemplate({
       platform: process.platform,
@@ -52,6 +53,15 @@ export class TrayController {
 
   private iconPath(status: DesktopRuntimeStatus): string {
     return join(__dirname, trayIconFileNameForStatus(status));
+  }
+
+  private trayImage(status: DesktopRuntimeStatus): string | Electron.NativeImage {
+    if (process.platform !== 'darwin') {
+      return this.iconPath(status);
+    }
+    const image = this.input.nativeImage.createFromPath(join(__dirname, 'tray_icon_template@2x.png'));
+    image.setTemplateImage(true);
+    return image;
   }
 }
 

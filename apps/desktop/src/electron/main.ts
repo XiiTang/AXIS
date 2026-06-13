@@ -115,6 +115,7 @@ app.whenReady().then(async () => {
     app,
     Tray: electron.Tray,
     Menu,
+    nativeImage: electron.nativeImage,
     runtimeSupervisor,
     readRecentProjectRoots: async () => (await desktopStateStore().readDesktopState()).recentProjectRoots,
     actions: {

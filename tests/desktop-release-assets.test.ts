@@ -16,6 +16,8 @@ describe('Desktop release asset script', () => {
 
     expect(script).toContain("['--filter', '@debrute/runtime-host', 'build']");
     expect(script).toContain("cp('../runtime-host/bundle/runtime-host.cjs', 'dist-electron/runtime-host.cjs')");
+    expect(script).toContain("cp('build/tray_icon_template.png', 'dist-electron/tray_icon_template.png')");
+    expect(script).toContain("cp('build/tray_icon_template@2x.png', 'dist-electron/tray_icon_template@2x.png')");
     for (const status of ['starting', 'running', 'degraded', 'stopped', 'error']) {
       expect(script).toContain(`cp(\`build/tray_icon_\${status}.png\`, \`dist-electron/tray_icon_\${status}.png\`)`);
     }

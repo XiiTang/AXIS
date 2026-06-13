@@ -48,6 +48,8 @@ await cp('build/icon.svg', 'dist-electron/icon.svg');
 await cp('build/icon.png', 'dist-electron/icon.png');
 await cp('build/dock_icon.png', 'dist-electron/dock_icon.png');
 await cp('build/tray_icon.png', 'dist-electron/tray_icon.png');
+await cp('build/tray_icon_template.png', 'dist-electron/tray_icon_template.png');
+await cp('build/tray_icon_template@2x.png', 'dist-electron/tray_icon_template@2x.png');
 await Promise.all(['starting', 'running', 'degraded', 'stopped', 'error'].map((status) => (
   cp(`build/tray_icon_${status}.png`, `dist-electron/tray_icon_${status}.png`)
 )));

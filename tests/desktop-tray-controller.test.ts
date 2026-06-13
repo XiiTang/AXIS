@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildRuntimeTrayMenuTemplate } from '../apps/desktop/src/electron/tray/runtimeTrayMenu';
-import { trayIconFileNameForStatus } from '../apps/desktop/src/electron/tray/trayController';
+import { TrayController, trayIconFileNameForStatus } from '../apps/desktop/src/electron/tray/trayController';
 
 describe('runtime tray menu', () => {
   it('shows runtime state and enables owned actions only when allowed', () => {
@@ -63,4 +63,105 @@ describe('runtime tray menu', () => {
       'tray_icon_error.png'
     ]);
   });
+
+  it('uses a template tray image on macOS instead of a colored status asset', async () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    try {
+      const createdImages: FakeNativeImage[] = [];
+      const trayInstances: FakeTray[] = [];
+      class TestTray extends FakeTray {
+        constructor(image: unknown) {
+          super(image);
+          trayInstances.push(this);
+        }
+      }
+      const controller = new TrayController({
+        app: {},
+        Tray: TestTray,
+        Menu: fakeMenu(),
+        nativeImage: {
+          createFromPath(path: string) {
+            const image = new FakeNativeImage(path);
+            createdImages.push(image);
+            return image;
+          }
+        },
+        runtimeSupervisor: fakeRuntimeSupervisor('running'),
+        readRecentProjectRoots: async () => [],
+        actions: fakeActions()
+      } as never);
+
+      await controller.start();
+
+      expect(createdImages).toHaveLength(2);
+      expect(createdImages.map((image) => image.path)).toEqual([
+        expect.stringContaining('tray_icon_template@2x.png'),
+        expect.stringContaining('tray_icon_template@2x.png')
+      ]);
+      expect(createdImages.every((image) => image.template)).toBe(true);
+      expect(trayInstances[0]?.images).toEqual(createdImages);
+      expect(trayInstances[0]?.titles).toEqual(['']);
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
 });
+
+class FakeNativeImage {
+  template = false;
+
+  constructor(readonly path: string) {}
+
+  setTemplateImage(template: boolean): void {
+    this.template = template;
+  }
+}
+
+class FakeTray {
+  images: unknown[];
+  titles: string[] = [];
+
+  constructor(image: unknown) {
+    this.images = [image];
+  }
+
+  setImage(image: unknown): void {
+    this.images.push(image);
+  }
+
+  setToolTip(): void {}
+
+  setTitle(title: string): void {
+    this.titles.push(title);
+  }
+
+  setContextMenu(): void {}
+
+  destroy(): void {}
+}
+
+function fakeMenu() {
+  return {
+    buildFromTemplate(template: unknown) {
+      return template;
+    }
+  };
+}
+
+function fakeRuntimeSupervisor(status: 'running') {
+  return {
+    snapshot: () => ({ status, ownsRuntime: true }),
+    on: vi.fn()
+  };
+}
+
+function fakeActions() {
+  return {
+    openDebrute: vi.fn(),
+    openRecent: vi.fn(),
+    showRuntimeStatus: vi.fn(),
+    restartRuntime: vi.fn(),
+    quitDebrute: vi.fn()
+  };
+}
