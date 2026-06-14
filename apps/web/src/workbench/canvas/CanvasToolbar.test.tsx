@@ -1,4 +1,5 @@
 import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { createCanvasDocument, type CanvasProjection } from '@debrute/canvas-core';
 import { CanvasToolbar } from './CanvasToolbar';
@@ -36,6 +37,12 @@ describe('CanvasToolbar', () => {
     });
     expect(runtime.camera.getCamera()).toEqual(setCamera.mock.calls[0]?.[0]);
     expect(runtime.camera.getCamera()).not.toEqual({ x: 120, y: 80, z: 0.5 });
+    expect(renderToStaticMarkup(CanvasToolbar({
+      canvas,
+      projection: projectionFixture(canvas.id),
+      runtime,
+      runtimeSnapshot: runtime.getSnapshot()
+    }))).toContain('db-toolbar');
   });
 
   it('disables Fit until the active Canvas runtime is available', () => {

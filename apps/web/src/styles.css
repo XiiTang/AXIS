@@ -1,63 +1,19 @@
-:root {
-  color-scheme: dark;
-  --bg: oklch(0.17 0.012 165);
-  --bg-elevated: oklch(0.205 0.012 170);
-  --bg-panel: oklch(0.235 0.011 170);
-  --bg-soft: oklch(0.275 0.012 170);
-  --text: oklch(0.93 0.012 180);
-  --muted: oklch(0.67 0.018 180);
-  --subtle: oklch(0.48 0.018 180);
-  --border: oklch(0.35 0.013 175);
-  --accent: oklch(0.77 0.13 148);
-  --accent-strong: oklch(0.68 0.17 145);
-  --warn: oklch(0.74 0.16 70);
-  --danger: oklch(0.64 0.2 25);
-  --info: oklch(0.74 0.1 225);
-  --radius: 7px;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  width: 100%;
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  overflow: hidden;
-}
-
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-button {
-  color: inherit;
-}
-
-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
+@import "./workbench/ui/styles/tokens.css";
+@import "./workbench/ui/styles/base.css";
+@import "./workbench/ui/styles/controls.css";
+@import "./workbench/ui/styles/fields.css";
+@import "./workbench/ui/styles/panels.css";
+@import "./workbench/ui/styles/menus.css";
+@import "./workbench/ui/styles/overlays.css";
+@import "./workbench/ui/styles/workbench-patterns.css";
 
 .workbench-shell {
   position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--db-bg);
+  color: var(--db-text);
 }
 
 .canvas-layer,
@@ -86,65 +42,7 @@ button:disabled {
 .workbench-context-menu {
   position: fixed;
   z-index: 400;
-  display: grid;
-  gap: 2px;
-  padding: 5px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
-  box-shadow: 0 18px 46px rgb(0 0 0 / 34%);
   pointer-events: auto;
-}
-
-.workbench-context-menu button {
-  height: 32px;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text);
-  padding: 0 9px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.workbench-context-menu button:hover,
-.workbench-context-menu button:focus-visible {
-  outline: 0;
-  background: var(--bg-panel);
-}
-
-.workbench-context-menu button:disabled,
-.workbench-context-menu button[aria-disabled="true"] {
-  cursor: default;
-  opacity: 0.45;
-}
-
-.workbench-context-menu button:disabled:hover,
-.workbench-context-menu button[aria-disabled="true"]:hover {
-  background: transparent;
-}
-
-.workbench-context-menu-separator {
-  height: 1px;
-  margin: 4px 5px;
-  background: var(--border);
-}
-
-.workbench-context-menu svg {
-  color: var(--muted);
-}
-
-.workbench-context-menu span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
 }
 
 .floating-dock {
@@ -155,78 +53,29 @@ button:disabled {
   flex-direction: column;
   gap: 6px;
   padding: 7px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--db-border);
   border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-elevated) 92%, transparent);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 34%);
+  background: color-mix(in oklch, var(--db-surface-1) 92%, transparent);
+  box-shadow: var(--db-shadow-menu);
   pointer-events: auto;
 }
 
-.floating-dock button {
+.floating-dock .db-icon-button {
   width: 36px;
   height: 36px;
-  border: 0;
-  border-radius: 7px;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.floating-dock button:hover,
-.floating-dock button.active {
-  background: var(--bg-panel);
-  color: var(--text);
 }
 
 .floating-panel {
   position: absolute;
   display: grid;
   grid-template-rows: 38px minmax(0, 1fr);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-elevated) 96%, transparent);
-  box-shadow: 0 22px 62px rgb(0 0 0 / 42%);
   pointer-events: auto;
 }
 
 .floating-panel-header {
   height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 10px 0 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
   cursor: move;
   user-select: none;
-}
-
-.floating-panel-header strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.floating-panel-header button {
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-
-.floating-panel-header button:hover {
-  background: var(--bg-panel);
-  color: var(--text);
 }
 
 .floating-panel-body {
@@ -254,8 +103,8 @@ button:disabled {
   bottom: 5px;
   width: 7px;
   height: 7px;
-  border-right: 1px solid color-mix(in oklch, var(--muted) 75%, transparent);
-  border-bottom: 1px solid color-mix(in oklch, var(--muted) 75%, transparent);
+  border-right: 1px solid color-mix(in oklch, var(--db-text-muted) 75%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--db-text-muted) 75%, transparent);
 }
 
 .terminal-panel {
@@ -263,7 +112,7 @@ button:disabled {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background: #0b0d12;
+  background: var(--db-bg);
 }
 
 .terminal-panel__toolbar {
@@ -273,8 +122,8 @@ button:disabled {
   gap: 8px;
   min-height: 34px;
   padding: 5px 8px;
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
-  background: color-mix(in oklch, var(--bg-panel) 84%, #0b0d12);
+  border-bottom: 1px solid color-mix(in oklch, var(--db-border) 76%, transparent);
+  background: color-mix(in oklch, var(--db-surface-2) 84%, var(--db-bg));
 }
 
 .terminal-panel__tabs {
@@ -283,15 +132,6 @@ button:disabled {
   gap: 4px;
   min-width: 0;
   overflow: auto hidden;
-}
-
-.terminal-panel__tab,
-.terminal-panel__actions button {
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
 }
 
 .terminal-panel__tab {
@@ -310,16 +150,8 @@ button:disabled {
 }
 
 .terminal-panel__tab small {
-  color: var(--subtle);
+  color: var(--db-text-subtle);
   font-size: 10px;
-}
-
-.terminal-panel__tab--active,
-.terminal-panel__tab:hover,
-.terminal-panel__actions button:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in oklch, var(--bg-elevated) 86%, transparent);
-  border-color: color-mix(in oklch, var(--border) 78%, transparent);
 }
 
 .terminal-panel__actions {
@@ -329,24 +161,17 @@ button:disabled {
   flex: 0 0 auto;
 }
 
-.terminal-panel__actions button {
+.terminal-panel__actions .db-icon-button {
   width: 26px;
   height: 24px;
-  display: grid;
-  place-items: center;
-}
-
-.terminal-panel__actions button:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .terminal-panel__status {
   flex: 0 0 auto;
   padding: 5px 8px;
-  color: var(--muted);
-  background: #10141c;
-  border-bottom: 1px solid color-mix(in oklch, var(--border) 65%, transparent);
+  color: var(--db-text-muted);
+  background: var(--db-surface-1);
+  border-bottom: 1px solid color-mix(in oklch, var(--db-border) 65%, transparent);
   font-size: 12px;
 }
 
@@ -354,30 +179,14 @@ button:disabled {
   flex: 1;
   min-height: 0;
   padding: 6px;
-  background: #0b0d12;
+  background: var(--db-bg);
   overflow: hidden;
 }
 
 .terminal-panel__empty {
   flex: 1;
   min-height: 0;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  background: #0b0d12;
-  font-size: 12px;
-}
-
-.floating-text-editor-window {
-  position: absolute;
-  display: grid;
-  grid-template-rows: 38px minmax(0, 1fr);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg-elevated);
-  box-shadow: 0 22px 58px rgb(0 0 0 / 38%);
-  overflow: hidden;
-  pointer-events: auto;
+  background: var(--db-bg);
 }
 
 .floating-text-editor-header {
@@ -387,8 +196,8 @@ button:disabled {
   align-items: center;
   gap: 7px;
   padding: 0 8px;
-  border-bottom: 1px solid var(--border);
-  background: rgb(23 26 31 / 98%);
+  border-bottom: 1px solid var(--db-border);
+  background: color-mix(in oklch, var(--db-surface-2) 94%, transparent);
   cursor: grab;
 }
 
@@ -397,14 +206,14 @@ button:disabled {
 }
 
 .floating-text-editor-header small {
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 11px;
 }
 
 .floating-panel-inspector .floating-panel-body,
 .floating-panel-problems .floating-panel-body,
 .floating-panel-settings .floating-panel-body {
-  background: var(--bg-elevated);
+  background: var(--db-surface-1);
 }
 
 .boot-screen,
@@ -414,7 +223,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: var(--muted);
+  color: var(--db-text-muted);
 }
 
 .empty-project {
@@ -423,21 +232,8 @@ button:disabled {
 }
 
 .empty-project strong {
-  color: var(--text);
+  color: var(--db-text);
   font-size: 15px;
-}
-
-.empty-action {
-  height: 30px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 11px;
-  cursor: pointer;
 }
 
 .empty-line {
@@ -445,7 +241,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 13px;
   padding: 0 8px;
 }
@@ -462,10 +258,10 @@ button:disabled {
   max-width: min(58vw, 720px);
   height: 38px;
   padding: 4px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--db-border);
   border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-panel) 92%, transparent);
-  box-shadow: 0 14px 34px oklch(0 0 0 / 0.28);
+  background: color-mix(in oklch, var(--db-surface-2) 92%, transparent);
+  box-shadow: var(--db-shadow-menu);
 }
 
 .canvas-card-scroll {
@@ -488,9 +284,6 @@ button:disabled {
 .canvas-card-add,
 .canvas-card-menu-button {
   height: 28px;
-  border: 1px solid var(--border);
-  background: color-mix(in oklch, var(--bg-elevated) 82%, transparent);
-  color: var(--text);
 }
 
 .canvas-card {
@@ -501,11 +294,6 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.canvas-card[aria-pressed="true"] {
-  background: var(--text);
-  color: var(--bg);
 }
 
 .canvas-card-menu-details {
@@ -545,32 +333,6 @@ button:disabled {
   bottom: var(--canvas-card-menu-bottom, 56px);
   z-index: 180;
   min-width: 176px;
-  padding: 5px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-panel);
-  box-shadow: 0 14px 34px oklch(0 0 0 / 0.3);
-}
-
-.canvas-card-menu button,
-.canvas-card-rename-form input {
-  display: block;
-  width: 100%;
-  height: 28px;
-  padding: 0 8px;
-}
-
-.canvas-card-menu button {
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-}
-
-.canvas-card-menu button:hover,
-.canvas-card-menu button:focus-visible {
-  background: color-mix(in oklch, var(--text) 10%, transparent);
 }
 
 .canvas-card-rename-form {
@@ -580,35 +342,18 @@ button:disabled {
   padding: 4px 0;
 }
 
-.canvas-card-rename-form input {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg);
-  color: var(--text);
+.canvas-card-rename-form .db-input,
+.canvas-card-rename-form .db-menu__item {
+  height: 28px;
 }
 
-.canvas-card-rename-form button {
-  text-align: center;
-}
-
-.canvas-card-menu button[hidden] {
+.canvas-card-menu [hidden] {
   display: none;
 }
 
 .muted,
 small {
-  color: var(--muted);
-}
-
-.spin {
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  color: var(--db-text-muted);
 }
 
 .project-tree-shell {
@@ -626,40 +371,13 @@ small {
 }
 
 .project-tree-row {
-  width: 100%;
   height: 26px;
   display: grid;
   grid-template-columns: 16px 16px minmax(0, 1fr);
   align-items: center;
   gap: 5px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text);
   padding: 0 8px 0 calc(8px + var(--tree-indent));
   text-align: left;
-  cursor: pointer;
-}
-
-.project-tree-row:hover {
-  background: var(--bg-panel);
-}
-
-.project-tree-row.selected {
-  background: color-mix(in oklch, var(--accent) 20%, transparent);
-}
-
-.project-tree-row.focused {
-  outline: 1px solid color-mix(in oklch, var(--accent) 45%, transparent);
-  outline-offset: -1px;
-}
-
-.project-tree-row.drag-over {
-  background: color-mix(in oklch, var(--accent) 28%, transparent);
-}
-
-.project-tree-row.cut {
-  opacity: 0.5;
 }
 
 .project-tree-row span:last-child {
@@ -678,23 +396,18 @@ small {
   padding: 0 8px 0 4px;
 }
 
-.project-tree-edit-row input,
-.project-tree-row input {
+.project-tree-edit-row .db-input,
+.project-tree-row .db-input {
   min-width: 0;
   width: 100%;
   height: 22px;
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  background: var(--bg);
-  color: var(--text);
-  padding: 0 6px;
   font-size: 12px;
 }
 
 .project-tree-edit-row small,
 .project-tree-row small {
   grid-column: 3;
-  color: var(--danger);
+  color: var(--db-danger);
   font-size: 11px;
   line-height: 16px;
 }
@@ -713,7 +426,7 @@ small {
   left: 5px;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 5px solid var(--muted);
+  border-left: 5px solid var(--db-text-muted);
 }
 
 .tree-chevron.open::before {
@@ -736,27 +449,19 @@ small {
   align-items: center;
   gap: 8px;
   padding: 5px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--db-border);
   border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-elevated) 94%, transparent);
-  box-shadow: 0 14px 38px rgb(0 0 0 / 28%);
+  background: color-mix(in oklch, var(--db-surface-1) 94%, transparent);
+  box-shadow: var(--db-shadow-menu);
   pointer-events: auto;
 }
 
-.canvas-toolbar button {
+.canvas-toolbar .db-button {
   height: 28px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 9px;
-  cursor: pointer;
 }
 
-.canvas-toolbar span {
-  color: var(--muted);
+.canvas-toolbar__stat {
+  color: var(--db-text-muted);
   font-size: 12px;
 }
 
@@ -769,23 +474,23 @@ small {
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--db-border);
   border-radius: 7px;
-  background: color-mix(in oklch, var(--bg-elevated) 92%, transparent);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 34%);
+  background: color-mix(in oklch, var(--db-surface-1) 92%, transparent);
+  box-shadow: var(--db-shadow-menu);
   pointer-events: auto;
-  color: var(--muted);
+  color: var(--db-text-muted);
   cursor: pointer;
 }
 
 .canvas-minimap-bar:hover,
-.canvas-minimap-bar.active {
-  color: var(--text);
-  background: var(--bg-soft);
+.canvas-minimap-bar[aria-pressed="true"] {
+  color: var(--db-text);
+  background: var(--db-surface-3);
 }
 
-.canvas-minimap-bar.active {
-  outline: 1px solid color-mix(in oklch, var(--accent) 72%, transparent);
+.canvas-minimap-bar[aria-pressed="true"] {
+  outline: 1px solid color-mix(in oklch, var(--db-accent) 72%, transparent);
 }
 
 .canvas-minimap-bar:disabled {
@@ -794,10 +499,10 @@ small {
 
 .canvas-minimap-panel {
   position: absolute;
-  border: 1px solid color-mix(in oklch, var(--border) 68%, transparent);
+  border: 1px solid color-mix(in oklch, var(--db-border) 68%, transparent);
   border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-elevated) 94%, transparent);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 30%);
+  background: color-mix(in oklch, var(--db-surface-1) 94%, transparent);
+  box-shadow: var(--db-shadow-menu);
   pointer-events: auto;
 }
 
@@ -807,7 +512,7 @@ small {
   display: block;
   overflow: hidden;
   border-radius: 6px;
-  background: color-mix(in oklch, var(--bg) 86%, black);
+  background: color-mix(in oklch, var(--db-bg) 86%, black);
   touch-action: none;
   cursor: grab;
 }
@@ -817,18 +522,18 @@ small {
 }
 
 .canvas-minimap-node {
-  fill: color-mix(in oklch, var(--muted) 62%, transparent);
+  fill: color-mix(in oklch, var(--db-text-muted) 62%, transparent);
   opacity: 0.72;
 }
 
 .canvas-minimap-node.selected {
-  fill: color-mix(in oklch, var(--accent) 84%, white);
+  fill: color-mix(in oklch, var(--db-accent) 84%, white);
   opacity: 0.95;
 }
 
 .canvas-minimap-viewport {
-  fill: color-mix(in oklch, var(--accent) 18%, transparent);
-  stroke: color-mix(in oklch, var(--accent) 78%, white);
+  fill: color-mix(in oklch, var(--db-accent) 18%, transparent);
+  stroke: color-mix(in oklch, var(--db-accent) 78%, white);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
@@ -839,9 +544,9 @@ small {
   height: 100%;
   overflow: hidden;
   background:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px),
-    var(--bg);
+    linear-gradient(var(--db-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--db-border) 1px, transparent 1px),
+    var(--db-bg);
   background-size: 34px 34px;
   cursor: crosshair;
   user-select: none;
@@ -866,14 +571,14 @@ small {
 }
 
 .canvas-edge {
-  stroke: color-mix(in oklch, var(--accent) 72%, white);
+  stroke: color-mix(in oklch, var(--db-accent) 72%, white);
   stroke-width: calc(2px / var(--canvas-zoom, 1));
   fill: none;
   opacity: 0.72;
 }
 
 .canvas-edge-layer marker path {
-  fill: color-mix(in oklch, var(--accent) 72%, white);
+  fill: color-mix(in oklch, var(--db-accent) 72%, white);
 }
 
 .canvas-empty-state {
@@ -887,16 +592,16 @@ small {
   display: grid;
   place-items: center;
   padding: 0 18px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--db-border);
   border-radius: 7px;
-  background: color-mix(in oklch, var(--bg-elevated) 92%, transparent);
-  color: var(--muted);
-  box-shadow: 0 18px 44px rgb(0 0 0 / 26%);
+  background: color-mix(in oklch, var(--db-surface-1) 92%, transparent);
+  color: var(--db-text-muted);
+  box-shadow: var(--db-shadow-menu);
   pointer-events: none;
 }
 
 .canvas-empty-state strong {
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 13px;
   font-weight: 700;
 }
@@ -988,7 +693,7 @@ small {
 .canvas-node-image-reserved {
   position: absolute;
   inset: 0;
-  background: var(--bg-panel);
+  background: var(--db-surface-2);
 }
 
 .canvas-node-preview video {
@@ -1012,12 +717,12 @@ small {
   align-content: center;
   gap: 6px;
   padding: 12px;
-  color: var(--muted);
+  color: var(--db-text-muted);
   text-align: center;
 }
 
 .canvas-node-placeholder strong {
-  color: var(--text);
+  color: var(--db-text);
   font-size: 13px;
 }
 
@@ -1030,7 +735,7 @@ small {
 }
 
 .canvas-node-placeholder.problem svg {
-  color: var(--danger);
+  color: var(--db-danger);
 }
 
 .canvas-node-placeholder svg {
@@ -1050,14 +755,14 @@ small {
   align-items: center;
   gap: 7px;
   padding: 6px 8px;
-  border: 1px solid color-mix(in oklch, var(--danger) 64%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--db-danger) 64%, var(--db-border));
   border-radius: 6px;
   background: rgb(24 17 17 / 88%);
-  color: var(--text);
+  color: var(--db-text);
 }
 
 .canvas-node-error-overlay svg {
-  color: var(--danger);
+  color: var(--db-danger);
   width: 16px;
   height: 16px;
 }
@@ -1079,12 +784,12 @@ small {
   align-items: center;
   gap: 4px 8px;
   padding: 12px;
-  color: var(--muted);
+  color: var(--db-text-muted);
 }
 
 .canvas-node-generic svg {
   grid-row: 1 / 3;
-  color: color-mix(in oklch, var(--accent) 64%, white);
+  color: color-mix(in oklch, var(--db-accent) 64%, white);
   width: 20px;
   height: 20px;
 }
@@ -1098,7 +803,7 @@ small {
 }
 
 .canvas-node-generic strong {
-  color: var(--text);
+  color: var(--db-text);
   font-size: 13px;
 }
 
@@ -1107,7 +812,7 @@ small {
 }
 
 .canvas-node-generic.problem svg {
-  color: var(--danger);
+  color: var(--db-danger);
 }
 
 .canvas-node-caption {
@@ -1117,7 +822,7 @@ small {
   align-items: center;
   padding: 0 10px;
   background: rgb(0 0 0 / 40%);
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
 }
 
@@ -1135,49 +840,27 @@ small {
   grid-template-columns: repeat(7, 26px) minmax(124px, 180px);
   align-items: center;
   gap: 4px;
-  padding: 4px;
-  border: 1px solid rgb(90 98 112 / 78%);
+  padding: 3px 4px;
+  border: 1px solid color-mix(in oklch, var(--db-border) 86%, transparent);
   border-radius: 7px;
-  background: rgb(20 22 26 / 94%);
-  box-shadow: 0 12px 30px rgb(0 0 0 / 34%);
+  background: color-mix(in oklch, var(--db-surface-1) 94%, transparent);
+  box-shadow: var(--db-shadow-menu);
   pointer-events: auto;
 }
 
 .canvas-feedback-mark {
   width: 26px;
   height: 24px;
-  display: grid;
-  place-items: center;
   padding: 0;
-  border: 1px solid rgb(82 88 101 / 90%);
-  border-radius: 5px;
-  background: rgb(31 34 40 / 94%);
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.canvas-feedback-mark:hover,
-.canvas-feedback-mark.active {
-  border-color: #7fa2ff;
-  background: rgb(58 75 122 / 90%);
-  color: #eef3ff;
 }
 
 .canvas-feedback-note {
   width: 100%;
   height: 24px;
+  min-height: 24px;
   min-width: 0;
   padding: 0 7px;
-  border: 1px solid rgb(82 88 101 / 90%);
-  border-radius: 5px;
-  outline: 0;
-  background: rgb(12 14 18 / 96%);
-  color: var(--text);
   font-size: 12px;
-}
-
-.canvas-feedback-note:focus {
-  border-color: #7fa2ff;
 }
 
 .canvas-text-node {
@@ -1186,7 +869,7 @@ small {
   display: grid;
   grid-template-rows: 32px minmax(0, 1fr);
   background: rgb(17 19 23 / 96%);
-  color: var(--text);
+  color: var(--db-text);
 }
 
 .canvas-text-titlebar {
@@ -1197,7 +880,7 @@ small {
   align-items: center;
   gap: 6px;
   padding: 0 7px;
-  border-bottom: calc(1px * var(--canvas-chrome-scale, 1)) solid var(--border);
+  border-bottom: calc(1px * var(--canvas-chrome-scale, 1)) solid var(--db-border);
   background: rgb(24 27 32 / 96%);
   cursor: grab;
 }
@@ -1216,46 +899,16 @@ small {
   font-weight: 700;
 }
 
-.canvas-text-titlebar span,
-.floating-text-editor-header span {
+.canvas-text-titlebar .db-status-pill,
+.floating-text-editor-header .db-status-pill {
   padding: 0 6px;
-  color: var(--muted);
   font-size: 11px;
 }
 
-.canvas-text-titlebar span.dirty,
-.floating-text-editor-header span.dirty {
-  color: oklch(0.84 0.13 82);
-}
-
-.canvas-text-titlebar span.external,
-.floating-text-editor-header span.external {
-  color: var(--info);
-}
-
-.canvas-text-titlebar span.error,
-.floating-text-editor-header span.error {
-  color: var(--danger);
-}
-
-.canvas-text-titlebar button,
-.floating-text-editor-header button {
+.canvas-text-titlebar .db-icon-button,
+.floating-text-editor-header .db-icon-button {
   width: 24px;
   height: 23px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg-panel);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.canvas-text-titlebar button:disabled,
-.floating-text-editor-header button:disabled {
-  cursor: default;
-  opacity: 0.48;
 }
 
 .canvas-text-titlebar svg {
@@ -1288,7 +941,7 @@ small {
   align-content: center;
   gap: 6px;
   padding: 12px;
-  color: var(--muted);
+  color: var(--db-text-muted);
   text-align: center;
 }
 
@@ -1298,7 +951,7 @@ small {
 }
 
 .canvas-text-message strong {
-  color: var(--text);
+  color: var(--db-text);
   font-size: 13px;
 }
 
@@ -1311,17 +964,7 @@ small {
 }
 
 .canvas-node-retry {
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   margin-top: 2px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg-panel);
-  color: var(--text);
-  cursor: pointer;
   font-size: 12px;
 }
 
@@ -1397,7 +1040,7 @@ small {
   min-height: 0;
   height: 100%;
   overflow: auto;
-  background: var(--bg-elevated);
+  background: var(--db-surface-1);
 }
 
 .inspector-title {
@@ -1406,8 +1049,8 @@ small {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
+  border-bottom: 1px solid var(--db-border);
+  color: var(--db-text-muted);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1415,7 +1058,7 @@ small {
 
 .inspector-section {
   padding: 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--db-border);
 }
 
 .inspector-section h2,
@@ -1433,7 +1076,7 @@ small {
 }
 
 .inspector-section dt {
-  color: var(--muted);
+  color: var(--db-text-muted);
 }
 
 .inspector-section dd {
@@ -1447,32 +1090,14 @@ small {
   gap: 8px;
 }
 
-.inspector-node-controls button {
+.inspector-node-controls .db-icon-button {
   width: 30px;
   height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg-panel);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.inspector-node-controls button:disabled {
-  color: var(--muted);
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.inspector-node-controls button:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .asset-ai-metadata summary {
   cursor: pointer;
-  color: var(--text);
+  color: var(--db-text);
   font-size: 15px;
   font-weight: 700;
 }
@@ -1489,28 +1114,22 @@ small {
 .asset-ai-metadata-picker {
   display: grid;
   gap: 6px;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
 }
 
-.asset-ai-metadata-picker select {
+.asset-ai-metadata-picker .db-select {
   width: 100%;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg-panel);
-  color: var(--text);
-  padding: 6px 8px;
 }
 
 .asset-ai-metadata-message {
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
 .asset-ai-metadata-message.error {
-  color: var(--danger);
+  color: var(--db-danger);
 }
 
 .asset-ai-metadata-json {
@@ -1520,7 +1139,7 @@ small {
 
 .asset-ai-metadata-json h4 {
   margin: 0;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1532,7 +1151,7 @@ small {
 
 .asset-ai-metadata-diagnostics h4 {
   margin: 0;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1548,13 +1167,13 @@ small {
 .asset-ai-metadata-diagnostics li {
   display: grid;
   gap: 3px;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
 .asset-ai-metadata-diagnostics strong {
-  color: var(--danger);
+  color: var(--db-danger);
 }
 
 .asset-ai-metadata-json pre {
@@ -1562,10 +1181,10 @@ small {
   margin: 0;
   padding: 9px;
   overflow: auto;
-  border: 1px solid var(--border);
+  border: 1px solid var(--db-border);
   border-radius: 5px;
-  background: color-mix(in oklch, var(--bg) 82%, black);
-  color: var(--text);
+  background: color-mix(in oklch, var(--db-bg) 82%, black);
+  color: var(--db-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 11px;
   line-height: 1.45;
@@ -1577,9 +1196,9 @@ small {
   display: flex;
   gap: 10px;
   padding: 14px;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--db-border);
 }
 
 .diagnostics {
@@ -1599,9 +1218,9 @@ small {
   display: grid;
   align-items: center;
   gap: 8px;
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  border-radius: var(--db-radius-md);
+  background: var(--db-surface-2);
+  border: 1px solid var(--db-border);
   padding: 5px 8px;
   font-size: 12px;
 }
@@ -1619,11 +1238,11 @@ small {
 }
 
 .diagnostic.warning svg {
-  color: var(--warn);
+  color: var(--db-warning);
 }
 
 .diagnostic.error svg {
-  color: var(--danger);
+  color: var(--db-danger);
 }
 
 .diagnostic span {
@@ -1643,14 +1262,6 @@ small {
   gap: 8px;
 }
 
-.notification {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-panel);
-  padding: 10px 12px;
-  box-shadow: 0 10px 28px oklch(0 0 0 / 0.22);
-}
-
 .settings-panel {
   height: 100%;
   min-height: 0;
@@ -1661,8 +1272,8 @@ small {
   gap: 14px;
   align-content: stretch;
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--bg-elevated) 80%, transparent), transparent 220px),
-    var(--bg);
+    linear-gradient(180deg, color-mix(in oklch, var(--db-surface-1) 80%, transparent), transparent 220px),
+    var(--db-bg);
 }
 
 .settings-directory {
@@ -1672,75 +1283,10 @@ small {
   align-content: start;
   gap: 7px;
   padding: 10px;
-  border: 1px solid color-mix(in oklch, var(--border) 86%, transparent);
+  border: 1px solid color-mix(in oklch, var(--db-border) 86%, transparent);
   border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-elevated) 92%, transparent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
-}
-
-.settings-directory button {
-  min-width: 0;
-  min-height: 52px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 9px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  padding: 7px;
-  background: transparent;
-  color: var(--muted);
-  text-align: left;
-  cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
-}
-
-.settings-directory button > span:last-child {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.settings-directory button strong,
-.settings-directory button small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-directory button strong {
-  color: inherit;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.settings-directory button small {
-  color: var(--subtle);
-  font-size: 10.5px;
-}
-
-.settings-nav-icon {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
-  border-radius: 7px;
-  background: color-mix(in oklch, var(--bg) 72%, transparent);
-}
-
-.settings-directory button.active,
-.settings-directory button:hover {
-  border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
-  background: color-mix(in oklch, var(--bg-soft) 76%, transparent);
-  color: var(--text);
-}
-
-.settings-directory button.active .settings-nav-icon {
-  border-color: color-mix(in oklch, var(--accent) 58%, var(--border));
-  color: var(--accent);
-  background: color-mix(in oklch, var(--accent) 14%, var(--bg));
+  background: color-mix(in oklch, var(--db-surface-1) 92%, transparent);
+  box-shadow: var(--db-shadow-inset-subtle);
 }
 
 .settings-page {
@@ -1770,7 +1316,7 @@ small {
 }
 
 .settings-section-header span {
-  color: var(--accent);
+  color: var(--db-accent);
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
@@ -1779,7 +1325,7 @@ small {
 .settings-section-header p {
   max-width: 620px;
   margin: 0;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1790,77 +1336,29 @@ small {
   gap: 8px;
 }
 
-.settings-actions button,
-.settings-card button,
-.integration-row-action button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: color-mix(in oklch, var(--bg-soft) 84%, transparent);
-  color: var(--text);
-  cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
-}
-
-.settings-actions button:hover:not(:disabled),
-.settings-card button:hover:not(:disabled),
-.integration-row-action button:hover:not(:disabled) {
-  border-color: color-mix(in oklch, var(--accent) 45%, var(--border));
-  background: color-mix(in oklch, var(--bg-soft) 65%, var(--accent));
-}
-
-.settings-actions button {
-  min-height: 30px;
-  padding: 0 10px;
-}
-
-.settings-card button,
-.integration-row-action button {
-  min-height: 28px;
-  padding: 0 9px;
-  justify-self: start;
-}
-
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 12px;
 }
 
-.settings-list {
-  display: grid;
-  gap: 10px;
+.settings-edit-form {
+  display: contents;
 }
 
-.settings-card {
-  min-width: 0;
-  display: grid;
-  gap: 10px;
-  padding: 13px;
-  border: 1px solid color-mix(in oklch, var(--border) 88%, transparent);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 2.5%), transparent 34px),
-    color-mix(in oklch, var(--bg-panel) 94%, transparent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
-}
-
-.settings-card strong {
+.settings-section .db-card strong {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 13px;
 }
 
-.settings-card small {
-  color: var(--muted);
+.settings-section .db-card small {
+  color: var(--db-text-muted);
   overflow-wrap: anywhere;
 }
 
-.settings-card .settings-error {
-  color: oklch(0.78 0.12 25);
+.settings-error {
+  color: var(--db-danger);
 }
 
 .debrute-cli-settings-page {
@@ -1883,7 +1381,7 @@ small {
 }
 
 .debrute-cli-status-grid span {
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 11px;
   text-transform: uppercase;
 }
@@ -1892,10 +1390,10 @@ small {
   margin: 0;
   max-width: 100%;
   overflow: auto;
-  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--db-border) 72%, transparent);
   border-radius: 6px;
   padding: 10px;
-  background: rgb(0 0 0 / 24%);
+  background: color-mix(in oklch, var(--db-bg) 86%, transparent);
 }
 
 .integrations-settings-page {
@@ -1917,9 +1415,9 @@ small {
   gap: 8px;
   align-items: center;
   padding: 7px 8px;
-  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--db-border) 72%, transparent);
   border-radius: 7px;
-  background: color-mix(in oklch, var(--bg) 72%, transparent);
+  background: color-mix(in oklch, var(--db-bg) 72%, transparent);
 }
 
 .integration-row span,
@@ -1934,7 +1432,7 @@ small {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  color: var(--muted);
+  color: var(--db-text-muted);
 }
 
 .integration-row-action:empty {
@@ -1946,7 +1444,7 @@ small {
 }
 
 .integration-row-action .integration-uninstall-button {
-  color: oklch(0.78 0.12 25);
+  color: var(--db-danger);
 }
 
 @media (max-width: 680px) {
@@ -1962,9 +1460,9 @@ small {
 }
 
 .integration-backend-summary {
-  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--db-border) 72%, transparent);
   border-radius: 9px;
-  background: color-mix(in oklch, var(--bg) 68%, transparent);
+  background: color-mix(in oklch, var(--db-bg) 68%, transparent);
   display: block;
   padding: 10px 12px;
 }
@@ -1974,54 +1472,7 @@ small {
 }
 
 .integration-operation-ok {
-  color: #8bd5a9;
-}
-
-.integration-confirm-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: grid;
-  place-items: center;
-  background: rgb(10 12 12 / 72%);
-  backdrop-filter: blur(10px);
-}
-
-.integration-confirm-dialog {
-  position: relative;
-  width: min(520px, calc(100vw - 32px));
-}
-
-.integration-confirm-dialog code {
-  display: block;
-  overflow-x: auto;
-  padding: 10px;
-  border-radius: 8px;
-  background: rgb(0 0 0 / 24%);
-}
-
-.integration-confirm-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-}
-
-.settings-edit-card-header {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-}
-
-.settings-edit-card-header > div:first-child {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.settings-edit-card-header .settings-actions {
-  justify-content: end;
+  color: var(--db-success);
 }
 
 .settings-model-card {
@@ -2044,17 +1495,9 @@ small {
 
 .settings-model-card p {
   margin: 0;
-  color: var(--muted);
+  color: var(--db-text-muted);
   font-size: 12px;
   line-height: 1.45;
-}
-
-.settings-model-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  padding-top: 2px;
 }
 
 .settings-model-card-fields {
@@ -2070,8 +1513,8 @@ small {
   gap: 8px;
 }
 
-.settings-model-edit-grid input,
-.settings-key-input input {
+.settings-model-edit-grid .db-input,
+.settings-key-input .db-input {
   min-height: 28px;
   padding-top: 5px;
   padding-bottom: 5px;
@@ -2094,15 +1537,11 @@ small {
   align-items: normal;
 }
 
-.settings-key-input input {
+.settings-key-input .db-input {
   padding-right: 34px;
 }
 
-.settings-key-input-field--masked {
-  -webkit-text-security: disc;
-}
-
-.settings-card .settings-key-visibility {
+.settings-key-visibility.db-icon-button {
   position: absolute;
   top: 50%;
   right: 4px;
@@ -2110,17 +1549,7 @@ small {
   width: 24px;
   min-height: 24px;
   padding: 0;
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
   transform: translateY(-50%);
-}
-
-.settings-card .settings-key-visibility:hover:not(:disabled),
-.settings-card .settings-key-visibility:focus-visible {
-  border-color: color-mix(in oklch, var(--accent) 38%, transparent);
-  background: color-mix(in oklch, var(--accent) 12%, transparent);
-  color: var(--text);
 }
 
 .settings-key-visibility svg {
@@ -2133,65 +1562,8 @@ small {
   }
 }
 
-.settings-card > label,
-.settings-row label,
-.settings-toggle {
-  display: grid;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.settings-row span {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.settings-card > label select,
-.settings-row input,
-.settings-row textarea,
-.settings-row select {
-  width: 100%;
-  min-width: 0;
-  color: var(--text);
-  background: color-mix(in oklch, var(--bg) 88%, transparent);
-  border: 1px solid color-mix(in oklch, var(--border) 90%, transparent);
-  border-radius: var(--radius);
-  padding: 7px 8px;
-  outline: 0;
-}
-
-.settings-row input::placeholder,
-.settings-row textarea::placeholder {
-  color: var(--subtle);
-  opacity: 1;
-}
-
-.settings-card > label select:focus,
-.settings-row input:focus,
-.settings-row textarea:focus,
-.settings-row select:focus {
-  border-color: color-mix(in oklch, var(--accent) 58%, var(--border));
-  box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 18%, transparent);
-}
-
-.settings-row textarea {
-  min-height: 76px;
-  resize: vertical;
-}
-
 .settings-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.settings-pills span {
-  border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
-  border-radius: 999px;
-  padding: 3px 7px;
-  color: var(--muted);
-  background: color-mix(in oklch, var(--bg) 72%, transparent);
-  font-size: 11px;
 }

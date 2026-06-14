@@ -5,12 +5,11 @@ import { createCanvasDocument, type CanvasFeedbackDocument, type CanvasProjectio
 import type { IntegrationSettingsView } from '@debrute/app-protocol';
 import type { WorkbenchActions, WorkbenchState } from '../../types';
 import { CanvasEditor } from './CanvasEditor';
-import { scheduleCanvasImageHandoffAfterPaint, syncCompletedCanvasImageHandoff } from './CanvasNodeContent';
+import { preloadCanvasImageForHandoff, scheduleCanvasImageHandoffAfterPaint } from './CanvasNodeContent';
 import { createCanvasOverlayRuntime } from './CanvasOverlayRuntime';
 import { areCanvasNodeShellPropsEqual, CanvasNodeShell, type CanvasNodeShellProps } from './CanvasNodeShell';
 import {
   CanvasSurface,
-  canvasImageResourceZoomPreviewSignature,
   isCanvasMapProjectTreeDragOver,
   canvasMapProjectTreeDropEntry,
   canvasMapProjectTreeDropInput,
@@ -18,7 +17,6 @@ import {
   canvasSurfaceShouldClearPendingLayoutDraft,
   createCanvasRenderSnapshotScheduler,
   recordCanvasPerfFrame,
-  shouldUseEfficientImageResourceZoom,
   syncCanvasPerfDragSessionState,
   syncCanvasMovingCameraFrame,
   syncCanvasPerfSessionState,
@@ -414,18 +412,36 @@ describe('CanvasSurface', () => {
     expect(resolve).toHaveBeenCalledTimes(1);
   });
 
-  it('uses the same handoff path for next images that are already complete', () => {
+  it('preloads next images off-DOM before scheduling handoff', async () => {
+    const image = fakePreloadImage();
+    const frameCallbacks: FrameRequestCallback[] = [];
     const resolveLoaded = vi.fn();
     const rejectLoaded = vi.fn();
 
-    const handled = syncCompletedCanvasImageHandoff({
-      image: { complete: true, naturalWidth: 512 },
-      loadKey: 'next',
+    preloadCanvasImageForHandoff({
+      image: { src: '/preview/high.jpg', loadKey: 'next', previewWidth: 2100 },
       resolveLoaded,
-      rejectLoaded
+      rejectLoaded,
+      createImage: () => image.element as HTMLImageElement,
+      scheduler: {
+        requestFrame: (callback) => {
+          frameCallbacks.push(callback);
+          return frameCallbacks.length;
+        },
+        cancelFrame: () => undefined
+      }
     });
 
-    expect(handled).toBe(true);
+    expect(image.element.decoding).toBe('async');
+    expect(image.element.src).toBe('/preview/high.jpg');
+    image.element.naturalWidth = 2100;
+    image.emit('load');
+    await Promise.resolve();
+
+    expect(resolveLoaded).not.toHaveBeenCalled();
+    frameCallbacks.shift()?.(16);
+    expect(resolveLoaded).not.toHaveBeenCalled();
+    frameCallbacks.shift()?.(32);
     expect(resolveLoaded).toHaveBeenCalledWith('next');
     expect(rejectLoaded).not.toHaveBeenCalled();
   });
@@ -520,7 +536,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'moving',
-      useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
       timerRef,
@@ -536,7 +551,7 @@ describe('CanvasSurface', () => {
     expect(updates).toEqual([]);
   });
 
-  it('records movement time and clears pending efficient image resource upgrades while moving', () => {
+  it('records movement time and clears pending image resource upgrades while moving', () => {
     const timerRef = { current: 7 };
     const movementRef = { current: undefined as number | undefined };
     const cleared: number[] = [];
@@ -544,7 +559,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'moving',
-      useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 0.1,
       liveCameraZoom: 1,
       timerRef,
@@ -569,7 +583,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'moving',
-      useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
       timerRef,
@@ -584,37 +597,13 @@ describe('CanvasSurface', () => {
     expect(timerRef.current).toBeUndefined();
   });
 
-  it('updates image resource zoom immediately for small canvases', () => {
-    const timerRef = { current: 11 };
-    const cleared: number[] = [];
-    const updates: number[] = [];
-
-    syncCanvasImageResourceZoomForCameraState({
-      cameraState: 'moving',
-      useEfficientImageResourceZoom: false,
-      currentImageResourceZoom: 1,
-      liveCameraZoom: 2,
-      timerRef,
-      setImageResourceZoom: (zoom) => updates.push(zoom),
-      setTimeout: () => {
-        throw new Error('small canvas must not debounce image resource zoom');
-      },
-      clearTimeout: (handle) => cleared.push(handle)
-    });
-
-    expect(cleared).toEqual([11]);
-    expect(timerRef.current).toBeUndefined();
-    expect(updates).toEqual([2]);
-  });
-
-  it('settles efficient image resource zoom after idle', () => {
+  it('settles image resource zoom after idle', () => {
     const timerRef = { current: undefined as number | undefined };
     const updates: number[] = [];
     const timers: Array<() => void> = [];
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'idle',
-      useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1,
       liveCameraZoom: 2,
       timerRef,
@@ -636,7 +625,7 @@ describe('CanvasSurface', () => {
     expect(updates).toEqual([2]);
   });
 
-  it('waits for the stable post-movement window before upgrading efficient image resource zoom', () => {
+  it('waits for the stable post-movement window before upgrading image resource zoom', () => {
     const timerRef = { current: undefined as number | undefined };
     const movementRef = { current: 1000 };
     const updates: number[] = [];
@@ -645,7 +634,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'idle',
-      useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 0.1,
       liveCameraZoom: 1,
       timerRef,
@@ -669,67 +657,6 @@ describe('CanvasSurface', () => {
     expect(updates).toEqual([1]);
   });
 
-  it('does not publish efficient image resource zoom when preview-width classes are unchanged', () => {
-    const timerRef = { current: undefined as number | undefined };
-    const updates: number[] = [];
-
-    syncCanvasImageResourceZoomForCameraState({
-      cameraState: 'idle',
-      useEfficientImageResourceZoom: true,
-      currentImageResourceZoom: 0.11,
-      liveCameraZoom: 0.12,
-      timerRef,
-      resourceZoomSignature: (zoom) => zoom < 0.2 ? 'same-preview-width' : 'larger-preview-width',
-      setImageResourceZoom: (zoom) => updates.push(zoom),
-      setTimeout: () => {
-        throw new Error('same preview-width class must not schedule image resource zoom work');
-      },
-      clearTimeout: () => undefined,
-      settleMs: 900
-    });
-
-    expect(timerRef.current).toBeUndefined();
-    expect(updates).toEqual([]);
-  });
-
-  it('builds image resource zoom signatures from preview-width classes', () => {
-    expect(canvasImageResourceZoomPreviewSignature({
-      nodes: [largePreviewNodeFixture('flow/a.png')],
-      imageResourceZoom: 0.11,
-      devicePixelRatio: 1
-    })).toBe(canvasImageResourceZoomPreviewSignature({
-      nodes: [largePreviewNodeFixture('flow/a.png')],
-      imageResourceZoom: 0.12,
-      devicePixelRatio: 1
-    }));
-    expect(canvasImageResourceZoomPreviewSignature({
-      nodes: [largePreviewNodeFixture('flow/a.png')],
-      imageResourceZoom: 0.11,
-      devicePixelRatio: 1
-    })).not.toBe(canvasImageResourceZoomPreviewSignature({
-      nodes: [largePreviewNodeFixture('flow/a.png')],
-      imageResourceZoom: 0.3,
-      devicePixelRatio: 1
-    }));
-  });
-
-  it('uses efficient image resource zoom only when the canvas is large or image-heavy', () => {
-    expect(shouldUseEfficientImageResourceZoom({
-      nodeCount: 501
-    })).toBe(true);
-    expect(shouldUseEfficientImageResourceZoom({
-      nodeCount: 92,
-      imageNodeCount: 60
-    })).toBe(true);
-    expect(shouldUseEfficientImageResourceZoom({
-      nodeCount: 144,
-      imageNodeCount: 24
-    })).toBe(false);
-    expect(shouldUseEfficientImageResourceZoom({
-      nodeCount: 500
-    })).toBe(false);
-  });
-
   it('does not schedule idle image resource zoom settlement when zoom is already current', () => {
     const timerRef = { current: 11 };
     const cleared: number[] = [];
@@ -737,7 +664,6 @@ describe('CanvasSurface', () => {
 
     syncCanvasImageResourceZoomForCameraState({
       cameraState: 'idle',
-      useEfficientImageResourceZoom: true,
       currentImageResourceZoom: 1.5,
       liveCameraZoom: 1.5,
       timerRef,
@@ -797,71 +723,30 @@ describe('CanvasSurface', () => {
     expect(commits).toEqual([{ camera: { x: 5, y: 0, z: 1 } }]);
   });
 
-  it('keeps moving camera sync limited to stage transform, image zoom context, and render scheduling', () => {
+  it('keeps moving camera sync limited to stage transform and render scheduling', () => {
     const cameras: unknown[] = [];
     const renderInputs: unknown[] = [];
-    const zoomSnapshots: unknown[] = [];
 
     syncCanvasMovingCameraFrame({
       liveCamera: { x: -350, y: 0, z: 1 },
       stageRuntime: {
         setCamera: (camera) => cameras.push(camera)
       },
-      runtime: {
-        getSnapshot: () => ({ cameraState: 'moving' }) as ReturnType<CanvasEditorRuntime['getSnapshot']>
-      },
       surfaceSize: { width: 400, height: 300 },
       selection: { kind: 'node', projectRelativePath: 'flow/live-visible.png' },
       activeNodePaths: ['flow/live-visible.png'],
       renderSnapshotScheduler: {
         requestMoving: (input) => renderInputs.push(input)
-      },
-      syncImageResourceZoom: (snapshot) => zoomSnapshots.push(snapshot.cameraState)
+      }
     });
 
     expect(cameras).toEqual([{ x: -350, y: 0, z: 1 }]);
-    expect(zoomSnapshots).toEqual(['moving']);
     expect(renderInputs).toEqual([{
       camera: { x: -350, y: 0, z: 1 },
       cameraState: 'moving',
       surfaceSize: { width: 400, height: 300 },
       selection: { kind: 'node', projectRelativePath: 'flow/live-visible.png' },
       activeNodePaths: ['flow/live-visible.png']
-    }]);
-  });
-
-  it('passes the live moving snapshot to image resource zoom sync', () => {
-    const zoomSnapshots: unknown[] = [];
-
-    syncCanvasMovingCameraFrame({
-      liveCamera: { x: 0, y: 0, z: 2 },
-      stageRuntime: {
-        setCamera: () => undefined
-      },
-      runtime: {
-        getSnapshot: () => ({
-          cameraState: 'moving',
-          camera: { x: 0, y: 0, z: 2 },
-          imageResourceZoom: 1
-        }) as ReturnType<CanvasEditorRuntime['getSnapshot']>
-      },
-      surfaceSize: { width: 400, height: 300 },
-      selection: undefined,
-      activeNodePaths: [],
-      renderSnapshotScheduler: {
-        requestMoving: () => undefined
-      },
-      syncImageResourceZoom: (snapshot) => zoomSnapshots.push({
-        cameraState: snapshot.cameraState,
-        camera: snapshot.camera,
-        imageResourceZoom: snapshot.imageResourceZoom
-      })
-    });
-
-    expect(zoomSnapshots).toEqual([{
-      cameraState: 'moving',
-      camera: { x: 0, y: 0, z: 2 },
-      imageResourceZoom: 1
     }]);
   });
 
@@ -1315,3 +1200,39 @@ function projectTreeDragDataTransfer(entries: Array<{ kind: 'file' | 'directory'
     getData: () => JSON.stringify(entries)
   };
 }
+
+function fakePreloadImage(): {
+  element: FakePreloadImageElement;
+  emit: (type: 'load' | 'error') => void;
+} {
+  const listeners = new Map<string, Set<EventListener>>();
+  const element = {
+    complete: false,
+    naturalWidth: 0,
+    decoding: 'auto',
+    src: '',
+    decode: vi.fn(async () => undefined),
+    addEventListener: (type: string, listener: EventListener) => {
+      const current = listeners.get(type) ?? new Set<EventListener>();
+      current.add(listener);
+      listeners.set(type, current);
+    },
+    removeEventListener: (type: string, listener: EventListener) => {
+      listeners.get(type)?.delete(listener);
+    }
+  } as unknown as FakePreloadImageElement;
+  return {
+    element,
+    emit: (type) => {
+      element.complete = true;
+      for (const listener of listeners.get(type) ?? []) {
+        listener(new Event(type));
+      }
+    }
+  };
+}
+
+type FakePreloadImageElement = Omit<HTMLImageElement, 'complete' | 'naturalWidth'> & {
+  complete: boolean;
+  naturalWidth: number;
+};

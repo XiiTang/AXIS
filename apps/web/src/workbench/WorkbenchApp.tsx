@@ -77,6 +77,7 @@ import { FloatingPanel, FloatingPanelContent } from './shell/FloatingPanel';
 import { FloatingTextEditorWindow } from './shell/FloatingTextEditorWindow';
 import { NotificationStack } from './shell/NotificationStack';
 import { TerminalPanel } from './terminal/TerminalPanel';
+import { Button } from './ui';
 import { FIXED_TOP_FLOATING_BAR_RECTS } from './shell/workbenchLayers';
 import {
   DEFAULT_WORKBENCH_WINDOW_ORDER,
@@ -990,13 +991,11 @@ export function WorkbenchApp(): React.ReactElement {
           <div className="empty-editor empty-project">
             <strong>Canvas registry needs repair</strong>
             <span>{registryInvalid.message}</span>
-            <button
-              type="button"
-              className="empty-action"
+            <Button
               onClick={() => { void actions.repairCanvasIndex().catch((error) => notify(`Canvas registry repair failed: ${errorMessage(error)}`)); }}
             >
               Auto Repair
-            </button>
+            </Button>
           </div>
         ) : (
           <CanvasEditor

@@ -1,0 +1,59 @@
+.db-card,
+.db-panel {
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--db-border) 88%, transparent);
+  background: color-mix(in oklch, var(--db-surface-2) 94%, transparent);
+}
+
+.db-card {
+  display: grid;
+  gap: var(--db-space-4);
+  padding: var(--db-space-6);
+  border-radius: var(--db-radius-lg);
+  box-shadow: var(--db-shadow-inset-subtle);
+}
+
+.db-card--interactive {
+  cursor: pointer;
+}
+
+.db-card--selected {
+  border-color: color-mix(in oklch, var(--db-accent) 52%, var(--db-border));
+  background: color-mix(in oklch, var(--db-accent) 10%, var(--db-surface-2));
+}
+
+.db-card--danger {
+  border-color: color-mix(in oklch, var(--db-danger) 58%, var(--db-border));
+}
+
+.db-panel {
+  overflow: hidden;
+  border-radius: var(--db-radius-lg);
+  box-shadow: var(--db-shadow-panel);
+}
+
+.db-panel__header {
+  min-width: 0;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--db-space-4);
+  padding: 0 var(--db-space-5);
+  border-bottom: 1px solid var(--db-border);
+  color: var(--db-text-muted);
+}
+
+.db-panel__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--db-text);
+  font-size: var(--db-font-sm);
+  text-transform: uppercase;
+}
+
+.db-panel__body {
+  min-height: 0;
+}

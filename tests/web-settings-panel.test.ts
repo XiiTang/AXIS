@@ -44,7 +44,9 @@ describe('web Settings pages', () => {
     }));
 
     expect(html).toContain('settings-directory');
-    expect(html).toContain('settings-nav-icon');
+    expect(html).toContain('db-settings-nav-button');
+    expect(html).toMatch(/<button[^>]*class="[^"]*db-settings-nav-button[^"]*"[^>]*><span class="db-settings-nav-button__icon">/);
+    expect(html).not.toContain('settings-nav-icon');
     expect(html).toContain('Model routing and provider credentials');
     expect(html).toContain('Generation endpoints and API keys');
     expect(html).toContain('LLM');
@@ -66,6 +68,11 @@ describe('web Settings pages', () => {
     expect(html).not.toContain('Leave blank to keep existing key');
     expect(html).toContain('configured');
     expect(html).toContain('no key');
+    expect(html).toContain('db-card');
+    expect(html).toContain('db-field');
+    expect(html).toContain('db-input');
+    expect(html).toContain('db-status-pill');
+    expect(html).not.toContain('settings-card');
   });
 
   it('renders visibility controls for every API key input', () => {
@@ -116,13 +123,13 @@ describe('web Settings pages', () => {
     const llmHtml = renderToStaticMarkup(React.createElement(LlmSettings, { state, actions }));
     const html = `${modelHtml}${llmHtml}`;
 
-    expect(html.match(/type="text"/g)).toHaveLength(3);
     expect(html).not.toContain('type="password"');
-    expect(html.match(/settings-key-input-field--masked/g)).toHaveLength(2);
+    expect(html.match(/db-input--secret/g)).toHaveLength(2);
     expect(html.match(/aria-label="Show API key"/g)).toHaveLength(3);
     expect(html).toContain('value="sk-image-ui"');
     expect(html).toContain('value="sk-video-ui"');
     expect(html).not.toContain('settings-key-leading-icon');
+    expect(html).not.toContain('settings-key-input-field');
     expect(html).not.toContain('Leave blank to keep existing key');
     expect(html).not.toContain('aria-label="Hide API key"');
   });

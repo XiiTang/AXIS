@@ -12,6 +12,7 @@ import {
   type FloatingPanelId,
   type FloatingPanelState
 } from './floatingPanels';
+import { IconButton } from '../ui';
 
 export function FloatingDock({
   panelState,
@@ -31,17 +32,13 @@ export function FloatingDock({
   return (
     <nav className="floating-dock" data-testid="floating-dock" aria-label="Workbench panels">
       {FLOATING_PANEL_IDS.map((panelId) => (
-        <button
+        <IconButton
           key={panelId}
-          type="button"
-          className={panelState.panels[panelId].open ? 'active' : ''}
-          title={FLOATING_PANEL_DEFINITIONS[panelId].title}
-          aria-label={FLOATING_PANEL_DEFINITIONS[panelId].title}
-          aria-pressed={panelState.panels[panelId].open}
+          label={FLOATING_PANEL_DEFINITIONS[panelId].title}
+          pressed={panelState.panels[panelId].open}
+          icon={icons[panelId]}
           onClick={() => onToggle(panelId)}
-        >
-          {icons[panelId]}
-        </button>
+        />
       ))}
     </nav>
   );

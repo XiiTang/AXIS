@@ -57,6 +57,14 @@ describe('Electron development scripts', () => {
     expect(script).not.toContain('currentElectronChild');
   });
 
+  it('explains duplicate Electron instances before quitting the dev launch', () => {
+    const main = readFileSync(join(process.cwd(), 'apps/desktop/src/electron/main.ts'), 'utf8');
+
+    expect(main).toContain('Debrute desktop is already running.');
+    expect(main).toContain('pnpm dev:electron');
+    expect(main.indexOf('console.error(')).toBeLessThan(main.indexOf('app.quit();'));
+  });
+
   it('keeps native Electron runtime modules external so their native packages resolve from pnpm', () => {
     const script = readFileSync(join(process.cwd(), 'apps/desktop/scripts/bundle-electron.mjs'), 'utf8');
 

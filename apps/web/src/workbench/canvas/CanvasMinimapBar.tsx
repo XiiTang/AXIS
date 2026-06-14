@@ -18,6 +18,7 @@ import {
 import type { CanvasEditorRuntime, CanvasRuntimeSnapshot } from './runtime/CanvasEditorRuntime';
 import { DEFAULT_CANVAS_CAMERA } from './runtime/canvasCamera';
 import type { CanvasOverlayRuntime } from './CanvasOverlayRuntime';
+import { IconButton } from '../ui';
 
 export function CanvasMinimapBar({
   canvas,
@@ -99,15 +100,14 @@ export function CanvasMinimapBar({
 
   return (
     <>
-      <button
-        type="button"
+      <IconButton
         ref={barRef}
-        className={open ? 'canvas-minimap-bar active' : 'canvas-minimap-bar'}
+        className="canvas-minimap-bar"
         data-testid="canvas-minimap-bar"
         data-canvas-local-wheel="true"
-        title="Mini Map"
-        aria-label="Mini Map"
-        aria-pressed={open}
+        label="Mini Map"
+        pressed={open}
+        icon={<Map size={13} />}
         disabled={!enabled}
         onPointerDown={stopCanvasMinimapEvent}
         onPointerMove={stopCanvasMinimapEvent}
@@ -121,9 +121,7 @@ export function CanvasMinimapBar({
         }}
         onDoubleClick={stopCanvasMinimapEvent}
         onContextMenu={stopCanvasMinimapEvent}
-      >
-        <Map size={13} />
-      </button>
+      />
       {open && enabled && staticModel && initialViewport && runtime ? (
         <CanvasMinimapPanel
           ref={panelRef}

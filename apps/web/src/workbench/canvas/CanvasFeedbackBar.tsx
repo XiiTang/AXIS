@@ -16,6 +16,7 @@ import {
 } from '@debrute/canvas-core';
 import type { WorkbenchActions } from '../../types';
 import type { CanvasOverlayRuntime } from './CanvasOverlayRuntime';
+import { IconButton, Input } from '../ui';
 
 const NOTE_SAVE_DELAY_MS = 350;
 
@@ -141,23 +142,20 @@ export function CanvasFeedbackBar({
       onKeyDown={stopCanvasFeedbackBarEvent}
     >
       {CANVAS_FEEDBACK_MARKS.map((mark) => {
-        const active = marks.includes(mark);
+        const pressed = marks.includes(mark);
         const { label, Icon } = FEEDBACK_MARKS[mark];
         return (
-          <button
+          <IconButton
             key={mark}
-            type="button"
-            className={active ? 'canvas-feedback-mark active' : 'canvas-feedback-mark'}
-            aria-label={label}
-            aria-pressed={active}
-            title={label}
+            className="canvas-feedback-mark"
+            label={label}
+            pressed={pressed}
+            icon={<Icon size={14} />}
             onClick={() => toggleMark(mark)}
-          >
-            <Icon size={14} />
-          </button>
+          />
         );
       })}
-      <input
+      <Input
         className="canvas-feedback-note"
         data-canvas-local-wheel="true"
         aria-label={`Feedback note for ${projectRelativePath}`}

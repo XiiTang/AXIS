@@ -1,0 +1,142 @@
+.db-button,
+.db-icon-button {
+  border: 1px solid color-mix(in oklch, var(--db-border) 86%, transparent);
+  border-radius: var(--db-radius-md);
+  background: color-mix(in oklch, var(--db-surface-3) 84%, transparent);
+  color: var(--db-text);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.db-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: var(--db-space-2);
+  white-space: nowrap;
+}
+
+.db-button--xs {
+  min-height: var(--db-control-xs);
+  padding: 0 var(--db-space-3);
+  font-size: var(--db-font-xs);
+}
+
+.db-button--sm {
+  min-height: var(--db-control-sm);
+  padding: 0 var(--db-space-4);
+  font-size: var(--db-font-sm);
+}
+
+.db-button--md {
+  min-height: var(--db-control-md);
+  padding: 0 var(--db-space-5);
+  font-size: var(--db-font-md);
+}
+
+.db-button--primary {
+  border-color: color-mix(in oklch, var(--db-accent) 68%, var(--db-border));
+  background: color-mix(in oklch, var(--db-accent) 28%, var(--db-surface-3));
+}
+
+.db-button--subtle {
+  background: color-mix(in oklch, var(--db-surface-2) 76%, transparent);
+}
+
+.db-button--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--db-text-muted);
+}
+
+.db-button--danger {
+  border-color: color-mix(in oklch, var(--db-danger) 64%, var(--db-border));
+  color: color-mix(in oklch, var(--db-danger) 82%, white);
+}
+
+.db-button:hover:not(:disabled),
+.db-icon-button:hover:not(:disabled) {
+  border-color: color-mix(in oklch, var(--db-accent) 48%, var(--db-border));
+  background: color-mix(in oklch, var(--db-surface-3) 68%, var(--db-accent));
+  color: var(--db-text);
+}
+
+.db-button:disabled,
+.db-icon-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.db-button[aria-pressed="true"] {
+  border-color: color-mix(in oklch, var(--db-accent) 46%, var(--db-border));
+  background: color-mix(in oklch, var(--db-accent) 18%, var(--db-surface-2));
+  color: var(--db-text);
+}
+
+.db-button__icon,
+.db-icon-button__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.db-button__icon svg,
+.db-icon-button__icon svg,
+.db-menu__item-icon svg {
+  display: block;
+}
+
+.db-button__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-icon-button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+
+.db-icon-button--xs {
+  width: var(--db-control-xs);
+  height: var(--db-control-xs);
+}
+
+.db-icon-button--sm {
+  width: var(--db-control-sm);
+  height: var(--db-control-sm);
+}
+
+.db-icon-button--md {
+  width: var(--db-control-md);
+  height: var(--db-control-md);
+}
+
+.db-icon-button--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--db-text-muted);
+}
+
+.db-icon-button[aria-pressed="true"] {
+  border-color: color-mix(in oklch, var(--db-accent) 40%, var(--db-border));
+  background: color-mix(in oklch, var(--db-accent) 15%, var(--db-surface-2));
+  color: var(--db-text);
+}
+
+.db-toolbar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--db-space-2);
+}
+
+.db-toolbar--vertical {
+  flex-direction: column;
+}
+
+.db-toolbar--normal {
+  gap: var(--db-space-3);
+}

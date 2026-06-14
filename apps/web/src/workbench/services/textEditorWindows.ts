@@ -60,23 +60,25 @@ export function dragTextEditorWindowState(
   };
 }
 
-export function textBufferStatus(buffer: TextFileBuffer | undefined): { label: string; className: string } {
+export type TextBufferStatusTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'loading';
+
+export function textBufferStatus(buffer: TextFileBuffer | undefined): { label: string; tone: TextBufferStatusTone } {
   if (!buffer) {
-    return { label: 'Loading', className: 'loading' };
+    return { label: 'Loading', tone: 'loading' };
   }
   if (buffer.error) {
-    return { label: 'Error', className: 'error' };
+    return { label: 'Error', tone: 'danger' };
   }
   if (buffer.externalChange) {
-    return { label: 'External change', className: 'external' };
+    return { label: 'External change', tone: 'info' };
   }
   if (buffer.saving) {
-    return { label: 'Saving', className: 'saving' };
+    return { label: 'Saving', tone: 'loading' };
   }
   if (buffer.dirty) {
-    return { label: 'Unsaved', className: 'dirty' };
+    return { label: 'Unsaved', tone: 'warning' };
   }
-  return { label: 'Saved', className: 'saved' };
+  return { label: 'Saved', tone: 'success' };
 }
 
 export function clearTextBufferError(buffer: TextFileBuffer): TextFileBuffer {

@@ -21,5 +21,7 @@ describe('WorkbenchContextMenu', () => {
     expect(html).toContain('aria-disabled="true"');
     expect(html).toContain('disabled=""');
     expect(html).toContain('Paste');
+    expect(html).toContain('db-menu');
+    expect(html).toContain('db-menu__item');
   });
 });

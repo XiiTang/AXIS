@@ -15,6 +15,7 @@ import {
 } from './workbenchWindowOrder';
 import { floatingPanelDragHandleProps } from './FloatingPanel';
 import { basenameFromProjectPath, textBufferStatus } from '../services/textEditorWindows';
+import { IconButton, Panel, PanelBody, PanelHeader, PanelTitle, StatusPill } from '../ui';
 
 export function FloatingTextEditorWindow({
   windowState,
@@ -46,8 +47,8 @@ export function FloatingTextEditorWindow({
   }, [actions, windowState.projectRelativePath]);
 
   return (
-    <section
-      className="floating-text-editor-window"
+    <Panel
+      className="floating-panel floating-text-editor-window"
       data-testid="floating-text-editor-window"
       style={{
         left: windowState.x,
@@ -58,40 +59,34 @@ export function FloatingTextEditorWindow({
       }}
       onPointerDown={onBringToFront}
     >
-      <header className="floating-text-editor-header" {...dragHandleProps}>
+      <PanelHeader className="floating-panel-header floating-text-editor-header" {...dragHandleProps}>
         <FileText size={15} />
-        <strong>{basenameFromProjectPath(windowState.projectRelativePath)}</strong>
+        <PanelTitle>{basenameFromProjectPath(windowState.projectRelativePath)}</PanelTitle>
         <small>{windowState.projectRelativePath}</small>
-        <span className={status.className}>{status.label}</span>
-        <button
-          type="button"
-          aria-label={`Save ${windowState.projectRelativePath}`}
+        <StatusPill tone={status.tone}>{status.label}</StatusPill>
+        <IconButton
+          label={`Save ${windowState.projectRelativePath}`}
           disabled={!buffer || !buffer.dirty || buffer.saving}
+          icon={<Save size={14} />}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => void actions.saveTextFileBuffer(windowState.projectRelativePath)}
-        >
-          <Save size={14} />
-        </button>
+        />
         {buffer?.externalChange ? (
-          <button
-            type="button"
-            aria-label={`Reload ${windowState.projectRelativePath} from disk`}
+          <IconButton
+            label={`Reload ${windowState.projectRelativePath} from disk`}
+            icon={<RefreshCw size={14} />}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => void actions.reloadTextFileBuffer(windowState.projectRelativePath)}
-          >
-            <RefreshCw size={14} />
-          </button>
+          />
         ) : null}
-        <button
-          type="button"
-          aria-label={`Close ${windowState.projectRelativePath}`}
+        <IconButton
+          label={`Close ${windowState.projectRelativePath}`}
+          icon={<X size={14} />}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={onClose}
-        >
-          <X size={14} />
-        </button>
-      </header>
-      <div className="floating-text-editor-body">
+        />
+      </PanelHeader>
+      <PanelBody className="floating-panel-body floating-text-editor-body">
         {buffer?.error ? (
           <div className="canvas-text-message" data-canvas-text-editor="true">
             <AlertTriangle size={18} />
@@ -113,7 +108,7 @@ export function FloatingTextEditorWindow({
             <span>Loading text</span>
           </div>
         )}
-      </div>
-    </section>
+      </PanelBody>
+    </Panel>
   );
 }

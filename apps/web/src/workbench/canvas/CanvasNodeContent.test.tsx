@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ProjectedCanvasNode } from '@debrute/canvas-core';
-import type { TextFileBuffer } from '../../types';
-import { CanvasImageNodePreview, canvasTextBufferEnsureKey } from './CanvasNodeContent';
+import type { TextFileBuffer, WorkbenchActions } from '../../types';
+import { CanvasImageNodePreview, CanvasNodeContent, canvasTextBufferEnsureKey } from './CanvasNodeContent';
 import type { CanvasImageNodeAssetHookState } from './CanvasImageNodeAssetContext';
 
 describe('CanvasImageNodePreview', () => {
-  it('keeps the visible image mounted while the next image loads', () => {
+  it('keeps the visible image mounted while the next image preloads off-DOM', () => {
     const html = renderImagePreview({
       kind: 'image',
       visible: { src: '/preview/low.jpg', loadKey: 'low', previewWidth: 256 },
@@ -18,11 +18,9 @@ describe('CanvasImageNodePreview', () => {
     });
 
     expect(html).toContain('src="/preview/low.jpg"');
-    expect(html).toContain('src="/preview/high.jpg"');
     expect(html).toContain('data-canvas-image-layer="visible"');
-    expect(html).toContain('data-canvas-image-layer="next"');
-    expect(html).not.toContain('opacity:0');
-    expect(html).not.toContain('opacity: 0');
+    expect(html).not.toContain('src="/preview/high.jpg"');
+    expect(html).not.toContain('data-canvas-image-layer="next"');
   });
 
   it('renders only the visible layer when pan-back state already has the same loaded URL', () => {
@@ -51,7 +49,8 @@ describe('CanvasImageNodePreview', () => {
     });
 
     expect(html).toContain('class="canvas-node-image-reserved"');
-    expect(html).toContain('data-canvas-image-layer="next"');
+    expect(html).not.toContain('src="/preview/first.jpg"');
+    expect(html).not.toContain('data-canvas-image-layer="next"');
     expect(html).not.toContain('data-canvas-image-layer="visible"');
     expect(html).not.toContain('class="canvas-node-placeholder"');
   });
@@ -68,7 +67,50 @@ describe('CanvasImageNodePreview', () => {
 
     expect(html).toContain('src="/preview/low.jpg"');
     expect(html).toContain('Unable to load flow/cover.png.');
+    expect(html).toContain('db-button');
     expect(html).not.toContain('class="canvas-node-placeholder"');
+  });
+});
+
+describe('CanvasNodeContent text chrome', () => {
+  it('renders text node titlebar actions through Workbench UI primitives', () => {
+    const html = renderToStaticMarkup(
+      <CanvasNodeContent
+        node={textNode('flow/readme.md', 'rev-a')}
+        selected
+        culled={false}
+        actions={actionsFixture()}
+        textBuffer={undefined}
+        onSelectNode={() => undefined}
+        onTitlePointerDown={() => undefined}
+        onTitlePointerMove={() => undefined}
+        onTitlePointerUp={() => undefined}
+      />
+    );
+
+    expect(html).toContain('canvas-text-titlebar');
+    expect(html).toContain('db-icon-button');
+    expect(html).toContain('Open large editor');
+  });
+
+  it('renders external text changes with the shared info status tone only', () => {
+    const html = renderToStaticMarkup(
+      <CanvasNodeContent
+        node={textNode('flow/readme.md', 'rev-a')}
+        selected
+        culled={false}
+        actions={actionsFixture()}
+        textBuffer={{ ...textBuffer('flow/readme.md', 'rev-a'), externalChange: true }}
+        onSelectNode={() => undefined}
+        onTitlePointerDown={() => undefined}
+        onTitlePointerMove={() => undefined}
+        onTitlePointerUp={() => undefined}
+      />
+    );
+
+    expect(html).toContain('External change');
+    expect(html).toContain('db-status-pill--info');
+    expect(html).not.toMatch(/\b(?:dirty|external|saved|saving|loading|error)\b(?=[^"]*"[^>]*>External change)/);
   });
 });
 
@@ -129,6 +171,16 @@ function renderImagePreview(imageState: CanvasImageNodeAssetHookState): string {
       imageState={imageState}
     />
   );
+}
+
+function actionsFixture(): WorkbenchActions {
+  return {
+    ensureTextFileBuffer: async () => undefined,
+    saveTextFileBuffer: async () => undefined,
+    openTextEditorWindow: () => undefined,
+    updateTextFileBuffer: () => undefined,
+    toggleTextFileWordWrap: () => undefined
+  } as unknown as WorkbenchActions;
 }
 
 function imageNode(path: string, revision: string): ProjectedCanvasNode {

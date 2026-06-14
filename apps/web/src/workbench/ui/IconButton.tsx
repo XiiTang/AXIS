@@ -1,0 +1,36 @@
+import React from 'react';
+import type { ButtonSize, ButtonVariant } from './Button';
+import { cx } from './cx';
+
+export interface IconButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  label: string;
+  icon: React.ReactNode;
+  variant?: Exclude<ButtonVariant, 'primary'>;
+  size?: ButtonSize;
+  pressed?: boolean;
+}
+
+export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({
+  label,
+  icon,
+  variant = 'ghost',
+  size = 'sm',
+  pressed,
+  className,
+  type = 'button',
+  ...props
+}, ref): React.ReactElement {
+  return (
+    <button
+      {...props}
+      ref={ref}
+      type={type}
+      aria-label={label}
+      title={props.title ?? label}
+      aria-pressed={pressed}
+      className={cx('db-icon-button', `db-icon-button--${variant}`, `db-icon-button--${size}`, className)}
+    >
+      <span className="db-icon-button__icon" aria-hidden="true">{icon}</span>
+    </button>
+  );
+});

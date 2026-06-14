@@ -17,6 +17,7 @@ import {
 } from '@debrute/canvas-core';
 import type { GeneratedAssetMetadataLookup, GeneratedAssetRecord } from '@debrute/app-protocol';
 import type { WorkbenchActions, WorkbenchState } from '../../types';
+import { EmptyState, IconButton, Select } from '../ui';
 import type { CanvasSelection } from '../canvas/runtime/canvasSelection';
 import {
   getCanvasById,
@@ -118,10 +119,7 @@ function InspectorDetails({
     );
   }
   return (
-    <div className="inspector-empty">
-      <CircleDot size={18} />
-      <span>Select a node or diagnostic.</span>
-    </div>
+    <EmptyState className="inspector-empty" title="Select a node or diagnostic." />
   );
 }
 
@@ -158,46 +156,34 @@ function NodeVisualControls({
     <div className="inspector-section">
       <h3>Visual</h3>
       <div className="inspector-node-controls" aria-label="Node visual controls">
-        <button
-          type="button"
-          aria-label="Toggle visibility"
-          title="Toggle visibility"
+        <IconButton
+          label="Toggle visibility"
           disabled={!canvas}
+          icon={context.node.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}
           onClick={() => void actions.updateCanvasNodeLayers(context.canvasId, {
             nodeLayers: [{ projectRelativePath: nodePath, visible: context.node.visible === false }]
           })}
-        >
-          {context.node.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}
-        </button>
-        <button
-          type="button"
-          aria-label="Toggle lock"
-          title="Toggle lock"
+        />
+        <IconButton
+          label="Toggle lock"
           disabled={!canvas}
+          icon={context.node.locked ? <Lock size={14} /> : <Unlock size={14} />}
           onClick={() => void actions.updateCanvasNodeLayers(context.canvasId, {
             nodeLayers: [{ projectRelativePath: nodePath, locked: context.node.locked !== true }]
           })}
-        >
-          {context.node.locked ? <Lock size={14} /> : <Unlock size={14} />}
-        </button>
-        <button
-          type="button"
-          aria-label="Move forward"
-          title="Move forward"
+        />
+        <IconButton
+          label="Move forward"
           disabled={!canMoveLayer || layerIndex === 0}
+          icon={<ArrowUp size={14} />}
           onClick={() => moveLayer(-1)}
-        >
-          <ArrowUp size={14} />
-        </button>
-        <button
-          type="button"
-          aria-label="Move backward"
-          title="Move backward"
+        />
+        <IconButton
+          label="Move backward"
           disabled={!canMoveLayer || layerIndex === layerOrderTopFirst.length - 1}
+          icon={<ArrowDown size={14} />}
           onClick={() => moveLayer(1)}
-        >
-          <ArrowDown size={14} />
-        </button>
+        />
       </div>
     </div>
   );
@@ -308,11 +294,11 @@ function MatchedGeneratedAssetMetadataView({
       {lookup.records.length > 1 ? (
         <label className="asset-ai-metadata-picker">
           <span>Record</span>
-          <select value={selectedIndex} onChange={(event) => setSelectedIndex(Number(event.currentTarget.value))}>
+          <Select value={selectedIndex} onChange={(event) => setSelectedIndex(Number(event.currentTarget.value))}>
             {lookup.records.map((item, index) => (
               <option key={item.recordId} value={index}>{`${index + 1}. ${item.createdAt}`}</option>
             ))}
-          </select>
+          </Select>
         </label>
       ) : null}
       <GeneratedAssetMetadataRecordView record={record} fingerprint={lookup.fingerprint.hash} />
@@ -378,7 +364,7 @@ export function DiagnosticList({
   onSelect?: (diagnostic: Diagnostic) => void;
 }): React.ReactElement {
   if (diagnostics.length === 0) {
-    return <div className="empty-line"><CheckCircle2 size={15} />No diagnostics</div>;
+    return <EmptyState className="empty-line" title="No diagnostics" />;
   }
   return (
     <div className={compact ? 'diagnostics compact' : 'diagnostics'}>

@@ -6,6 +6,7 @@ import type {
   IntegrationStatus
 } from '@debrute/app-protocol';
 import type { WorkbenchActions, WorkbenchState } from '../../../types';
+import { Button, StatusPill, Toolbar } from '../../ui';
 
 type IntegrationActionKind = 'install' | 'update' | 'uninstall';
 
@@ -39,12 +40,11 @@ export function IntegrationsSettingsPage({
         <span>Optional</span>
         <h2>Integrations</h2>
         <p>Debrute detects optional local capabilities from PATH and shows backend command previews without executing them.</p>
-        <div className="settings-actions">
-          <button type="button" disabled={rescanRunning} onClick={() => void rescan()}>
-            <RefreshCw size={14} />
+        <Toolbar ariaLabel="Integration actions" className="settings-actions">
+          <Button type="button" disabled={rescanRunning} iconStart={<RefreshCw size={14} />} onClick={() => void rescan()}>
             {rescanning ? 'Rescanning' : 'Rescan'}
-          </button>
-        </div>
+          </Button>
+        </Toolbar>
       </header>
 
       {error ? <small className="settings-error">{error}</small> : null}
@@ -76,7 +76,9 @@ function IntegrationRow({
   return (
     <div className="integration-row">
       <span>{integration.displayName}</span>
-      <small>{statusLabel(integration.status)}</small>
+      <StatusPill tone={integration.status === 'ready' ? 'success' : integration.status === 'probe_failed' ? 'danger' : 'neutral'}>
+        {statusLabel(integration.status)}
+      </StatusPill>
       <small>{version ?? ''}</small>
       <div className="integration-row-action">
         <IntegrationRowAction integration={integration} />

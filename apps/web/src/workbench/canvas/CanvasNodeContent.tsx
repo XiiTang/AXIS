@@ -4,6 +4,8 @@ import type { ProjectedCanvasNode } from '@debrute/canvas-core';
 import type { TextFileBuffer, WorkbenchActions } from '../../types';
 import { CanvasMonacoEditor } from './CanvasMonacoEditor';
 import { useCanvasImageNodeAsset, type CanvasImageNodeAssetHookState } from './CanvasImageNodeAssetContext';
+import type { CanvasLoadedImage } from './canvasImagePreviews';
+import { Button, IconButton, StatusPill } from '../ui';
 
 export interface CanvasNodeContentProps {
   node: ProjectedCanvasNode;
@@ -128,15 +130,15 @@ export function CanvasNodeContent({
             <strong>{problem?.title ?? (node.mediaKind === 'video' ? 'Video' : node.mediaKind === 'audio' ? 'Audio' : 'Image')}</strong>
             <span>{problem?.message ?? node.projectRelativePath}</span>
             {mediaProblem ? (
-              <button
-                type="button"
+              <Button
                 className="canvas-node-retry"
+                size="xs"
+                iconStart={<RefreshCw size={12} />}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={retryMediaLoad}
               >
-                <RefreshCw size={12} />
                 Retry
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
@@ -186,59 +188,28 @@ export function CanvasImageNodePreview({
   node: ProjectedCanvasNode;
   imageState: CanvasImageNodeAssetHookState;
 }): React.ReactElement {
-  const pendingHandoffCancelRef = useRef<(() => void) | undefined>(undefined);
-  const nextImageRef = useRef<HTMLImageElement | null>(null);
-  const nextLoadKey = imageState.kind === 'image' ? imageState.next?.loadKey : undefined;
+  const nextImage = imageState.kind === 'image' ? imageState.next : undefined;
+  const resolveNextRef = useRef(imageState.resolveNext);
+  const rejectNextRef = useRef(imageState.rejectNext);
+  resolveNextRef.current = imageState.resolveNext;
+  rejectNextRef.current = imageState.rejectNext;
   const resolveLoadedNext = useCallback((loadKey: string) => {
-    pendingHandoffCancelRef.current?.();
-    pendingHandoffCancelRef.current = scheduleCanvasImageHandoffAfterPaint(() => {
-      pendingHandoffCancelRef.current = undefined;
-      imageState.resolveNext(loadKey);
-    });
-  }, [imageState]);
+    resolveNextRef.current(loadKey);
+  }, []);
   const rejectLoadedNext = useCallback((loadKey: string) => {
-    pendingHandoffCancelRef.current?.();
-    pendingHandoffCancelRef.current = undefined;
-    imageState.rejectNext(loadKey);
-  }, [imageState]);
-
-  useEffect(() => () => {
-    pendingHandoffCancelRef.current?.();
-    pendingHandoffCancelRef.current = undefined;
-  }, [nextLoadKey, node.projectRelativePath]);
+    rejectNextRef.current(loadKey);
+  }, []);
 
   useEffect(() => {
-    const image = nextImageRef.current;
-    if (!nextLoadKey || !image) {
+    if (!nextImage) {
       return undefined;
     }
-    const resolve = () => resolveLoadedNext(nextLoadKey);
-    const reject = () => rejectLoadedNext(nextLoadKey);
-    const handled = syncCompletedCanvasImageHandoff({
-      image,
-      loadKey: nextLoadKey,
+    return preloadCanvasImageForHandoff({
+      image: nextImage,
       resolveLoaded: resolveLoadedNext,
       rejectLoaded: rejectLoadedNext
     });
-    if (handled) {
-      return undefined;
-    }
-    image.addEventListener('load', resolve);
-    image.addEventListener('error', reject);
-    const frame = window.requestAnimationFrame(() => {
-      syncCompletedCanvasImageHandoff({
-        image,
-        loadKey: nextLoadKey,
-        resolveLoaded: resolveLoadedNext,
-        rejectLoaded: rejectLoadedNext
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(frame);
-      image.removeEventListener('load', resolve);
-      image.removeEventListener('error', reject);
-    };
-  }, [nextLoadKey, rejectLoadedNext, resolveLoadedNext]);
+  }, [nextImage, rejectLoadedNext, resolveLoadedNext]);
 
   if (imageState.kind === 'image') {
     return (
@@ -264,21 +235,6 @@ export function CanvasImageNodePreview({
             onRetry={imageState.retry}
           />
         ) : null}
-        {imageState.next ? (
-          <img
-            ref={nextImageRef}
-            key={imageState.next.loadKey}
-            data-canvas-image-layer="next"
-            src={imageState.next.src}
-            alt=""
-            draggable={false}
-            decoding="async"
-            aria-hidden="true"
-            onLoad={() => resolveLoadedNext(imageState.next!.loadKey)}
-            onError={() => rejectLoadedNext(imageState.next!.loadKey)}
-            style={{ objectFit: 'fill' }}
-          />
-        ) : null}
       </>
     );
   }
@@ -289,23 +245,6 @@ export function CanvasImageNodePreview({
       onRetry={imageState.kind === 'placeholder' ? imageState.retry : undefined}
     />
   );
-}
-
-export function syncCompletedCanvasImageHandoff(input: {
-  image: Pick<HTMLImageElement, 'complete' | 'naturalWidth'> | null;
-  loadKey: string | undefined;
-  resolveLoaded: (loadKey: string) => void;
-  rejectLoaded: (loadKey: string) => void;
-}): boolean {
-  if (!input.loadKey || !input.image?.complete) {
-    return false;
-  }
-  if (input.image.naturalWidth > 0) {
-    input.resolveLoaded(input.loadKey);
-  } else {
-    input.rejectLoaded(input.loadKey);
-  }
-  return true;
 }
 
 export function scheduleCanvasImageHandoffAfterPaint(
@@ -345,6 +284,70 @@ export function scheduleCanvasImageHandoffAfterPaint(
   };
 }
 
+export function preloadCanvasImageForHandoff(input: {
+  image: CanvasLoadedImage;
+  resolveLoaded: (loadKey: string) => void;
+  rejectLoaded: (loadKey: string) => void;
+  createImage?: (() => HTMLImageElement) | undefined;
+  scheduler?: Parameters<typeof scheduleCanvasImageHandoffAfterPaint>[1];
+}): () => void {
+  const image = input.createImage?.() ?? new Image();
+  let cancelled = false;
+  let settled = false;
+  let loadStarted = false;
+  let cancelHandoff: (() => void) | undefined;
+
+  const reject = () => {
+    if (cancelled || settled) {
+      return;
+    }
+    settled = true;
+    input.rejectLoaded(input.image.loadKey);
+  };
+
+  const resolveAfterDecode = () => {
+    if (cancelled || settled) {
+      return;
+    }
+    settled = true;
+    cancelHandoff = scheduleCanvasImageHandoffAfterPaint(() => {
+      cancelHandoff = undefined;
+      if (!cancelled) {
+        input.resolveLoaded(input.image.loadKey);
+      }
+    }, input.scheduler);
+  };
+
+  const load = () => {
+    if (cancelled || settled || loadStarted) {
+      return;
+    }
+    loadStarted = true;
+    void image.decode().then(resolveAfterDecode, reject);
+  };
+
+  image.decoding = 'async';
+  image.addEventListener('load', load);
+  image.addEventListener('error', reject);
+  image.src = input.image.src;
+
+  if (image.complete) {
+    if (image.naturalWidth > 0) {
+      load();
+    } else {
+      reject();
+    }
+  }
+
+  return () => {
+    cancelled = true;
+    cancelHandoff?.();
+    image.removeEventListener('load', load);
+    image.removeEventListener('error', reject);
+    image.src = '';
+  };
+}
+
 function CanvasGenericNodeContent({
   node,
   problem
@@ -373,15 +376,15 @@ function CanvasNodeMediaErrorOverlay({
     <div className="canvas-node-error-overlay">
       <AlertTriangle size={16} />
       <span>{message}</span>
-      <button
-        type="button"
+      <Button
         className="canvas-node-retry"
+        size="xs"
+        iconStart={<RefreshCw size={12} />}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={onRetry}
       >
-        <RefreshCw size={12} />
         Retry
-      </button>
+      </Button>
     </div>
   );
 }
@@ -399,15 +402,15 @@ function CanvasImagePlaceholder({
       <strong>Image</strong>
       <span>{node.projectRelativePath}</span>
       {onRetry ? (
-        <button
-          type="button"
+        <Button
           className="canvas-node-retry"
+          size="xs"
+          iconStart={<RefreshCw size={12} />}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={onRetry}
         >
-          <RefreshCw size={12} />
           Retry
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -451,26 +454,22 @@ function CanvasTextNodeContent({
       >
         <FileText size={13} />
         <strong>{node.projectRelativePath.split('/').pop() ?? node.projectRelativePath}</strong>
-        <span className={status.className}>{status.label}</span>
-        <button
-          type="button"
-          aria-label={`Save ${node.projectRelativePath}`}
+        <StatusPill tone={status.tone}>{status.label}</StatusPill>
+        <IconButton
+          label={`Save ${node.projectRelativePath}`}
           title="Save"
           disabled={!buffer || !buffer.dirty || buffer.saving}
+          icon={<Save size={13} />}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => void actions.saveTextFileBuffer(node.projectRelativePath)}
-        >
-          <Save size={13} />
-        </button>
-        <button
-          type="button"
-          aria-label={`Open ${node.projectRelativePath} in large editor`}
+        />
+        <IconButton
+          label={`Open ${node.projectRelativePath} in large editor`}
           title="Open large editor"
+          icon={<Maximize2 size={13} />}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => actions.openTextEditorWindow(node.projectRelativePath)}
-        >
-          <Maximize2 size={13} />
-        </button>
+        />
       </div>
       <div
         className={problem || buffer?.error ? 'canvas-text-body problem' : 'canvas-text-body'}
@@ -505,23 +504,23 @@ function CanvasTextNodeContent({
   );
 }
 
-function textBufferStatus(buffer: TextFileBuffer | undefined, problem: { title: string; message: string } | undefined): { label: string; className: string } {
+function textBufferStatus(buffer: TextFileBuffer | undefined, problem: { title: string; message: string } | undefined): { label: string; tone: 'neutral' | 'success' | 'warning' | 'danger' | 'info' | 'loading' } {
   if (problem || buffer?.error) {
-    return { label: 'Error', className: 'error' };
+    return { label: 'Error', tone: 'danger' };
   }
   if (!buffer) {
-    return { label: 'Loading', className: 'loading' };
+    return { label: 'Loading', tone: 'loading' };
   }
   if (buffer.externalChange) {
-    return { label: 'External change', className: 'external' };
+    return { label: 'External change', tone: 'info' };
   }
   if (buffer.saving) {
-    return { label: 'Saving', className: 'saving' };
+    return { label: 'Saving', tone: 'loading' };
   }
   if (buffer.dirty) {
-    return { label: 'Unsaved', className: 'dirty' };
+    return { label: 'Unsaved', tone: 'warning' };
   }
-  return { label: 'Saved', className: 'saved' };
+  return { label: 'Saved', tone: 'success' };
 }
 
 function nodeAvailabilityTitle(state: ProjectedCanvasNode['availability']['state']): string {

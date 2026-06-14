@@ -1,0 +1,59 @@
+.db-menu {
+  display: grid;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-radius-lg);
+  background: color-mix(in oklch, var(--db-surface-1) 96%, transparent);
+  box-shadow: var(--db-shadow-menu);
+}
+
+.db-menu__item {
+  min-width: 0;
+  min-height: var(--db-control-md);
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--db-space-3);
+  border: 0;
+  border-radius: var(--db-radius-md);
+  background: transparent;
+  color: var(--db-text);
+  padding: 0 var(--db-space-3);
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-menu__item:hover:not(:disabled),
+.db-menu__item:focus-visible {
+  outline: 0;
+  background: var(--db-surface-2);
+}
+
+.db-menu__item:disabled,
+.db-menu__item[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.db-menu__item--danger {
+  color: color-mix(in oklch, var(--db-danger) 82%, white);
+}
+
+.db-menu__item-icon {
+  color: var(--db-text-muted);
+}
+
+.db-menu__item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--db-font-sm);
+}
+
+.db-menu__separator {
+  height: 1px;
+  margin: var(--db-space-1) var(--db-space-2);
+  background: var(--db-border);
+}

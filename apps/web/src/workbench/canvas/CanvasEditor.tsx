@@ -8,6 +8,7 @@ import { CanvasSurface } from './CanvasSurface';
 import type { CanvasOverlayRuntime } from './CanvasOverlayRuntime';
 import type { CanvasEditorRuntime } from './runtime/CanvasEditorRuntime';
 import { createCanvasEditorRuntime } from './runtime/CanvasEditorRuntime';
+import { Button } from '../ui';
 
 export function CanvasEditor({
   canvasId,
@@ -104,10 +105,9 @@ function EmptyCanvas({ hasProject, actions }: { hasProject: boolean; actions: Wo
       <div className="empty-editor empty-project">
         <Boxes size={34} />
         <strong>No project open</strong>
-        <button type="button" className="empty-action" onClick={actions.openProject}>
-          <FolderTree size={15} />
+        <Button iconStart={<FolderTree size={15} />} onClick={actions.openProject}>
           Open Project
-        </button>
+        </Button>
       </div>
     );
   }

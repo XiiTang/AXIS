@@ -1,4 +1,5 @@
 import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CanvasCardBar } from './CanvasCardBar';
 
@@ -6,6 +7,7 @@ interface ButtonProps {
   role?: string;
   onClick(event?: { currentTarget: { closest(selector: string): { removeAttribute(name: string): void } | null } }): void;
   'aria-pressed'?: boolean;
+  pressed?: boolean;
   hidden?: boolean;
   children?: React.ReactNode;
 }
@@ -49,8 +51,11 @@ describe('CanvasCardBar', () => {
 
     buttonByText(element, 'storyboard').props.onClick();
 
-    expect(buttonByText(element, 'canvas-1').props['aria-pressed']).toBe(true);
+    expect(buttonByText(element, 'canvas-1').props.pressed ?? buttonByText(element, 'canvas-1').props['aria-pressed']).toBe(true);
     expect(onActiveCanvasChange).toHaveBeenCalledWith('storyboard');
+    const html = renderToStaticMarkup(element);
+    expect(html).toContain('db-button');
+    expect(html).toContain('db-icon-button');
   });
 
   it('submits canvas menu actions without browser prompt or confirm dialogs', () => {
@@ -107,12 +112,13 @@ describe('CanvasCardBar', () => {
       'aria-label': 'Rename canvas-1'
     });
     expect(menuItemByText(element, 'Confirm Delete').props.hidden).toBe(true);
+    expect(renderToStaticMarkup(element)).toContain('db-menu');
   });
 });
 
 function buttonByText(element: React.ReactElement, text: string): React.ReactElement<ButtonProps> {
   const button = elements(element).find((item) => (
-    item.type === 'button'
+    typeof item.props.onClick === 'function'
     && textContent(item) === text
   ));
   if (!button) {
@@ -123,8 +129,7 @@ function buttonByText(element: React.ReactElement, text: string): React.ReactEle
 
 function menuItemByText(element: React.ReactElement, text: string): React.ReactElement<ButtonProps> {
   const item = elements(element).find((candidate) => (
-    candidate.type === 'button'
-    && candidate.props.role === 'menuitem'
+    typeof candidate.props.onClick === 'function'
     && textContent(candidate) === text
   ));
   if (!item) {
@@ -146,8 +151,7 @@ function renameForm(element: React.ReactElement): React.ReactElement<FormProps> 
 
 function renameInput(element: React.ReactElement): React.ReactElement<InputProps> {
   const input = elements(element).find((candidate) => (
-    candidate.type === 'input'
-    && (candidate.props as InputProps).name === 'nextCanvasId'
+    (candidate.props as InputProps).name === 'nextCanvasId'
   ));
   if (!input) {
     throw new Error('Expected rename input');
@@ -163,11 +167,11 @@ function clickEvent() {
   };
 }
 
-function elements(node: React.ReactNode): Array<React.ReactElement<{ children?: React.ReactNode; role?: unknown; className?: string }>> {
+function elements(node: React.ReactNode): Array<React.ReactElement<{ children?: React.ReactNode; role?: unknown; className?: string; onClick?: unknown }>> {
   if (!React.isValidElement(node)) {
     return [];
   }
-  const element = node as React.ReactElement<{ children?: React.ReactNode; role?: unknown; className?: string }>;
+  const element = node as React.ReactElement<{ children?: React.ReactNode; role?: unknown; className?: string; onClick?: unknown }>;
   return [
     element,
     ...React.Children.toArray(element.props.children).flatMap(elements)

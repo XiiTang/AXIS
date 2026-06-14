@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import type { CanvasDocument, CanvasProjection } from '@debrute/canvas-core';
 import type { CanvasEditorRuntime, CanvasRuntimeSnapshot } from './runtime/CanvasEditorRuntime';
 import { cameraForCanvasContent, canvasContentBounds } from './CanvasCameraBounds';
+import { Button, Toolbar } from '../ui';
 
 export function CanvasToolbar({
   canvas,
@@ -22,12 +23,12 @@ export function CanvasToolbar({
   const canFitCanvas = Boolean(runtime && runtimeSnapshot?.surfaceSize && contentBounds);
 
   return (
-    <div className="canvas-toolbar" data-testid="canvas-toolbar">
-      <button
-        type="button"
+    <Toolbar ariaLabel="Canvas tools" className="canvas-toolbar" data-testid="canvas-toolbar">
+      <Button
         data-testid="fit-active-canvas"
         title="Fit canvas"
         disabled={!canFitCanvas}
+        iconStart={<RefreshCw size={15} />}
         onClick={() => {
           if (!runtime || !runtimeSnapshot?.surfaceSize || !contentBounds) {
             return;
@@ -41,11 +42,10 @@ export function CanvasToolbar({
           }
         }}
       >
-        <RefreshCw size={15} />
         Fit
-      </button>
-      <span>{projection.nodes.length} nodes</span>
-      <span>{projection.diagnostics.length} diagnostics</span>
-    </div>
+      </Button>
+      <span className="canvas-toolbar__stat">{projection.nodes.length} nodes</span>
+      <span className="canvas-toolbar__stat">{projection.diagnostics.length} diagnostics</span>
+    </Toolbar>
   );
 }

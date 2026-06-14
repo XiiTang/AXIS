@@ -1,6 +1,7 @@
 import React from 'react';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { reorderCanvasIds } from './canvasCardBarState';
+import { Button, IconButton, Input, Menu } from '../ui';
 
 export interface CanvasCardBarProps {
   canvasOrder: string[];
@@ -48,10 +49,9 @@ export function CanvasCardBar({
               }
             }}
           >
-            <button
-              type="button"
+            <Button
               className="canvas-card"
-              aria-pressed={canvasId === activeCanvasId}
+              pressed={canvasId === activeCanvasId}
               draggable
               onDragStart={(event) => {
                 event.dataTransfer.setData(DRAG_DATA_TYPE, canvasId);
@@ -60,63 +60,57 @@ export function CanvasCardBar({
               onClick={() => onActiveCanvasChange(canvasId)}
             >
               {canvasId}
-            </button>
+            </Button>
             <details className="canvas-card-menu-details" onToggle={(event) => positionCanvasCardMenu(event.currentTarget)}>
-              <summary aria-label="Canvas actions" className="canvas-card-menu-button" role="button">
+              <summary aria-label="Canvas actions" className="canvas-card-menu-button db-icon-button db-icon-button--ghost db-icon-button--sm" role="button">
                 <MoreHorizontal size={14} />
               </summary>
-              <div className="canvas-card-menu" role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
+              <Menu className="canvas-card-menu" ariaLabel={`${canvasId} canvas actions`}>
+                <Menu.Item
                   onClick={(event) => {
                     closeCanvasCardMenu(event.currentTarget);
                     void onCreateCanvas();
                   }}
                 >
                   New Canvas
-                </button>
+                </Menu.Item>
                 <form
                   className="canvas-card-rename-form"
                   onSubmit={(event) => submitRenameCanvas(event, canvasId, onRenameCanvas)}
                 >
-                  <input
+                  <Input
                     aria-label={`Rename ${canvasId}`}
                     name="nextCanvasId"
                     defaultValue={canvasId}
                     autoComplete="off"
                     spellCheck={false}
                   />
-                  <button type="submit" role="menuitem">Rename</button>
+                  <Menu.Item type="submit">Rename</Menu.Item>
                 </form>
-                <button
-                  type="button"
-                  role="menuitem"
+                <Menu.Item
                   data-canvas-delete-request
+                  variant="danger"
                   onClick={(event) => requestDeleteCanvas(event.currentTarget)}
                 >
                   Delete
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
+                </Menu.Item>
+                <Menu.Item
                   data-canvas-delete-confirm
                   hidden
+                  variant="danger"
                   onClick={(event) => {
                     closeCanvasCardMenu(event.currentTarget);
                     void onDeleteCanvas({ canvasId });
                   }}
                 >
                   Confirm Delete
-                </button>
-              </div>
+                </Menu.Item>
+              </Menu>
             </details>
           </div>
         ))}
       </div>
-      <button type="button" className="canvas-card-add" aria-label="New Canvas" onClick={() => { void onCreateCanvas(); }}>
-        <Plus size={14} />
-      </button>
+      <IconButton className="canvas-card-add" label="New Canvas" icon={<Plus size={14} />} onClick={() => { void onCreateCanvas(); }} />
     </nav>
   );
 }

@@ -31,6 +31,21 @@ describe('ProjectTree', () => {
 
     expect(html).toContain('concept.md');
     expect(html).toContain('aria-selected="true"');
+    expect(html).toContain('db-tree-row');
+  });
+
+  it('renders the empty Project Tree state through shared UI classes', () => {
+    const html = renderToStaticMarkup(
+      <ProjectTree
+        snapshot={{ files: [] } as unknown as WorkbenchProjectSessionSnapshot}
+        selection={selection([])}
+        cutPaths={[]}
+        onSelectionChange={() => undefined}
+      />
+    );
+
+    expect(html).toContain('db-empty-state');
+    expect(html).toContain('No project files');
   });
 
   it('renders known binary files as project tree rows', () => {

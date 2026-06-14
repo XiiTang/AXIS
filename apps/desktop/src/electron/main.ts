@@ -26,6 +26,9 @@ const pendingProjectWindowOpens = new Map<string, Promise<void>>();
 const pendingDesktopOpenIntents: DesktopOpenIntent[] = [];
 
 if (!app.requestSingleInstanceLock()) {
+  console.error(
+    'Debrute desktop is already running. Quit the existing Debrute desktop instance before running pnpm dev:electron again.'
+  );
   app.quit();
 }
 

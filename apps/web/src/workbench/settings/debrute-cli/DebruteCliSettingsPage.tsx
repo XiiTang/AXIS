@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Download, RefreshCw, RotateCcw, Terminal, Wrench } from 'lucide-react';
 import type { DebruteCliSkillsStatus, DebruteCliStatus } from '@debrute/app-protocol';
 import type { DebruteShellApi } from '../../../api/shellApi';
+import { Button, Card, StatusPill, Toolbar } from '../../ui';
 
 type OperationState =
   | { status: 'idle' }
@@ -70,7 +71,7 @@ export function DebruteCliSettingsPage({
           <h2>Debrute CLI</h2>
           <p>Manual install</p>
         </header>
-        <div className="settings-card debrute-cli-status-card">
+        <Card className="debrute-cli-status-card">
           <strong>Manual install</strong>
           <p>
             Download the matching Debrute CLI archive from{' '}
@@ -78,7 +79,7 @@ export function DebruteCliSettingsPage({
             verify it with debrute_SHA256SUMS, then use the README manual install command for your platform.
           </p>
           <pre><code>debrute --version{'\n'}debrute skills sync</code></pre>
-        </div>
+        </Card>
       </section>
     );
   }
@@ -92,43 +93,43 @@ export function DebruteCliSettingsPage({
         <h2>Debrute CLI</h2>
         <p>Command install and Skills sync</p>
       </header>
-      <div className="settings-card debrute-cli-status-card">
+      <Card className="debrute-cli-status-card">
         <strong>{statusLabel(status)}</strong>
         {status ? <DebruteCliStatusDetails status={status} /> : <small>Checking</small>}
         {operation.status === 'error' ? <small className="settings-error">{operation.message}</small> : null}
-        <div className="settings-actions">
+        <Toolbar ariaLabel="Debrute CLI actions" className="settings-actions">
           {status?.kind === 'not_installed' ? (
-            <button type="button" disabled={busy || !desktopShell.installDebruteCli} onClick={() => void run('install', () => desktopShell.installDebruteCli!())}>
-              <Download size={14} />Install Debrute CLI
-            </button>
+            <Button type="button" disabled={busy || !desktopShell.installDebruteCli} iconStart={<Download size={14} />} onClick={() => void run('install', () => desktopShell.installDebruteCli!())}>
+              Install Debrute CLI
+            </Button>
           ) : null}
           {status?.kind === 'not_installed' || status?.kind === 'error' || status?.kind === 'update_available' ? (
-            <button type="button" disabled={busy || !desktopShell.getDebruteCliManualInstallCommand} onClick={() => void copyManualCommand()}>
-              <Terminal size={14} />Copy Manual Install Command
-            </button>
+            <Button type="button" disabled={busy || !desktopShell.getDebruteCliManualInstallCommand} iconStart={<Terminal size={14} />} onClick={() => void copyManualCommand()}>
+              Copy Manual Install Command
+            </Button>
           ) : null}
           {status?.kind === 'update_available' ? (
-            <button type="button" disabled={busy || !desktopShell.updateDebruteCli} onClick={() => void run('update', () => desktopShell.updateDebruteCli!())}>
-              <RefreshCw size={14} />Update Debrute CLI
-            </button>
+            <Button type="button" disabled={busy || !desktopShell.updateDebruteCli} iconStart={<RefreshCw size={14} />} onClick={() => void run('update', () => desktopShell.updateDebruteCli!())}>
+              Update Debrute CLI
+            </Button>
           ) : null}
           {status?.kind === 'installed_but_not_on_path' ? (
-            <button type="button" disabled={busy || !desktopShell.repairDebruteCliPath} onClick={() => void run('path', () => desktopShell.repairDebruteCliPath!())}>
-              <Wrench size={14} />Repair PATH
-            </button>
+            <Button type="button" disabled={busy || !desktopShell.repairDebruteCliPath} iconStart={<Wrench size={14} />} onClick={() => void run('path', () => desktopShell.repairDebruteCliPath!())}>
+              Repair PATH
+            </Button>
           ) : null}
           {status && status.kind !== 'not_installed' && status.kind !== 'error' ? (
-            <button type="button" disabled={busy || !desktopShell.syncDebruteCliSkills} onClick={() => void run('sync', () => desktopShell.syncDebruteCliSkills!())}>
-              <Terminal size={14} />Sync Skills
-            </button>
+            <Button type="button" disabled={busy || !desktopShell.syncDebruteCliSkills} iconStart={<Terminal size={14} />} onClick={() => void run('sync', () => desktopShell.syncDebruteCliSkills!())}>
+              Sync Skills
+            </Button>
           ) : null}
           {hasPartiallyRemovedSkills(status) ? (
-            <button type="button" disabled={busy || !desktopShell.restoreDebruteCliSkills} onClick={() => void run('restore', () => desktopShell.restoreDebruteCliSkills!())}>
-              <RotateCcw size={14} />Restore All Debrute Skills
-            </button>
+            <Button type="button" disabled={busy || !desktopShell.restoreDebruteCliSkills} iconStart={<RotateCcw size={14} />} onClick={() => void run('restore', () => desktopShell.restoreDebruteCliSkills!())}>
+              Restore All Debrute Skills
+            </Button>
           ) : null}
-        </div>
-      </div>
+        </Toolbar>
+      </Card>
     </section>
   );
 }
@@ -149,7 +150,7 @@ function DebruteCliStatusDetails({ status }: { status: DebruteCliStatus }): Reac
       {skills?.kind === 'error' ? <small className="settings-error">{skills.message}</small> : null}
       {skills?.kind === 'partially_removed' ? (
         <div className="settings-pills">
-          {skills.skippedDeletedSkills.map((name) => <span key={name}>{name}</span>)}
+          {skills.skippedDeletedSkills.map((name) => <StatusPill key={name} tone="warning">{name}</StatusPill>)}
         </div>
       ) : null}
     </>

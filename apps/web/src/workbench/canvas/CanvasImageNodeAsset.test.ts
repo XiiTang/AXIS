@@ -67,6 +67,7 @@ describe('CanvasImageNodeAsset', () => {
       culled: false
     });
 
+    expect(next).toBe(state);
     expect(next.loaded).toEqual(state.loaded);
     expect(next.next).toBeUndefined();
     expect(next.error).toBeUndefined();

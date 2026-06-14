@@ -175,6 +175,9 @@ function reduceResolvedSource(
     : state;
 
   if (base.loaded?.loadKey === event.source.image.loadKey) {
+    if (!base.next && !base.error) {
+      return base;
+    }
     return {
       ...base,
       next: undefined,
@@ -185,6 +188,9 @@ function reduceResolvedSource(
   const shouldSkipCulledWork = event.culled
     && (event.cameraState !== 'idle' || base.loaded !== undefined);
   if (shouldSkipCulledWork || (event.cameraState === 'moving' && base.loaded)) {
+    if (!base.next) {
+      return base;
+    }
     return {
       ...base,
       next: undefined

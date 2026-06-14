@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, RotateCcw, X } from 'lucide-react';
 import type { TerminalSessionView, WorkbenchApiClient } from '@debrute/app-protocol';
+import { EmptyState, IconButton, Tab, TabList, Toolbar } from '../ui';
 import { useXtermTerminal } from './useXtermTerminal';
 import { createTerminalMetadataEventHandler } from './terminalMetadataEvents';
 import {
@@ -176,46 +177,37 @@ export function TerminalPanel({
 
   return (
     <div className="terminal-panel">
-      <div className="terminal-panel__toolbar">
-        <div className="terminal-panel__tabs" role="tablist" aria-label="Terminal sessions">
+      <Toolbar ariaLabel="Terminal sessions" className="terminal-panel__toolbar">
+        <TabList className="terminal-panel__tabs" aria-label="Terminal sessions">
           {state.sessions.map((session) => (
-            <button
+            <Tab
               key={session.id}
-              type="button"
-              role="tab"
-              aria-selected={session.id === state.activeSessionId}
-              className={session.id === state.activeSessionId ? 'terminal-panel__tab terminal-panel__tab--active' : 'terminal-panel__tab'}
+              active={session.id === state.activeSessionId}
+              className="terminal-panel__tab"
               onClick={() => setState((current) => ({ ...current, activeSessionId: session.id }))}
             >
               <span>{session.title}</span>
               {session.status === 'exited' || session.status === 'failed' ? (
                 <small>{session.status}</small>
               ) : null}
-            </button>
+            </Tab>
           ))}
-        </div>
+        </TabList>
         <div className="terminal-panel__actions">
-          <button type="button" aria-label="New Terminal" title="New Terminal" onClick={() => void createSession('').catch(showError)}>
-            <Plus size={14} />
-          </button>
-          <button type="button" aria-label="Restart Terminal" title="Restart Terminal" disabled={!activeSession} onClick={restartActiveSession}>
-            <RotateCcw size={14} />
-          </button>
-          <button
-            type="button"
-            aria-label="Close Terminal"
-            title="Close Terminal"
+          <IconButton label="New Terminal" icon={<Plus size={14} />} onClick={() => void createSession('').catch(showError)} />
+          <IconButton label="Restart Terminal" icon={<RotateCcw size={14} />} disabled={!activeSession} onClick={restartActiveSession} />
+          <IconButton
+            label="Close Terminal"
+            icon={<X size={14} />}
             disabled={!activeSession || isTerminalSessionClosing(state, activeSession.id)}
             onClick={() => activeSession && closeSession(activeSession)}
-          >
-            <X size={14} />
-          </button>
+          />
         </div>
-      </div>
+      </Toolbar>
       {state.error ? <div className="terminal-panel__status">{state.error}</div> : null}
       {state.isLoading ? <div className="terminal-panel__status">Loading terminal</div> : null}
       {showEmptyState ? (
-        <div className="terminal-panel__empty" data-testid="terminal-panel-empty-state">No terminal sessions</div>
+        <EmptyState className="terminal-panel__empty" data-testid="terminal-panel-empty-state" title="No terminal sessions" />
       ) : (
         <div ref={containerRef} className="terminal-panel__surface" />
       )}

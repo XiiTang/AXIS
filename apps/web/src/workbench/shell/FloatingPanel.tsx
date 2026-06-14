@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { ProjectTree } from '../project-explorer/ProjectTree';
+import { IconButton, Panel, PanelBody, PanelHeader, PanelTitle } from '../ui';
 import type { ProjectTreeInlineEditState } from '../project-explorer/projectTreeEditing';
 import type { ProjectTreeFileKeyboardCommand } from '../project-explorer/projectTreeKeyboardCommands';
 import {
@@ -58,7 +59,7 @@ export function FloatingPanel({
     onResize
   });
   return (
-    <section
+    <Panel
       className={`floating-panel floating-panel-${panelId}`}
       data-testid={`floating-panel-${panelId}`}
       style={{
@@ -70,29 +71,27 @@ export function FloatingPanel({
       }}
       onPointerDown={onBringToFront}
     >
-      <header
+      <PanelHeader
         className="floating-panel-header"
         {...dragHandleProps}
       >
-        <strong>{definition.title}</strong>
-        <button
-          type="button"
-          aria-label={`Close ${definition.title}`}
+        <PanelTitle>{definition.title}</PanelTitle>
+        <IconButton
+          label={`Close ${definition.title}`}
+          icon={<X size={14} />}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={onClose}
-        >
-          <X size={14} />
-        </button>
-      </header>
-      <div className="floating-panel-body">
+        />
+      </PanelHeader>
+      <PanelBody className="floating-panel-body">
         {children}
-      </div>
+      </PanelBody>
       <div
         className="floating-panel-resize-handle"
         role="presentation"
         {...resizeHandleProps}
       />
-    </section>
+    </Panel>
   );
 }
 

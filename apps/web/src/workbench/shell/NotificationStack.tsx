@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card } from '../ui';
 
 export function NotificationStack({ notifications }: { notifications: string[] }): React.ReactElement | null {
   if (notifications.length === 0) {
@@ -7,7 +8,7 @@ export function NotificationStack({ notifications }: { notifications: string[] }
   return (
     <div className="notifications">
       {notifications.map((notification) => (
-        <div className="notification" key={notification}>{notification}</div>
+        <Card key={notification}>{notification}</Card>
       ))}
     </div>
   );

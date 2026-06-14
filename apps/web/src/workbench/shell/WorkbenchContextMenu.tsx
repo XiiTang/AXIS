@@ -17,6 +17,7 @@ import {
   type WorkbenchContextMenuItem,
   type WorkbenchContextMenuPosition
 } from './contextMenu';
+import { Menu } from '../ui';
 
 const CONTEXT_MENU_WIDTH = 190;
 const CONTEXT_MENU_ROW_HEIGHT = 32;
@@ -83,11 +84,10 @@ export function WorkbenchContextMenu({
   }
 
   return (
-    <div
+    <Menu
       ref={menuRef}
       className="workbench-context-menu"
-      role="menu"
-      aria-label="Context menu"
+      ariaLabel="Context menu"
       style={{
         left: clampedPosition.x,
         top: clampedPosition.y,
@@ -97,14 +97,13 @@ export function WorkbenchContextMenu({
     >
       {items.map((item) => (
         item.kind === 'separator' ? (
-          <div key={item.id} className="workbench-context-menu-separator" role="separator" />
+          <Menu.Separator key={item.id} />
         ) : (
-          <button
+          <Menu.Item
             key={item.command}
-            type="button"
-            role="menuitem"
             disabled={item.disabled === true}
-            aria-disabled={item.disabled === true ? true : undefined}
+            variant={item.command === 'delete' || item.command === 'delete-permanently' ? 'danger' : 'default'}
+            icon={contextMenuIcon(item.command)}
             onClick={() => {
               if (item.disabled === true) {
                 return;
@@ -112,12 +111,11 @@ export function WorkbenchContextMenu({
               onCommand(item.command);
             }}
           >
-            {contextMenuIcon(item.command)}
-            <span>{item.label}</span>
-          </button>
+            {item.label}
+          </Menu.Item>
         )
       ))}
-    </div>
+    </Menu>
   );
 }
 

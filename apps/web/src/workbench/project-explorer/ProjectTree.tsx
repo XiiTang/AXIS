@@ -7,6 +7,7 @@ import type {
   WorkbenchExplorerContextMenuTarget,
   WorkbenchProjectPathEntry
 } from '../shell/contextMenu';
+import { EmptyState, Input, cx } from '../ui';
 import { buildProjectFileTree, expandedProjectTreePaths, type ProjectFileTreeNode } from './projectFileTree';
 import type { ProjectTreeInlineEditState } from './projectTreeEditing';
 import {
@@ -202,7 +203,7 @@ export function ProjectTree({
             onEditCancel={onEditCancel}
           />
         ) : null}
-        {tree.length === 0 ? <div className="empty-line" data-project-tree-empty-line><Files size={15} />No project files</div> : null}
+        {tree.length === 0 ? <EmptyState className="empty-line" data-project-tree-empty-line title="No project files" /> : null}
         {tree.map((node) => (
           <ProjectTreeRow
             key={node.path}
@@ -438,13 +439,14 @@ function ProjectTreeRow({
   const selected = selection.selectedPaths.includes(node.path);
   const focused = selection.focusedPath === node.path;
   const style = { '--tree-indent': `${depth * 14}px` } as React.CSSProperties;
-  const rowClassName = [
+  const rowClassName = cx(
     'project-tree-row',
-    selected ? 'selected' : '',
-    focused ? 'focused' : '',
-    dragOverPath === node.path ? 'drag-over' : '',
-    cutPaths.has(node.path) ? 'cut' : ''
-  ].filter(Boolean).join(' ');
+    selected && 'selected',
+    focused && 'focused',
+    dragOverPath === node.path && 'drag-over',
+    cutPaths.has(node.path) && 'cut',
+    'db-tree-row'
+  )!;
   const renameEditing = editing?.kind === 'renaming' && editing.projectRelativePath === node.path ? editing : undefined;
   const createEditing = editing && isCreatingInlineEditState(editing) && editing.parentProjectRelativePath === node.path
     ? editing
@@ -783,7 +785,7 @@ function ProjectTreeInlineEditRow({
     <div className="project-tree-edit-row" style={style} data-project-tree-edit-kind={editing.kind}>
       <span className="tree-chevron-spacer" />
       {editing.kind === 'creating-directory' ? <FolderPlus size={14} /> : <FilePlus2 size={14} />}
-      <input
+      <Input
         value={editing.value}
         disabled={editing.submitting === true}
         autoFocus
@@ -827,7 +829,7 @@ function ProjectTreeRenameRow({
     <div className={rowClassName} style={style} title={node.path} data-project-tree-context-path={node.path}>
       {node.kind === 'directory' ? <span className={open ? 'tree-chevron open' : 'tree-chevron'} /> : <span className="tree-chevron-spacer" />}
       {node.kind === 'directory' ? <FolderTree size={14} /> : <Files size={14} />}
-      <input
+      <Input
         value={editing.value}
         disabled={editing.submitting === true}
         autoFocus

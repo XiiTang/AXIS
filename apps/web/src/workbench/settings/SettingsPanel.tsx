@@ -8,6 +8,19 @@ import type {
 } from '@debrute/app-protocol';
 import type { WorkbenchActions, WorkbenchState } from '../../types';
 import { getDebruteShellApi } from '../../api/shellApi';
+import {
+  Button,
+  Card,
+  Field,
+  IconButton,
+  Input,
+  SecretInput,
+  Select,
+  StatusPill,
+  Switch,
+  Textarea,
+  Toolbar
+} from '../ui';
 import { DebruteCliSettingsPage } from './debrute-cli/DebruteCliSettingsPage';
 import { IntegrationsSettingsPage } from './integrations/IntegrationsSettingsPage';
 
@@ -63,10 +76,11 @@ export function SettingsPanel({ state, actions }: { state: WorkbenchState; actio
             <button
               key={item.id}
               type="button"
-              className={activePage === item.id ? 'active' : ''}
+              className={activePage === item.id ? 'db-settings-nav-button db-settings-nav-button--active' : 'db-settings-nav-button'}
+              aria-pressed={activePage === item.id}
               onClick={() => setActivePage(item.id)}
             >
-              <span className="settings-nav-icon"><Icon size={15} /></span>
+              <span className="db-settings-nav-button__icon"><Icon size={15} /></span>
               <span>
                 <strong>{item.label}</strong>
                 <small>{item.description}</small>
@@ -150,9 +164,9 @@ export function LlmSettings({ state, actions }: { state: WorkbenchState; actions
   return (
     <section className="settings-section">
       <SettingsSectionHeader title="LLM Providers" eyebrow="Runtime" description="Configure chat providers, discovery, and the default model route." />
-      <div className="settings-card">
-        <label>Default Model
-          <select
+      <Card>
+        <Field label="Default Model">
+          <Select
             value={settings?.defaultModelKey ?? ''}
             onChange={(event) => void actions.setDefaultLlmModelKey(event.currentTarget.value || null)}
           >
@@ -160,27 +174,28 @@ export function LlmSettings({ state, actions }: { state: WorkbenchState; actions
             {(settings?.availableModelKeys ?? []).map((modelKey: string) => (
               <option key={modelKey} value={modelKey}>{modelKey}</option>
             ))}
-          </select>
-        </label>
-      </div>
+          </Select>
+        </Field>
+      </Card>
       <div className="settings-grid">
-        <form className="settings-card" onSubmit={(event) => {
+        <form className="settings-edit-form" onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}>
+          <Card>
           <strong>{editingProviderId ? 'Edit LLM Provider' : 'Add LLM Provider'}</strong>
           <div className="settings-row">
-            <label>Provider Type
-              <select value={draft.providerType} onChange={(event) => setDraft({ ...draft, providerType: event.currentTarget.value as LlmProviderDraft['providerType'] })}>
+            <Field label="Provider Type">
+              <Select value={draft.providerType} onChange={(event) => setDraft({ ...draft, providerType: event.currentTarget.value as LlmProviderDraft['providerType'] })}>
                 <option value="openai_compat">OpenAI Compatible</option>
                 <option value="anthropic">Anthropic</option>
-              </select>
-            </label>
+              </Select>
+            </Field>
           </div>
-          <div className="settings-row"><label>ID<input value={draft.id} onChange={(event) => setDraft({ ...draft, id: event.currentTarget.value })} /></label></div>
-          <div className="settings-row"><label>Name<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })} /></label></div>
-          <div className="settings-row"><label>Base URL<input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.currentTarget.value })} /></label></div>
-          <div className="settings-row"><label>Model IDs<textarea value={draft.modelIdsText} onChange={(event) => setDraft({ ...draft, modelIdsText: event.currentTarget.value })} /></label></div>
+          <div className="settings-row"><Field label="ID"><Input value={draft.id} onChange={(event) => setDraft({ ...draft, id: event.currentTarget.value })} /></Field></div>
+          <div className="settings-row"><Field label="Name"><Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })} /></Field></div>
+          <div className="settings-row"><Field label="Base URL"><Input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.currentTarget.value })} /></Field></div>
+          <div className="settings-row"><Field label="Model IDs"><Textarea value={draft.modelIdsText} onChange={(event) => setDraft({ ...draft, modelIdsText: event.currentTarget.value })} /></Field></div>
           <div className="settings-row">
             <ApiKeyInput
               label="API Key"
@@ -189,23 +204,22 @@ export function LlmSettings({ state, actions }: { state: WorkbenchState; actions
               resetKey={editingProviderId ?? 'new'}
             />
           </div>
-          <label className="settings-toggle"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.currentTarget.checked })} />Enabled</label>
+          <Switch label="Enabled" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.currentTarget.checked })} />
           {discovery.status !== 'idle' ? (
             <small className={discovery.status === 'error' ? 'settings-error' : ''}>
               {discovery.status === 'loading' ? 'Discovering models' : discovery.message}
             </small>
           ) : null}
-          <div className="settings-actions">
-            {editingProviderId ? <button type="button" onClick={() => setEditingProviderId(undefined)}>Cancel</button> : null}
-            <button type="button" disabled={!draft.baseUrl.trim() || discovery.status === 'loading'} onClick={() => void discoverModels()}>
-              <Search size={14} />
+          <Toolbar ariaLabel="LLM provider actions" className="settings-actions">
+            {editingProviderId ? <Button type="button" onClick={() => setEditingProviderId(undefined)}>Cancel</Button> : null}
+            <Button type="button" disabled={!draft.baseUrl.trim() || discovery.status === 'loading'} iconStart={<Search size={14} />} onClick={() => void discoverModels()}>
               Discover Models
-            </button>
-            <button type="submit" disabled={!draft.id.trim() || !draft.name.trim() || !draft.baseUrl.trim() || splitModelIds(draft.modelIdsText).length === 0}>
-              <Save size={14} />
+            </Button>
+            <Button type="submit" variant="primary" disabled={!draft.id.trim() || !draft.name.trim() || !draft.baseUrl.trim() || splitModelIds(draft.modelIdsText).length === 0} iconStart={<Save size={14} />}>
               {editingProviderId ? 'Save LLM Provider' : 'Add LLM Provider'}
-            </button>
-          </div>
+            </Button>
+          </Toolbar>
+          </Card>
         </form>
         <div className="settings-grid">
           {(settings?.providers ?? []).map((provider) => (
@@ -306,11 +320,11 @@ function MediaModelCard({
   };
 
   return (
-    <article className="settings-card settings-model-card">
+    <Card className="settings-model-card">
       <div className="settings-model-card-header">
         <div>
           <strong>{model.debruteModelId}</strong>
-          <small>{model.apiKeySet ? 'configured' : 'no key'}</small>
+          <StatusPill tone={model.apiKeySet ? 'success' : 'neutral'}>{model.apiKeySet ? 'configured' : 'no key'}</StatusPill>
         </div>
       </div>
       <div className="settings-model-card-fields">
@@ -326,29 +340,33 @@ function MediaModelCard({
         </div>
         <div className="settings-model-edit-grid">
           <div className="settings-row">
-            <input
+            <Field label="Base URL override">
+            <Input
               aria-label="Base URL override"
               value={draft.baseUrlOverride}
               onChange={(event) => setDraft({ ...draft, baseUrlOverride: event.currentTarget.value })}
               onBlur={() => void saveDraft(draft)}
               placeholder={model.defaultBaseUrl}
             />
+            </Field>
           </div>
           <div className="settings-row">
-            <input
+            <Field label="Request model ID override">
+            <Input
               aria-label="Request model ID override"
               value={draft.requestModelIdOverride}
               onChange={(event) => setDraft({ ...draft, requestModelIdOverride: event.currentTarget.value })}
               onBlur={() => void saveDraft(draft)}
               placeholder={model.defaultRequestModelId}
             />
+            </Field>
           </div>
         </div>
       </div>
       {status.status === 'error' ? (
         <small className="settings-error">{status.message}</small>
       ) : null}
-    </article>
+    </Card>
   );
 }
 
@@ -362,21 +380,21 @@ function LlmProviderCard({
   onDelete: () => void;
 }): React.ReactElement {
   return (
-    <article className="settings-card">
+    <Card>
       <strong>{provider.name}</strong>
       <small>{provider.providerType} / {provider.baseUrl}</small>
       <div className="settings-pills">
-        <span>{provider.enabled ? 'enabled' : 'disabled'}</span>
-        <span>{provider.apiKeySet ? 'key set' : 'no key'}</span>
+        <StatusPill tone={provider.enabled ? 'success' : 'neutral'}>{provider.enabled ? 'enabled' : 'disabled'}</StatusPill>
+        <StatusPill tone={provider.apiKeySet ? 'success' : 'neutral'}>{provider.apiKeySet ? 'key set' : 'no key'}</StatusPill>
       </div>
       <div className="settings-pills">
-        {provider.modelKeys.map((modelKey) => <span key={modelKey}>{modelKey}</span>)}
+        {provider.modelKeys.map((modelKey) => <StatusPill key={modelKey}>{modelKey}</StatusPill>)}
       </div>
-      <div className="settings-actions">
-        <button type="button" onClick={onEdit}>Edit</button>
-        <button type="button" onClick={onDelete}><Trash2 size={14} />Delete</button>
-      </div>
-    </article>
+      <Toolbar ariaLabel={`${provider.name} actions`} className="settings-actions">
+        <Button type="button" onClick={onEdit}>Edit</Button>
+        <Button type="button" variant="danger" iconStart={<Trash2 size={14} />} onClick={onDelete}>Delete</Button>
+      </Toolbar>
+    </Card>
   );
 }
 
@@ -399,27 +417,23 @@ function ApiKeyInput({
   const effectivePlaceholder = value ? undefined : placeholder;
   const input = (
     <span className="settings-key-input">
-      <input
+      <SecretInput
         aria-label={ariaLabel}
-        className={visible || !value ? 'settings-key-input-field' : 'settings-key-input-field settings-key-input-field--masked'}
-        type="text"
+        masked={!visible && Boolean(value)}
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
         onBlur={onBlur}
         placeholder={effectivePlaceholder}
         spellCheck={false}
       />
-      <button
-        type="button"
+      <IconButton
         className="settings-key-visibility"
-        aria-label={visibilityLabel}
-        aria-pressed={visible}
-        title={visibilityLabel}
+        label={visibilityLabel}
+        pressed={visible}
+        icon={visible ? <EyeOff size={13} /> : <Eye size={13} />}
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => setVisible((current) => !current)}
-      >
-        {visible ? <EyeOff size={13} aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />}
-      </button>
+      />
     </span>
   );
 
@@ -427,12 +441,7 @@ function ApiKeyInput({
     return input;
   }
 
-  return (
-    <label>
-      <span>{label}</span>
-      {input}
-    </label>
-  );
+  return <Field label={label}>{input}</Field>;
 }
 
 function modelToDraft(model: ImageModelSettingRecord | VideoModelSettingRecord): ModelDraft {

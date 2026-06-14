@@ -1,0 +1,106 @@
+.db-field {
+  min-width: 0;
+  display: grid;
+  gap: var(--db-space-2);
+  color: var(--db-text-muted);
+  font-size: var(--db-font-sm);
+}
+
+.db-field__label {
+  color: var(--db-text-muted);
+}
+
+.db-field__description {
+  color: var(--db-text-subtle);
+  font-size: var(--db-font-xs);
+}
+
+.db-field__error {
+  color: color-mix(in oklch, var(--db-danger) 82%, white);
+  font-size: var(--db-font-xs);
+}
+
+.db-input,
+.db-select,
+.db-textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--db-border) 90%, transparent);
+  border-radius: var(--db-radius-md);
+  background: color-mix(in oklch, var(--db-bg) 88%, transparent);
+  color: var(--db-text);
+  outline: 0;
+}
+
+.db-input,
+.db-select {
+  min-height: var(--db-control-sm);
+  padding: 5px var(--db-space-3);
+  font-size: var(--db-font-sm);
+}
+
+.db-textarea {
+  min-height: 76px;
+  padding: var(--db-space-3);
+  resize: vertical;
+}
+
+.db-input::placeholder,
+.db-textarea::placeholder {
+  color: var(--db-text-subtle);
+  opacity: 1;
+}
+
+.db-input:focus,
+.db-select:focus,
+.db-textarea:focus {
+  border-color: color-mix(in oklch, var(--db-accent) 58%, var(--db-border));
+  box-shadow: var(--db-focus-ring);
+}
+
+.db-input[aria-invalid="true"],
+.db-select[aria-invalid="true"],
+.db-textarea[aria-invalid="true"],
+.db-input--invalid,
+.db-select--invalid,
+.db-textarea--invalid,
+.db-field--invalid .db-input,
+.db-field--invalid .db-select,
+.db-field--invalid .db-textarea {
+  border-color: color-mix(in oklch, var(--db-danger) 68%, var(--db-border));
+}
+
+.db-input--secret {
+  -webkit-text-security: disc;
+}
+
+.db-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--db-space-2);
+  color: var(--db-text-muted);
+  font-size: var(--db-font-sm);
+}
+
+.db-switch__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.db-switch__track {
+  width: 30px;
+  height: 16px;
+  border: 1px solid var(--db-border);
+  border-radius: 999px;
+  background: var(--db-surface-2);
+}
+
+.db-switch__input:checked + .db-switch__track {
+  border-color: var(--db-accent);
+  background: color-mix(in oklch, var(--db-accent) 35%, var(--db-surface-2));
+}
+
+.db-switch__input:focus-visible + .db-switch__track {
+  box-shadow: var(--db-focus-ring);
+}
